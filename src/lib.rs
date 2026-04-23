@@ -9,6 +9,7 @@ pub mod content_models;
 pub mod content_handlers;
 pub mod interview_models;
 pub mod interview_handlers;
+pub mod interview_session_handlers;
 pub mod progress_models;
 pub mod progress_handlers;
 
@@ -22,6 +23,7 @@ use crate::handlers::{AppState, register, login, get_me};
 use crate::admin_handlers::{admin_login, admin_me, list_users, get_user, delete_user};
 use crate::content_handlers::*;
 use crate::interview_handlers::*;
+use crate::interview_session_handlers::*;
 use crate::progress_handlers::*;
 use crate::seed::seed_admin;
 use tower_http::cors::{CorsLayer, Any};
@@ -87,7 +89,11 @@ pub async fn create_app() -> Router {
         .route("/modules/:id/lessons", get(public_list_lessons))
         .route("/lessons/:id", get(public_get_lesson))
         .route("/scenarios", get(public_list_scenarios))
-        .route("/scenarios/:id", get(public_get_scenario));
+        .route("/scenarios/:id", get(public_get_scenario))
+        // AI Interview Session (needs User Auth)
+        .route("/interviews/:scenario_id/start", post(start_interview_session))
+        .route("/interviews/sessions/:session_id/chat", post(send_chat_message))
+        .route("/interviews/sessions/:session_id/complete", post(complete_interview_session));
 
     // ============ User Progress Routes (auth required) ============
 
