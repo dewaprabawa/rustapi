@@ -12,6 +12,7 @@ async fn main() -> Result<(), Error> {
     run(service_fn(handler)).await
 }
 
+
 pub async fn handler(req: Request) -> Result<VercelResponse<VercelBody>, Error> {
     let app = APP.get_or_init(|| async {
         create_app().await
