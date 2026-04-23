@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use bson::oid::ObjectId;
 use chrono::{DateTime, Utc};
+use std::fmt;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Persona {
@@ -53,4 +54,66 @@ pub struct LoginRequest {
 pub struct AuthResponse {
     pub token: String,
     pub user: User,
+}
+
+// ============ Admin Models ============
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum Role {
+    Admin,
+    SuperAdmin,
+}
+
+impl fmt::Display for Role {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Role::Admin => write!(f, "admin"),
+            Role::SuperAdmin => write!(f, "superadmin"),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Admin {
+    #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
+    pub id: Option<ObjectId>,
+
+    pub email: String,
+    #[serde(skip_serializing)]
+    pub password: String, // hashed — never returned in responses
+    pub name: String,
+    pub role: Role,
+    pub is_active: bool,
+
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AdminLoginRequest {
+    pub email: String,
+    pub password: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct AdminAuthResponse {
+    pub token: String,
+    pub admin: Admin,
+}
+
+// ============ Pagination ============
+
+#[derive(Debug, Deserialize)]
+pub struct PaginationParams {
+    pub page: Option<u64>,
+    pub limit: Option<i64>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PaginatedResponse<T: Serialize> {
+    pub data: Vec<T>,
+    pub page: u64,
+    pub limit: i64,
+    pub total: u64,
 }

@@ -93,6 +93,8 @@ pub async fn get_me(
 pub enum AppError {
     InvalidCredentials,
     UserAlreadyExists,
+    Forbidden,
+    NotFound,
     InternalServerError,
     DatabaseError(#[allow(dead_code)] mongodb::error::Error),
 }
@@ -108,6 +110,8 @@ impl IntoResponse for AppError {
         let (status, error_message) = match self {
             AppError::InvalidCredentials => (StatusCode::UNAUTHORIZED, "Invalid email or password"),
             AppError::UserAlreadyExists => (StatusCode::CONFLICT, "User already exists"),
+            AppError::Forbidden => (StatusCode::FORBIDDEN, "Access denied"),
+            AppError::NotFound => (StatusCode::NOT_FOUND, "Resource not found"),
             AppError::InternalServerError => (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error"),
             AppError::DatabaseError(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Database error"),
         };
