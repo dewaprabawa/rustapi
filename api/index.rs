@@ -36,9 +36,18 @@ pub async fn handler(req: Request) -> Result<Response<ResponseBody>, Error> {
     let response_bytes = axum::body::to_bytes(axum_body, usize::MAX).await
         .map_err(|e| Error::from(e.to_string()))?;
 
-    // 5. Build the Vercel Response with the correct generic type
-    let vercel_body = ResponseBody::new(response_bytes.to_vec());
-    let vercel_response = Response::from_parts(parts, vercel_body);
+    // 5. Build the Vercel Response using ResponseBody::from() 
+    //    (matching the pattern used in vercel_runtime's own source code)
+    let body_str = String::from_utf8_lossy(&response_bytes).to_string();
+    let vercel_response = Response::builder()
+        .status(parts.status)
+        .body(ResponseBody::from(body_str))
+        .map_err(|e| Error::from(e.to_string()))?;
+
+    // Copy headers from axum response to vercel response
+    let (mut resp_parts, resp_body) = vercel_response.into_parts();
+    resp_parts.headers = parts.headers;
+    let vercel_response = Response::from_parts(resp_parts, resp_body);
 
     Ok(vercel_response)
 }
