@@ -1,0 +1,106 @@
+use serde::{Deserialize, Serialize};
+use bson::oid::ObjectId;
+use chrono::{DateTime, Utc};
+use serde_json::Value;
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum GameType {
+    RolePlay,
+    Listening,
+    PhraseBuilder,
+    FixSentence,
+    SpeedService,
+    Pronunciation,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct GameContent {
+    #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
+    pub id: Option<ObjectId>,
+    pub lesson_id: ObjectId,
+    pub game_type: GameType,
+    pub title: String,
+    pub instructions: String,
+    pub difficulty: String, // easy, medium, hard
+    pub data_json: Value,   // Flexible JSON for game specifics
+    pub ai_scenario_id: Option<ObjectId>, // Link to AI Scenario if role play
+    pub xp_reward: i64,
+    pub is_active: bool,
+    pub order: i32,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateGameRequest {
+    pub lesson_id: String,
+    pub game_type: GameType,
+    pub title: String,
+    pub instructions: String,
+    pub difficulty: String,
+    pub data_json: Value,
+    pub ai_scenario_id: Option<String>,
+    pub xp_reward: Option<i64>,
+    pub order: Option<i32>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateGameRequest {
+    pub title: Option<String>,
+    pub instructions: Option<String>,
+    pub difficulty: Option<String>,
+    pub data_json: Option<Value>,
+    pub ai_scenario_id: Option<String>,
+    pub xp_reward: Option<i64>,
+    pub is_active: Option<bool>,
+    pub order: Option<i32>,
+}
+
+// ============ Game Results ============
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct GameResult {
+    #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
+    pub id: Option<ObjectId>,
+    pub user_id: ObjectId,
+    pub game_id: ObjectId,
+    pub score: f64,
+    pub attempts: i32,
+    pub completed: bool,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SubmitGameResultRequest {
+    pub game_id: String,
+    pub score: f64,
+    pub attempts: i32,
+    pub completed: bool,
+}
+
+// ============ Speaking Results ============
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SpeakingResult {
+    #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
+    pub id: Option<ObjectId>,
+    pub user_id: ObjectId,
+    pub game_id: Option<ObjectId>,
+    pub sentence: String,
+    pub score: f64,
+    pub pronunciation_score: Option<f64>,
+    pub fluency_score: Option<f64>,
+    pub audio_url: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SubmitSpeakingRequest {
+    pub game_id: Option<String>,
+    pub sentence: String,
+    pub score: f64,
+    pub pronunciation_score: Option<f64>,
+    pub fluency_score: Option<f64>,
+    pub audio_url: Option<String>,
+}

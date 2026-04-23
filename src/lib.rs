@@ -12,6 +12,12 @@ pub mod interview_handlers;
 pub mod interview_session_handlers;
 pub mod progress_models;
 pub mod progress_handlers;
+pub mod game_models;
+pub mod game_handlers;
+pub mod rating_models;
+pub mod rating_handlers;
+pub mod monetization_models;
+pub mod monetization_handlers;
 
 use axum::{
     routing::{get, post, put, delete},
@@ -25,6 +31,9 @@ use crate::content_handlers::*;
 use crate::interview_handlers::*;
 use crate::interview_session_handlers::*;
 use crate::progress_handlers::*;
+use crate::game_handlers::*;
+use crate::rating_handlers::*;
+use crate::monetization_handlers::*;
 use crate::seed::seed_admin;
 use tower_http::cors::{CorsLayer, Any};
 
@@ -79,7 +88,16 @@ pub async fn create_app() -> Router {
         // Evaluation Weights
         .route("/evaluation-weights", get(get_evaluation_weights).put(update_evaluation_weights))
         // Gamification Config
-        .route("/gamification", get(get_gamification_config).put(update_gamification_config));
+        .route("/gamification", get(get_gamification_config).put(update_gamification_config))
+        // Game Engine
+        .route("/games", get(list_games).post(create_game))
+        .route("/games/:id", put(update_game).delete(delete_game))
+        // Ratings
+        .route("/ratings", get(list_ratings))
+        // Monetization & Feature Access
+        .route("/features", get(list_features))
+        .route("/features/:name", put(update_feature))
+        .route("/monetization/config", get(get_monetization_config).put(update_monetization_config));
 
     // ============ Public API Routes (for mobile app) ============
 
@@ -89,6 +107,7 @@ pub async fn create_app() -> Router {
         .route("/courses/:id/modules", get(public_list_modules))
         .route("/modules/:id/lessons", get(public_list_lessons))
         .route("/lessons/:id", get(public_get_lesson))
+        .route("/lessons/:id/games", get(public_list_lesson_games))
         .route("/scenarios", get(public_list_scenarios))
         .route("/scenarios/:id", get(public_get_scenario))
         // AI Interview Session (needs User Auth)
@@ -101,7 +120,14 @@ pub async fn create_app() -> Router {
     let progress_routes = Router::new()
         .route("/", get(get_progress))
         .route("/xp", post(add_xp))
-        .route("/quiz", post(submit_quiz));
+        .route("/quiz", post(submit_quiz))
+        .route("/game", post(submit_game_result))
+        .route("/speaking", post(submit_speaking_result));
+
+    // ============ Rating Routes (auth required) ============
+    
+    let rating_routes = Router::new()
+        .route("/lessons", post(submit_lesson_rating));
 
     Router::new()
         .route("/", get(root))
@@ -116,6 +142,8 @@ pub async fn create_app() -> Router {
         .nest("/api", public_content_routes)
         // User progress
         .nest("/progress", progress_routes)
+        // User ratings
+        .nest("/ratings", rating_routes)
         .layer(cors)
         .with_state(state)
 }
