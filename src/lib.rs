@@ -19,7 +19,7 @@ use axum::{
 };
 use mongodb::Client;
 use std::sync::Arc;
-use crate::handlers::{AppState, register, login, get_me};
+use crate::handlers::{AppState, register, login, get_me, update_onboarding};
 use crate::admin_handlers::{admin_login, admin_me, list_users, get_user, delete_user};
 use crate::content_handlers::*;
 use crate::interview_handlers::*;
@@ -84,6 +84,7 @@ pub async fn create_app() -> Router {
     // ============ Public API Routes (for mobile app) ============
 
     let public_content_routes = Router::new()
+        .route("/recommendations", get(public_recommendations))
         .route("/courses", get(public_list_courses))
         .route("/courses/:id/modules", get(public_list_modules))
         .route("/modules/:id/lessons", get(public_list_lessons))
@@ -108,6 +109,7 @@ pub async fn create_app() -> Router {
         .route("/auth/register", post(register))
         .route("/auth/login", post(login))
         .route("/auth/me", get(get_me))
+        .route("/auth/onboarding", put(update_onboarding))
         // Admin panel
         .nest("/admin", admin_routes)
         // Public content

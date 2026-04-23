@@ -4,7 +4,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use mongodb::{Client, Collection, bson::doc};
-use crate::models::{User, RegisterRequest, LoginRequest, AuthResponse, Progress};
+use crate::models::{User, RegisterRequest, LoginRequest, AuthResponse, Progress, Persona, OnboardingRequest};
 use crate::auth::{hash_password, verify_password, create_jwt};
 use chrono::Utc;
 use std::sync::Arc;
@@ -28,12 +28,19 @@ pub async fn register(
 
     let hashed_password = hash_password(&payload.password);
     
+    let default_persona = Persona {
+        level: "beginner".to_string(),
+        tone: "friendly".to_string(),
+        goal: "General".to_string(),
+        weakness: None,
+    };
+
     let new_user = User {
         id: None,
         email: payload.email,
         password: hashed_password,
         name: payload.name,
-        persona: payload.persona,
+        persona: payload.persona.unwrap_or(default_persona),
         progress: Progress {
             streak_days: 0,
             total_practice: 0,
@@ -86,6 +93,42 @@ pub async fn get_me(
     user: User, 
 ) -> impl IntoResponse {
     Json(user)
+}
+
+/// PUT /auth/onboarding
+/// Updates the user's persona after initial registration
+pub async fn update_onboarding(
+    State(state): State<Arc<AppState>>,
+    user: User,
+    Json(payload): Json<OnboardingRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    let collection: Collection<User> = state.db.database("rustapi").collection("users");
+
+    let updated_persona = Persona {
+        level: payload.level,
+        tone: payload.tone,
+        goal: payload.goal,
+        weakness: payload.weakness,
+    };
+
+    let result = collection.update_one(
+        doc! { "_id": user.id.unwrap() },
+        doc! { 
+            "$set": { 
+                "persona": mongodb::bson::to_bson(&updated_persona).unwrap(),
+                "updated_at": mongodb::bson::DateTime::now()
+            } 
+        }
+    ).await?;
+
+    if result.matched_count == 0 {
+        return Err(AppError::NotFound);
+    }
+
+    let updated_user = collection.find_one(doc! { "_id": user.id.unwrap() }).await?
+        .ok_or(AppError::NotFound)?;
+
+    Ok(Json(updated_user))
 }
 
 // Error Handling

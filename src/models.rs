@@ -41,7 +41,15 @@ pub struct RegisterRequest {
     pub email: String,
     pub password: String,
     pub name: Option<String>,
-    pub persona: Persona,
+    pub persona: Option<Persona>, // Optional so user can sign up first, onboard later
+}
+
+#[derive(Debug, Deserialize)]
+pub struct OnboardingRequest {
+    pub level: String,
+    pub tone: String,
+    pub goal: String,
+    pub weakness: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

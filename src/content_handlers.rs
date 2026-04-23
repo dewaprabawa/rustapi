@@ -5,7 +5,8 @@ use axum::{
 };
 use mongodb::{Collection, bson::doc};
 use crate::content_models::*;
-use crate::models::{Admin, PaginationParams, PaginatedResponse};
+use crate::interview_models::InterviewScenario;
+use crate::models::{Admin, PaginationParams, PaginatedResponse, User};
 use crate::handlers::{AppState, AppError};
 use std::sync::Arc;
 use bson::oid::ObjectId;
@@ -558,5 +559,68 @@ pub async fn public_get_lesson(
         "vocabulary": vocab,
         "dialogues": dialogues,
         "quizzes": quizzes,
+    })))
+}
+
+/// GET /api/recommendations — Get personalized courses and scenarios for the user based on their onboarding persona
+pub async fn public_recommendations(
+    State(state): State<Arc<AppState>>,
+    user: User,
+) -> Result<impl IntoResponse, AppError> {
+    let course_collection: Collection<Course> = state.db.database("rustapi").collection("courses");
+    let scenario_collection: Collection<InterviewScenario> = state.db.database("rustapi").collection("interview_scenarios");
+
+    let mut recommended_courses = vec![];
+    let mut recommended_scenarios = vec![];
+
+    // Try to find an exact match for both category/goal and level
+    // Note: level and category in the DB might be stored as lowercase strings matching the ContentCategory/ContentLevel enums
+    // Convert the user's string persona fields to match DB
+    let user_level = user.persona.level.to_lowercase();
+    let user_goal = user.persona.goal.to_lowercase();
+
+    let course_cursor = course_collection.find(doc! {
+        "is_published": true,
+        // Using $regex to be case insensitive, just in case
+        "level": { "$regex": format!("^{}$", user_level), "$options": "i" },
+        "category": { "$regex": format!("^{}$", user_goal), "$options": "i" },
+    }).await?;
+    
+    let exact_courses: Vec<Course> = course_cursor.try_collect().await?;
+    
+    // If no exact courses, just grab courses matching their level
+    if exact_courses.is_empty() {
+        let fallback_cursor = course_collection.find(doc! {
+            "is_published": true,
+            "level": { "$regex": format!("^{}$", user_level), "$options": "i" },
+        }).limit(5).await?;
+        recommended_courses = fallback_cursor.try_collect().await?;
+    } else {
+        recommended_courses = exact_courses;
+    }
+
+    // Do the same for scenarios
+    let scenario_cursor = scenario_collection.find(doc! {
+        "is_active": true,
+        "difficulty": { "$regex": format!("^{}$", user_level), "$options": "i" },
+        "category": { "$regex": format!("^{}$", user_goal), "$options": "i" },
+    }).await?;
+
+    let exact_scenarios: Vec<InterviewScenario> = scenario_cursor.try_collect().await?;
+
+    if exact_scenarios.is_empty() {
+        let fallback_cursor = scenario_collection.find(doc! {
+            "is_active": true,
+            "difficulty": { "$regex": format!("^{}$", user_level), "$options": "i" },
+        }).limit(5).await?;
+        recommended_scenarios = fallback_cursor.try_collect().await?;
+    } else {
+        recommended_scenarios = exact_scenarios;
+    }
+
+    Ok(Json(serde_json::json!({
+        "persona": user.persona,
+        "recommended_courses": recommended_courses,
+        "recommended_scenarios": recommended_scenarios,
     })))
 }
