@@ -1,7 +1,7 @@
 use rustapi::create_app;
 use vercel_runtime::{run, service_fn, Body as VercelBody, Error, Request, Response as VercelResponse};
 use tower::ServiceExt;
-use axum::body::Body as AxumBody;
+use axum::body::{Body as AxumBody, to_bytes};
 use tokio::sync::OnceCell;
 use axum::Router;
 
@@ -22,13 +22,16 @@ pub async fn handler(req: Request) -> Result<VercelResponse<VercelBody>, Error> 
     let axum_req = axum::http::Request::from_parts(parts, AxumBody::from(body));
 
     // Process request with Axum
-    let response = app.clone().oneshot(axum_req).await?;
+    let response = app.clone().oneshot(axum_req).await
+        .map_err(|e| Error::from(e.to_string()))?;
 
     // Convert Axum Response to Vercel Response
     let (parts, body) = response.into_parts();
     
-    // Axum 0.7 uses axum::body::Body which can be converted to bytes
-    let bytes = axum::body::to_bytes(body, usize::MAX).await?;
+    // Convert Axum Body to Bytes
+    let bytes = to_bytes(body, usize::MAX).await
+        .map_err(|e| Error::from(e.to_string()))?;
+        
     let vercel_res = VercelResponse::from_parts(parts, VercelBody::Binary(bytes.to_vec()));
 
     Ok(vercel_res)
