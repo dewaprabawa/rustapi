@@ -17,6 +17,7 @@ dotenvy = "0.15"
 tower-http = { version = "0.5", features = ["cors"] }
 tower = { version = "0.5", features = ["util"] }
 vercel_runtime = "2"
+http-body-util = "0.1"
 
 [[bin]]
 name = "index"

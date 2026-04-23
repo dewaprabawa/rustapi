@@ -1,7 +1,8 @@
 use rustapi::create_app;
-use vercel_runtime::{run, service_fn, Error, Request, Response};
+use vercel_runtime::{run, service_fn, Error, Request, Response, ResponseBody};
 use tower::ServiceExt;
-use axum::body::{Body as AxumBody, to_bytes};
+use axum::body::Body as AxumBody;
+use http_body_util::BodyExt;
 use tokio::sync::OnceCell;
 use axum::Router;
 
@@ -12,34 +13,32 @@ async fn main() -> Result<(), Error> {
     run(service_fn(handler)).await
 }
 
-
-pub async fn handler(req: Request) -> Result<Response, Error> {
+pub async fn handler(req: Request) -> Result<Response<ResponseBody>, Error> {
     let app = APP.get_or_init(|| async {
         create_app().await
     }).await;
 
-    // Convert Vercel Request to Axum Request
-    // Note: Request is likely http::Request<vercel_runtime::Body>
+    // 1. Convert Vercel Request (hyper::body::Incoming) to bytes first
     let (parts, body) = req.into_parts();
-    // Vercel Body can be converted to Axum Body
-    let axum_req = axum::http::Request::from_parts(parts, AxumBody::from(body));
+    let collected = body.collect().await
+        .map_err(|e| Error::from(e.to_string()))?;
+    let bytes = collected.to_bytes();
 
-    // Process request with Axum
+    // 2. Create Axum-compatible request from the bytes
+    let axum_req = axum::http::Request::from_parts(parts, AxumBody::from(bytes));
+
+    // 3. Process request with the Axum router
     let response = app.clone().oneshot(axum_req).await
         .map_err(|e| Error::from(e.to_string()))?;
 
-    // Convert Axum Response to Vercel Response
-    let (parts, body) = response.into_parts();
-    
-    // Convert Axum Body to Bytes
-    let bytes = to_bytes(body, usize::MAX).await
-        .map_err(|e| Error::from(e.to_string()))?;
-        
-    // Construct Vercel Response
-    let vercel_res = Response::builder()
-        .status(parts.status)
-        .body(bytes.to_vec().into())
+    // 4. Convert the Axum response back to a Vercel response
+    let (parts, axum_body) = response.into_parts();
+    let response_bytes = axum::body::to_bytes(axum_body, usize::MAX).await
         .map_err(|e| Error::from(e.to_string()))?;
 
-    Ok(vercel_res)
+    // 5. Build the Vercel Response with the correct generic type
+    let vercel_body = ResponseBody::new(response_bytes.to_vec());
+    let vercel_response = Response::from_parts(parts, vercel_body);
+
+    Ok(vercel_response)
 }
