@@ -4,7 +4,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use mongodb::{Client, Collection, bson::doc};
-use crate::models::{User, RegisterRequest, LoginRequest, FirebaseLoginRequest, AuthResponse, Progress, Persona, OnboardingRequest};
+use crate::models::{User, RegisterRequest, LoginRequest, FirebaseLoginRequest, AuthResponse, Progress, Persona, OnboardingRequest, UpdateFcmTokenRequest};
 use crate::auth::{hash_password, verify_password, create_jwt};
 use chrono::Utc;
 use std::sync::Arc;
@@ -43,6 +43,7 @@ pub async fn register(
         password: hashed_password,
         name: payload.name,
         profile_image_url: None,
+        fcm_token: None,
         persona: payload.persona.unwrap_or(default_persona),
         progress: Progress {
             streak_days: 0,
@@ -215,6 +216,7 @@ pub async fn firebase_login(
             password: hash_password(&random_password),
             name: claims.name,
             profile_image_url: claims.picture,
+            fcm_token: None,
             persona: default_persona,
             progress: Progress {
                 streak_days: 0,
@@ -302,6 +304,26 @@ pub async fn upload_profile_image(
         .ok_or(AppError::NotFound)?;
 
     Ok(Json(updated_user))
+}
+
+pub async fn update_fcm_token(
+    State(state): State<Arc<AppState>>,
+    user: User,
+    Json(payload): Json<UpdateFcmTokenRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    let collection: Collection<User> = state.db.database("rustapi").collection("users");
+
+    collection.update_one(
+        doc! { "_id": user.id.unwrap() },
+        doc! { 
+            "$set": { 
+                "fcm_token": payload.fcm_token,
+                "updated_at": mongodb::bson::DateTime::now()
+            } 
+        }
+    ).await?;
+
+    Ok(Json(serde_json::json!({"message": "FCM token updated successfully"})))
 }
 
 // Error Handling

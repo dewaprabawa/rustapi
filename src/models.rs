@@ -26,6 +26,7 @@ pub struct User {
     pub password: String, // hashed
     pub name: Option<String>,
     pub profile_image_url: Option<String>,
+    pub fcm_token: Option<String>,
 
     pub persona: Persona,
     pub progress: Progress,
@@ -62,6 +63,11 @@ pub struct LoginRequest {
 #[derive(Debug, Deserialize)]
 pub struct FirebaseLoginRequest {
     pub id_token: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateFcmTokenRequest {
+    pub fcm_token: String,
 }
 
 #[derive(Debug, Serialize)]

@@ -32,6 +32,7 @@ use utoipa::OpenApi;
         crate::swagger::auth_me,
         crate::swagger::auth_onboarding,
         crate::swagger::auth_upload_profile_image,
+        crate::swagger::auth_update_fcm_token,
         // Admin Auth
         crate::swagger::admin_login,
         crate::swagger::admin_me,
@@ -117,7 +118,7 @@ use utoipa::OpenApi;
         // Generic
         ErrorResponse,
         // Auth schemas
-        RegisterRequest, LoginRequest, FirebaseLoginRequest, OnboardingRequest, AuthResponse, UserPublic, Persona, Progress, NotificationRequestPublic, NotificationPublic,
+        RegisterRequest, LoginRequest, FirebaseLoginRequest, OnboardingRequest, UpdateFcmTokenRequestPublic, AuthResponse, UserPublic, Persona, Progress, NotificationRequestPublic, NotificationPublic,
         // Admin
         AdminLoginRequest, AdminAuthResponse, AdminPublic,
         // Pagination
@@ -182,6 +183,11 @@ pub struct OnboardingRequest {
     pub weakness: Option<String>,
 }
 
+#[derive(utoipa::ToSchema, serde::Deserialize)]
+pub struct UpdateFcmTokenRequestPublic {
+    pub fcm_token: String,
+}
+
 #[derive(utoipa::ToSchema, serde::Serialize)]
 pub struct Persona {
     pub level: String,
@@ -202,6 +208,7 @@ pub struct UserPublic {
     pub email: String,
     pub name: Option<String>,
     pub profile_image_url: Option<String>,
+    pub fcm_token: Option<String>,
     pub persona: Persona,
     pub progress: Progress,
 }
@@ -275,6 +282,11 @@ pub async fn auth_onboarding() {}
     request_body(content = String, description = "Image file", content_type = "multipart/form-data"),
     responses((status = 200, description = "Profile image uploaded", body = UserPublic)))]
 pub async fn auth_upload_profile_image() {}
+
+#[utoipa::path(put, path = "/auth/fcm-token", tag = "Auth", security(("bearer_auth" = [])),
+    request_body = UpdateFcmTokenRequestPublic,
+    responses((status = 200, description = "FCM token updated successfully")))]
+pub async fn auth_update_fcm_token() {}
 
 // ── Admin Auth ──
 

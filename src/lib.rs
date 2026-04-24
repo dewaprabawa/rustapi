@@ -19,7 +19,7 @@ use axum::{
 };
 use mongodb::Client;
 use std::sync::Arc;
-use crate::handlers::{AppState, register, login, firebase_login, get_me, update_onboarding, upload_profile_image};
+use crate::handlers::{AppState, register, login, firebase_login, get_me, update_onboarding, upload_profile_image, update_fcm_token};
 use crate::admin::handlers::{admin_login, admin_me, list_users, get_user, delete_user};
 use crate::content::handlers::*;
 use crate::interview::handlers::*;
@@ -143,6 +143,7 @@ pub async fn create_app() -> Router {
         .route("/auth/me", get(get_me))
         .route("/auth/onboarding", put(update_onboarding))
         .route("/auth/profile-image", post(upload_profile_image))
+        .route("/auth/fcm-token", put(update_fcm_token))
         // Admin panel
         .nest("/admin", admin_routes)
         // Public content
