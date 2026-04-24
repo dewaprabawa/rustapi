@@ -20,7 +20,7 @@ vercel_runtime = "2"
 http-body-util = "0.1"
 futures = "0.3"
 utoipa = { version = "5", features = ["axum_extras"] }
-utoipa-swagger-ui = { version = "9", features = ["axum"] }
+utoipa-swagger-ui = { version = "8", features = ["axum"] }
 
 [[bin]]
 name = "index"

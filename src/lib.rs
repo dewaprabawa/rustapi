@@ -1,4 +1,5 @@
 pub mod models;
+pub mod swagger;
 pub mod auth;
 pub mod handlers;
 pub mod middleware;
@@ -28,6 +29,9 @@ use crate::rating::handlers::*;
 use crate::monetization::handlers::*;
 use crate::seed::seed_admin;
 use tower_http::cors::{CorsLayer, Any};
+use utoipa::OpenApi;
+use utoipa_swagger_ui::SwaggerUi;
+use crate::swagger::ApiDoc;
 
 pub async fn create_app() -> Router {
     let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
@@ -123,6 +127,8 @@ pub async fn create_app() -> Router {
 
     Router::new()
         .route("/", get(root))
+        // Swagger UI
+        .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))
         // Auth
         .route("/auth/register", post(register))
         .route("/auth/login", post(login))
