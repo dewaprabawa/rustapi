@@ -22,6 +22,7 @@ use utoipa::OpenApi;
         (name = "Public Interviews", description = "AI interview sessions"),
         (name = "Progress", description = "User XP, quiz & game progress tracking"),
         (name = "Ratings", description = "User lesson ratings"),
+        (name = "Notifications", description = "User & system notifications"),
     ),
     paths(
         // Auth
@@ -107,12 +108,16 @@ use utoipa::OpenApi;
         crate::swagger::submit_speaking_result,
         // Ratings
         crate::swagger::submit_lesson_rating,
+        // Notifications
+        crate::swagger::admin_send_notification,
+        crate::swagger::list_notifications,
+        crate::swagger::mark_notification_read,
     ),
     components(schemas(
         // Generic
         ErrorResponse,
         // Auth schemas
-        RegisterRequest, LoginRequest, FirebaseLoginRequest, OnboardingRequest, AuthResponse, UserPublic, Persona, Progress,
+        RegisterRequest, LoginRequest, FirebaseLoginRequest, OnboardingRequest, AuthResponse, UserPublic, Persona, Progress, NotificationRequestPublic, NotificationPublic,
         // Admin
         AdminLoginRequest, AdminAuthResponse, AdminPublic,
         // Pagination
@@ -575,3 +580,37 @@ pub async fn submit_speaking_result() {}
 #[utoipa::path(post, path = "/ratings/lessons", tag = "Ratings", security(("bearer_auth" = [])),
     responses((status = 200, description = "Rating submitted")))]
 pub async fn submit_lesson_rating() {}
+
+// ── Notifications ──
+
+#[derive(utoipa::ToSchema, serde::Deserialize)]
+pub struct NotificationRequestPublic {
+    pub user_id: Option<String>,
+    pub title: String,
+    pub message: String,
+}
+
+#[derive(utoipa::ToSchema, serde::Serialize)]
+pub struct NotificationPublic {
+    pub id: String,
+    pub user_id: Option<String>,
+    pub title: String,
+    pub message: String,
+    pub is_read: bool,
+    pub created_at: String,
+}
+
+#[utoipa::path(post, path = "/admin/notifications", tag = "Notifications", security(("bearer_auth" = [])),
+    request_body = NotificationRequestPublic,
+    responses((status = 201, description = "Notification sent", body = NotificationPublic)))]
+pub async fn admin_send_notification() {}
+
+#[utoipa::path(get, path = "/api/notifications", tag = "Notifications", security(("bearer_auth" = [])),
+    params(PaginationParams),
+    responses((status = 200, description = "List user notifications")))]
+pub async fn list_notifications() {}
+
+#[utoipa::path(put, path = "/api/notifications/{id}/read", tag = "Notifications", security(("bearer_auth" = [])),
+    params(("id" = String, Path, description = "Notification ID")),
+    responses((status = 200, description = "Notification marked as read")))]
+pub async fn mark_notification_read() {}

@@ -179,6 +179,18 @@ pub async fn submit_quiz(
                 "$set": { "updated_at": mongodb::bson::DateTime::now() }
             }
         ).await?;
+
+        // Send Notification
+        let notif_col: Collection<crate::models::Notification> = state.db.database("rustapi").collection("notifications");
+        let notif = crate::models::Notification {
+            id: None,
+            user_id: Some(user_id),
+            title: "Quiz Passed! 🏆".to_string(),
+            message: format!("Congratulations on passing the quiz! You earned {} XP.", xp_earned),
+            is_read: false,
+            created_at: Utc::now(),
+        };
+        let _ = notif_col.insert_one(notif).await;
     }
 
     Ok(Json(serde_json::json!({

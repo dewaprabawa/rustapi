@@ -63,6 +63,18 @@ pub async fn register(
     let token = create_jwt(&inserted_id.to_string(), &state.jwt_secret)
         .map_err(|_| AppError::InternalServerError)?;
 
+    // Send welcome notification
+    let notifications_collection: Collection<crate::models::Notification> = state.db.database("rustapi").collection("notifications");
+    let welcome_notification = crate::models::Notification {
+        id: None,
+        user_id: Some(inserted_id),
+        title: "Welcome to Hospitality English Learning! 🎉".to_string(),
+        message: "We're excited to have you here. Start by exploring our courses and lessons to improve your hospitality English skills.".to_string(),
+        is_read: false,
+        created_at: Utc::now(),
+    };
+    let _ = notifications_collection.insert_one(welcome_notification).await;
+
     Ok((StatusCode::CREATED, Json(AuthResponse { token, user: user_with_id })))
 }
 

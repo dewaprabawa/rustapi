@@ -11,6 +11,7 @@ pub mod progress;
 pub mod game;
 pub mod rating;
 pub mod monetization;
+pub mod notification;
 
 use axum::{
     routing::{get, post, put, delete},
@@ -27,6 +28,7 @@ use crate::progress::handlers::*;
 use crate::game::handlers::*;
 use crate::rating::handlers::*;
 use crate::monetization::handlers::*;
+use crate::notification::handlers::{send_notification, list_notifications, mark_notification_read};
 use crate::seed::seed_admin;
 use tower_http::cors::{CorsLayer, Any};
 use utoipa::OpenApi;
@@ -93,7 +95,9 @@ pub async fn create_app() -> Router {
         // Monetization & Feature Access
         .route("/features", get(list_features))
         .route("/features/:name", put(update_feature))
-        .route("/monetization/config", get(get_monetization_config).put(update_monetization_config));
+        .route("/monetization/config", get(get_monetization_config).put(update_monetization_config))
+        // Notifications
+        .route("/notifications", post(send_notification));
 
     // ============ Public API Routes (for mobile app) ============
 
@@ -109,7 +113,10 @@ pub async fn create_app() -> Router {
         // AI Interview Session (needs User Auth)
         .route("/interviews/:scenario_id/start", post(start_interview_session))
         .route("/interviews/sessions/:session_id/chat", post(send_chat_message))
-        .route("/interviews/sessions/:session_id/complete", post(complete_interview_session));
+        .route("/interviews/sessions/:session_id/complete", post(complete_interview_session))
+        // Notifications
+        .route("/notifications", get(list_notifications))
+        .route("/notifications/:id/read", put(mark_notification_read));
 
     // ============ User Progress Routes (auth required) ============
 

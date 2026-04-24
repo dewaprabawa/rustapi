@@ -131,3 +131,23 @@ pub struct PaginatedResponse<T: Serialize> {
     pub limit: i64,
     pub total: u64,
 }
+
+// ============ Notifications ============
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Notification {
+    #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
+    pub id: Option<ObjectId>,
+    pub user_id: Option<ObjectId>, // If None, it's a broadcast to all users
+    pub title: String,
+    pub message: String,
+    pub is_read: bool,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct NotificationRequest {
+    pub user_id: Option<String>,
+    pub title: String,
+    pub message: String,
+}
