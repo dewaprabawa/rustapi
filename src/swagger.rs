@@ -29,6 +29,7 @@ use utoipa::OpenApi;
         crate::swagger::auth_login,
         crate::swagger::auth_me,
         crate::swagger::auth_onboarding,
+        crate::swagger::auth_upload_profile_image,
         // Admin Auth
         crate::swagger::admin_login,
         crate::swagger::admin_me,
@@ -189,6 +190,7 @@ pub struct UserPublic {
     pub id: String,
     pub email: String,
     pub name: Option<String>,
+    pub profile_image_url: Option<String>,
     pub persona: Persona,
     pub progress: Progress,
 }
@@ -251,6 +253,11 @@ pub async fn auth_me() {}
     request_body = OnboardingRequest,
     responses((status = 200, body = UserPublic)))]
 pub async fn auth_onboarding() {}
+
+#[utoipa::path(post, path = "/auth/profile-image", tag = "Auth", security(("bearer_auth" = [])),
+    request_body(content = String, description = "Image file", content_type = "multipart/form-data"),
+    responses((status = 200, description = "Profile image uploaded", body = UserPublic)))]
+pub async fn auth_upload_profile_image() {}
 
 // ── Admin Auth ──
 

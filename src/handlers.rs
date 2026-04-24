@@ -1,5 +1,5 @@
 use axum::{
-    extract::{State, Json},
+    extract::{State, Json, Multipart},
     http::StatusCode,
     response::{IntoResponse, Response},
 };
@@ -40,6 +40,7 @@ pub async fn register(
         email: payload.email,
         password: hashed_password,
         name: payload.name,
+        profile_image_url: None,
         persona: payload.persona.unwrap_or(default_persona),
         progress: Progress {
             streak_days: 0,
@@ -124,6 +125,72 @@ pub async fn update_onboarding(
     if result.matched_count == 0 {
         return Err(AppError::NotFound);
     }
+
+    let updated_user = collection.find_one(doc! { "_id": user.id.unwrap() }).await?
+        .ok_or(AppError::NotFound)?;
+
+    Ok(Json(updated_user))
+}
+
+pub async fn upload_profile_image(
+    State(state): State<Arc<AppState>>,
+    user: User,
+    mut multipart: Multipart,
+) -> Result<impl IntoResponse, AppError> {
+    let mut image_bytes = None;
+    let mut filename = None;
+    let mut content_type = None;
+
+    while let Some(field) = multipart.next_field().await.map_err(|_| AppError::InternalServerError)? {
+        if field.name() == Some("image") {
+            filename = field.file_name().map(|s| s.to_string());
+            content_type = field.content_type().map(|s| s.to_string());
+            image_bytes = Some(field.bytes().await.map_err(|_| AppError::InternalServerError)?);
+            break;
+        }
+    }
+
+    let image_bytes = image_bytes.ok_or(AppError::InvalidCredentials)?; // or another error type like BadRequest
+    let filename = filename.unwrap_or_else(|| "profile.jpg".to_string());
+    let content_type = content_type.unwrap_or_else(|| "image/jpeg".to_string());
+
+    let supabase_url = "https://jliibnwjluancnoayayd.supabase.co";
+    let supabase_key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpsaWlibndqbHVhbmNub2F5YXlkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwMDUxOTMsImV4cCI6MjA5MjU4MTE5M30.PDGYaSPI9bf4pfSwxrJJ6zAGHZRiQ-ezncn-d2MZoQE";
+    
+    // We use the `rustapi` bucket.
+    let user_id = user.id.unwrap().to_string();
+    let ext = filename.split('.').last().unwrap_or("jpg");
+    let object_path = format!("{}/profile.{}", user_id, ext);
+    let upload_url = format!("{}/storage/v1/object/rustapi/{}", supabase_url, object_path);
+
+    let client = reqwest::Client::new();
+    let res = client.post(&upload_url)
+        .header("Authorization", format!("Bearer {}", supabase_key))
+        .header("apikey", supabase_key)
+        .header("Content-Type", content_type)
+        .body(image_bytes)
+        .send()
+        .await
+        .map_err(|_| AppError::InternalServerError)?;
+
+    if !res.status().is_success() {
+        let err_text = res.text().await.unwrap_or_default();
+        println!("Supabase upload error: {}", err_text);
+        return Err(AppError::InternalServerError);
+    }
+
+    let public_url = format!("{}/storage/v1/object/public/rustapi/{}", supabase_url, object_path);
+
+    let collection: Collection<User> = state.db.database("rustapi").collection("users");
+    collection.update_one(
+        doc! { "_id": user.id.unwrap() },
+        doc! { 
+            "$set": { 
+                "profile_image_url": &public_url,
+                "updated_at": mongodb::bson::DateTime::now()
+            } 
+        }
+    ).await?;
 
     let updated_user = collection.find_one(doc! { "_id": user.id.unwrap() }).await?
         .ok_or(AppError::NotFound)?;

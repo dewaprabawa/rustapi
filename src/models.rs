@@ -25,6 +25,7 @@ pub struct User {
     pub email: String,
     pub password: String, // hashed
     pub name: Option<String>,
+    pub profile_image_url: Option<String>,
 
     pub persona: Persona,
     pub progress: Progress,
