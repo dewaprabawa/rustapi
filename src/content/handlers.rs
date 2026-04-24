@@ -4,8 +4,8 @@ use axum::{
     response::IntoResponse,
 };
 use mongodb::{Collection, bson::doc};
-use crate::content_models::*;
-use crate::interview_models::InterviewScenario;
+use crate::content::models::*;
+use crate::interview::models::InterviewScenario;
 use crate::models::{Admin, PaginationParams, PaginatedResponse, User};
 use crate::handlers::{AppState, AppError};
 use std::sync::Arc;

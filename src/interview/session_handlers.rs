@@ -4,13 +4,12 @@ use axum::{
     response::IntoResponse,
 };
 use mongodb::{Collection, bson::doc};
-use crate::interview_models::{InterviewSession, TranscriptEntry, InterviewScenario, InterviewQuestion};
+use crate::interview::models::{InterviewSession, TranscriptEntry, InterviewScenario};
 use crate::models::User;
 use crate::handlers::{AppState, AppError};
 use std::sync::Arc;
 use bson::oid::ObjectId;
 use chrono::Utc;
-use futures::TryStreamExt;
 
 #[derive(Debug, serde::Deserialize)]
 pub struct ChatRequest {

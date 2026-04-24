@@ -3,7 +3,7 @@ use axum::{
     http::StatusCode,
     response::IntoResponse,
 };
-use mongodb::{Client, Collection, bson::doc};
+use mongodb::{Collection, bson::doc};
 use crate::models::{Admin, AdminLoginRequest, AdminAuthResponse, User, PaginationParams, PaginatedResponse};
 use crate::handlers::AppError;
 use crate::auth::{verify_password, create_admin_jwt};

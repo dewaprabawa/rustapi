@@ -4,12 +4,11 @@ use axum::{
     response::IntoResponse,
 };
 use mongodb::{Collection, bson::doc};
-use crate::rating_models::*;
+use crate::rating::models::*;
 use crate::models::{User, PaginationParams, PaginatedResponse};
 use crate::handlers::{AppState, AppError};
 use std::sync::Arc;
 use bson::oid::ObjectId;
-use chrono::Utc;
 use futures::TryStreamExt;
 use mongodb::options::FindOptions;
 
@@ -39,7 +38,7 @@ pub async fn submit_lesson_rating(
 
     let options = mongodb::options::UpdateOptions::builder().upsert(true).build();
 
-    let result = collection.update_one(
+    let _result = collection.update_one(
         filter.clone(),
         doc! { 
             "$set": update,

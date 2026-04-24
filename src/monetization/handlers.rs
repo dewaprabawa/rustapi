@@ -3,7 +3,7 @@ use axum::{
     response::IntoResponse,
 };
 use mongodb::{Collection, bson::doc};
-use crate::monetization_models::*;
+use crate::monetization::models::*;
 use crate::models::Admin;
 use crate::handlers::{AppState, AppError};
 use std::sync::Arc;

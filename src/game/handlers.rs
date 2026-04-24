@@ -4,7 +4,7 @@ use axum::{
     response::IntoResponse,
 };
 use mongodb::{Collection, bson::doc};
-use crate::game_models::*;
+use crate::game::models::*;
 use crate::models::{Admin, User, PaginationParams, PaginatedResponse};
 use crate::handlers::{AppState, AppError};
 use std::sync::Arc;
@@ -165,10 +165,10 @@ pub async fn submit_game_result(
     if payload.completed {
         let game_coll: Collection<GameContent> = state.db.database("rustapi").collection("games");
         if let Some(game) = game_coll.find_one(doc! { "_id": game_id }).await? {
-            crate::progress_handlers::add_xp(
+            crate::progress::handlers::add_xp(
                 State(state),
                 user,
-                Json(crate::progress_models::AddXPRequest { 
+                Json(crate::progress::models::AddXPRequest { 
                     xp: game.xp_reward, 
                     lesson_id: Some(game.lesson_id.to_string()), 
                     quiz_id: None 

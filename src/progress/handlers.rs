@@ -3,7 +3,7 @@ use axum::{
     response::IntoResponse,
 };
 use mongodb::{Collection, bson::doc};
-use crate::progress_models::*;
+use crate::progress::models::*;
 use crate::models::User;
 use crate::handlers::{AppState, AppError};
 use std::sync::Arc;
@@ -130,7 +130,7 @@ pub async fn submit_quiz(
     let quiz_id = ObjectId::parse_str(&payload.quiz_id).map_err(|_| AppError::NotFound)?;
 
     // Fetch the quiz
-    let quiz_collection: Collection<crate::content_models::Quiz> = state.db.database("rustapi").collection("quizzes");
+    let quiz_collection: Collection<crate::content::models::Quiz> = state.db.database("rustapi").collection("quizzes");
     let quiz = quiz_collection.find_one(doc! { "_id": quiz_id }).await?
         .ok_or(AppError::NotFound)?;
 

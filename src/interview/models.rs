@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use bson::oid::ObjectId;
 use chrono::{DateTime, Utc};
-use crate::content_models::ContentCategory;
+use crate::content::models::ContentCategory;
 
 // ============ Interview Scenario ============
 

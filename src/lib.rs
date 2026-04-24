@@ -2,22 +2,14 @@ pub mod models;
 pub mod auth;
 pub mod handlers;
 pub mod middleware;
-pub mod admin_handlers;
-pub mod admin_middleware;
+pub mod admin;
 pub mod seed;
-pub mod content_models;
-pub mod content_handlers;
-pub mod interview_models;
-pub mod interview_handlers;
-pub mod interview_session_handlers;
-pub mod progress_models;
-pub mod progress_handlers;
-pub mod game_models;
-pub mod game_handlers;
-pub mod rating_models;
-pub mod rating_handlers;
-pub mod monetization_models;
-pub mod monetization_handlers;
+pub mod content;
+pub mod interview;
+pub mod progress;
+pub mod game;
+pub mod rating;
+pub mod monetization;
 
 use axum::{
     routing::{get, post, put, delete},
@@ -26,14 +18,14 @@ use axum::{
 use mongodb::Client;
 use std::sync::Arc;
 use crate::handlers::{AppState, register, login, get_me, update_onboarding};
-use crate::admin_handlers::{admin_login, admin_me, list_users, get_user, delete_user};
-use crate::content_handlers::*;
-use crate::interview_handlers::*;
-use crate::interview_session_handlers::*;
-use crate::progress_handlers::*;
-use crate::game_handlers::*;
-use crate::rating_handlers::*;
-use crate::monetization_handlers::*;
+use crate::admin::handlers::{admin_login, admin_me, list_users, get_user, delete_user};
+use crate::content::handlers::*;
+use crate::interview::handlers::*;
+use crate::interview::session_handlers::*;
+use crate::progress::handlers::*;
+use crate::game::handlers::*;
+use crate::rating::handlers::*;
+use crate::monetization::handlers::*;
 use crate::seed::seed_admin;
 use tower_http::cors::{CorsLayer, Any};
 
