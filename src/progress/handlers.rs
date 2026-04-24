@@ -180,17 +180,17 @@ pub async fn submit_quiz(
             }
         ).await?;
 
-        // Send Notification
-        let notif_col: Collection<crate::models::Notification> = state.db.database("rustapi").collection("notifications");
-        let notif = crate::models::Notification {
-            id: None,
-            user_id: Some(user_id),
-            title: "Quiz Passed! 🏆".to_string(),
-            message: format!("Congratulations on passing the quiz! You earned {} XP.", xp_earned),
-            is_read: false,
-            created_at: Utc::now(),
-        };
-        let _ = notif_col.insert_one(notif).await;
+        // Send Notification (saves to DB + sends FCM push)
+        let db_clone = state.db.clone();
+        let message = format!("Congratulations on passing the quiz! You earned {} XP.", xp_earned);
+        tokio::spawn(async move {
+            crate::notification::create_and_push_notification(
+                &db_clone,
+                Some(user_id),
+                "Quiz Passed! 🏆",
+                &message,
+            ).await;
+        });
     }
 
     Ok(Json(serde_json::json!({
