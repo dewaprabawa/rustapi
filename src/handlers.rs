@@ -4,11 +4,13 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use mongodb::{Client, Collection, bson::doc};
-use crate::models::{User, RegisterRequest, LoginRequest, AuthResponse, Progress, Persona, OnboardingRequest};
+use crate::models::{User, RegisterRequest, LoginRequest, FirebaseLoginRequest, AuthResponse, Progress, Persona, OnboardingRequest};
 use crate::auth::{hash_password, verify_password, create_jwt};
 use chrono::Utc;
 use std::sync::Arc;
-use serde_json::json;
+use serde_json::{json, Value};
+use jsonwebtoken::{decode_header, decode, DecodingKey, Validation, Algorithm};
+use serde::{Deserialize, Serialize};
 
 pub struct AppState {
     pub db: Client,
@@ -130,6 +132,98 @@ pub async fn update_onboarding(
         .ok_or(AppError::NotFound)?;
 
     Ok(Json(updated_user))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct FirebaseClaims {
+    pub email: Option<String>,
+    pub name: Option<String>,
+    pub picture: Option<String>,
+    pub sub: String,
+}
+
+pub async fn firebase_login(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<FirebaseLoginRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    // 1. Fetch Google's public keys
+    let keys_url = "https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com";
+    let certs: std::collections::HashMap<String, String> = reqwest::get(keys_url)
+        .await
+        .map_err(|_| AppError::InternalServerError)?
+        .json()
+        .await
+        .map_err(|_| AppError::InternalServerError)?;
+
+    // 2. Decode JWT header to find the kid
+    let header = decode_header(&payload.id_token).map_err(|_| AppError::InvalidCredentials)?;
+    let kid = header.kid.ok_or(AppError::InvalidCredentials)?;
+
+    // 3. Get the correct certificate
+    let cert_pem = certs.get(&kid).ok_or(AppError::InvalidCredentials)?;
+    
+    // 4. Decode and validate the token (RS256)
+    let mut validation = Validation::new(Algorithm::RS256);
+    validation.set_audience(&["rustapi-34bbb"]);
+    validation.set_issuer(&["https://securetoken.google.com/rustapi-34bbb"]);
+    let token_data = decode::<FirebaseClaims>(
+        &payload.id_token,
+        &DecodingKey::from_rsa_pem(cert_pem.as_bytes()).map_err(|_| AppError::InternalServerError)?,
+        &validation,
+    ).map_err(|_| AppError::InvalidCredentials)?;
+
+    let claims = token_data.claims;
+    let email = claims.email.unwrap_or_else(|| format!("{}@firebase.user", claims.sub));
+
+    let collection: Collection<User> = state.db.database("rustapi").collection("users");
+
+    // 5. Find or create user
+    let user = if let Some(mut existing_user) = collection.find_one(doc! { "email": &email }).await? {
+        // Update last login
+        collection.update_one(
+            doc! { "_id": existing_user.id.unwrap() },
+            doc! { "$set": { "last_login": mongodb::bson::DateTime::now() } }
+        ).await?;
+        existing_user.last_login = Some(Utc::now());
+        existing_user
+    } else {
+        let default_persona = Persona {
+            level: "beginner".to_string(),
+            tone: "friendly".to_string(),
+            goal: "General".to_string(),
+            weakness: None,
+        };
+
+        // Create random password since they login via OAuth
+        let random_password = format!("oauth-{}", claims.sub);
+        
+        let new_user = User {
+            id: None,
+            email: email.clone(),
+            password: hash_password(&random_password),
+            name: claims.name,
+            profile_image_url: claims.picture,
+            persona: default_persona,
+            progress: Progress {
+                streak_days: 0,
+                total_practice: 0,
+            },
+            is_verified: true, // Auto verify OAuth users
+            last_login: Some(Utc::now()),
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+
+        let result = collection.insert_one(new_user.clone()).await?;
+        let mut user_with_id = new_user;
+        user_with_id.id = Some(result.inserted_id.as_object_id().unwrap());
+        user_with_id
+    };
+
+    let token = create_jwt(&user.id.unwrap().to_string(), &state.jwt_secret)
+        .map_err(|_| AppError::InternalServerError)?;
+
+    Ok(Json(AuthResponse { token, user }))
 }
 
 pub async fn upload_profile_image(

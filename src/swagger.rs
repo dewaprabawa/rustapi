@@ -27,6 +27,7 @@ use utoipa::OpenApi;
         // Auth
         crate::swagger::auth_register,
         crate::swagger::auth_login,
+        crate::swagger::auth_firebase,
         crate::swagger::auth_me,
         crate::swagger::auth_onboarding,
         crate::swagger::auth_upload_profile_image,
@@ -111,7 +112,7 @@ use utoipa::OpenApi;
         // Generic
         ErrorResponse,
         // Auth schemas
-        RegisterRequest, LoginRequest, OnboardingRequest, AuthResponse, UserPublic, Persona, Progress,
+        RegisterRequest, LoginRequest, FirebaseLoginRequest, OnboardingRequest, AuthResponse, UserPublic, Persona, Progress,
         // Admin
         AdminLoginRequest, AdminAuthResponse, AdminPublic,
         // Pagination
@@ -161,6 +162,11 @@ pub struct RegisterRequest {
 pub struct LoginRequest {
     pub email: String,
     pub password: String,
+}
+
+#[derive(utoipa::ToSchema, serde::Deserialize)]
+pub struct FirebaseLoginRequest {
+    pub id_token: String,
 }
 
 #[derive(utoipa::ToSchema, serde::Deserialize)]
@@ -244,6 +250,12 @@ pub async fn auth_register() {}
     responses((status = 200, body = AuthResponse),
               (status = 401, body = ErrorResponse)))]
 pub async fn auth_login() {}
+
+#[utoipa::path(post, path = "/auth/firebase", tag = "Auth",
+    request_body = FirebaseLoginRequest,
+    responses((status = 200, body = AuthResponse),
+              (status = 401, body = ErrorResponse)))]
+pub async fn auth_firebase() {}
 
 #[utoipa::path(get, path = "/auth/me", tag = "Auth", security(("bearer_auth" = [])),
     responses((status = 200, body = UserPublic)))]
