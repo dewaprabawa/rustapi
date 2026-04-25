@@ -101,7 +101,7 @@ pub async fn update_scenario(
     let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
     let collection: Collection<InterviewScenario> = state.db.database("rustapi").collection("interview_scenarios");
 
-    let mut update = doc! { "updated_at": mongodb::bson::DateTime::now() };
+    let mut update = doc! { "updated_at": chrono::Utc::now() };
     if let Some(v) = payload.title { update.insert("title", v); }
     if let Some(v) = payload.description { update.insert("description", v); }
     if let Some(v) = payload.role { update.insert("role", v); }
@@ -204,7 +204,7 @@ pub async fn update_ai_config(
 ) -> Result<impl IntoResponse, AppError> {
     let collection: Collection<AIConfig> = state.db.database("rustapi").collection("ai_config");
 
-    let mut update = doc! { "updated_at": mongodb::bson::DateTime::now() };
+    let mut update = doc! { "updated_at": chrono::Utc::now() };
     if let Some(v) = payload.value { update.insert("value", v); }
     if let Some(v) = payload.description { update.insert("description", v); }
     if let Some(v) = payload.is_active { update.insert("is_active", v); }
@@ -258,7 +258,7 @@ pub async fn update_evaluation_weights(
 ) -> Result<impl IntoResponse, AppError> {
     let collection: Collection<EvaluationWeights> = state.db.database("rustapi").collection("evaluation_weights");
 
-    let mut update = doc! { "updated_at": mongodb::bson::DateTime::now() };
+    let mut update = doc! { "updated_at": chrono::Utc::now() };
     if let Some(v) = payload.pronunciation_weight { update.insert("pronunciation_weight", v); }
     if let Some(v) = payload.grammar_weight { update.insert("grammar_weight", v); }
     if let Some(v) = payload.fluency_weight { update.insert("fluency_weight", v); }

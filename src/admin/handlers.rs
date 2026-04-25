@@ -34,19 +34,23 @@ pub async fn admin_login(
     // Update last login timestamp
     collection.update_one(
         doc! { "_id": admin.id.unwrap() },
-        doc! { "$set": { "updated_at": mongodb::bson::DateTime::now() } }
+        doc! { "$set": { "updated_at": chrono::Utc::now() } }
     ).await?;
 
     let token = create_admin_jwt(&admin.id.unwrap().to_string(), &state.jwt_secret)
         .map_err(|_| AppError::InternalServerError)?;
 
-    Ok(Json(AdminAuthResponse { token, admin }))
+    let mut admin_to_return = admin;
+    admin_to_return.password.clear();
+
+    Ok(Json(AdminAuthResponse { token, admin: admin_to_return }))
 }
 
 /// GET /admin/me
 pub async fn admin_me(
-    admin: Admin,
+    mut admin: Admin,
 ) -> impl IntoResponse {
+    admin.password.clear();
     Json(admin)
 }
 

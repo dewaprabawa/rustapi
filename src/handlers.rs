@@ -94,7 +94,7 @@ pub async fn login(
     // Update last login
     collection.update_one(
         doc! { "_id": user.id.unwrap() },
-        doc! { "$set": { "last_login": mongodb::bson::DateTime::now() } }
+        doc! { "$set": { "last_login": chrono::Utc::now() } }
     ).await?;
 
     let token = create_jwt(&user.id.unwrap().to_string(), &state.jwt_secret)
@@ -131,7 +131,7 @@ pub async fn update_onboarding(
         doc! { 
             "$set": { 
                 "persona": mongodb::bson::to_bson(&updated_persona).unwrap(),
-                "updated_at": mongodb::bson::DateTime::now()
+                "updated_at": chrono::Utc::now()
             } 
         }
     ).await?;
@@ -194,7 +194,7 @@ pub async fn firebase_login(
         // Update last login
         collection.update_one(
             doc! { "_id": existing_user.id.unwrap() },
-            doc! { "$set": { "last_login": mongodb::bson::DateTime::now() } }
+            doc! { "$set": { "last_login": chrono::Utc::now() } }
         ).await?;
         existing_user.last_login = Some(Utc::now());
         existing_user
@@ -294,7 +294,7 @@ pub async fn upload_profile_image(
         doc! { 
             "$set": { 
                 "profile_image_url": &public_url,
-                "updated_at": mongodb::bson::DateTime::now()
+                "updated_at": chrono::Utc::now()
             } 
         }
     ).await?;
@@ -317,7 +317,7 @@ pub async fn update_fcm_token(
         doc! { 
             "$set": { 
                 "fcm_token": payload.fcm_token,
-                "updated_at": mongodb::bson::DateTime::now()
+                "updated_at": chrono::Utc::now()
             } 
         }
     ).await?;
@@ -350,7 +350,10 @@ impl IntoResponse for AppError {
             AppError::Forbidden => (StatusCode::FORBIDDEN, "Access denied"),
             AppError::NotFound => (StatusCode::NOT_FOUND, "Resource not found"),
             AppError::InternalServerError => (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error"),
-            AppError::DatabaseError(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Database error"),
+            AppError::DatabaseError(err) => {
+                eprintln!("Database error: {:?}", err);
+                (StatusCode::INTERNAL_SERVER_ERROR, "Database error")
+            },
         };
 
         let body = Json(json!({

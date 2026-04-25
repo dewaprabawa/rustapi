@@ -92,7 +92,7 @@ pub async fn update_course(
     let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
     let collection: Collection<Course> = state.db.database("rustapi").collection("courses");
 
-    let mut update = doc! { "updated_at": mongodb::bson::DateTime::now() };
+    let mut update = doc! { "updated_at": chrono::Utc::now() };
     if let Some(v) = payload.title { update.insert("title", v); }
     if let Some(v) = payload.title_id { update.insert("title_id", v); }
     if let Some(v) = payload.description { update.insert("description", v); }
@@ -203,7 +203,7 @@ pub async fn update_module(
     let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
     let collection: Collection<Module> = state.db.database("rustapi").collection("modules");
 
-    let mut update = doc! { "updated_at": mongodb::bson::DateTime::now() };
+    let mut update = doc! { "updated_at": chrono::Utc::now() };
     if let Some(v) = payload.title { update.insert("title", v); }
     if let Some(v) = payload.title_id { update.insert("title_id", v); }
     if let Some(v) = payload.description { update.insert("description", v); }
@@ -311,7 +311,7 @@ pub async fn update_lesson(
     let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
     let collection: Collection<Lesson> = state.db.database("rustapi").collection("lessons");
 
-    let mut update = doc! { "updated_at": mongodb::bson::DateTime::now() };
+    let mut update = doc! { "updated_at": chrono::Utc::now() };
     if let Some(v) = payload.title { update.insert("title", v); }
     if let Some(v) = payload.title_id { update.insert("title_id", v); }
     if let Some(v) = payload.content { update.insert("content", v); }
@@ -399,6 +399,60 @@ pub async fn list_vocabulary(
 
 // ==================== DIALOGUES ====================
 
+/// GET /admin/vocabulary/:id
+pub async fn get_vocabulary(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, AppError> {
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
+    let collection: Collection<Vocabulary> = state.db.database("rustapi").collection("vocabulary");
+    let vocab = collection.find_one(doc! { "_id": oid }).await?.ok_or(AppError::NotFound)?;
+    Ok(Json(vocab))
+}
+
+/// PUT /admin/vocabulary/:id
+pub async fn update_vocabulary(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+    Path(id): Path<String>,
+    Json(payload): Json<UpdateVocabularyRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
+    let collection: Collection<Vocabulary> = state.db.database("rustapi").collection("vocabulary");
+
+    let mut update = doc! {};
+    if let Some(v) = payload.word { update.insert("word", v); }
+    if let Some(v) = payload.translation { update.insert("translation", v); }
+    if let Some(v) = payload.pronunciation { update.insert("pronunciation", v); }
+    if let Some(v) = payload.audio_url { update.insert("audio_url", v); }
+    if let Some(v) = payload.example_en { update.insert("example_en", v); }
+    if let Some(v) = payload.example_id { update.insert("example_id", v); }
+
+    if update.is_empty() { return Ok(Json(serde_json::json!({ "message": "No changes" }))); }
+
+    let result = collection.update_one(doc! { "_id": oid }, doc! { "$set": update }).await?;
+    if result.matched_count == 0 { return Err(AppError::NotFound); }
+
+    let updated = collection.find_one(doc! { "_id": oid }).await?.ok_or(AppError::NotFound)?;
+    Ok(Json(serde_json::to_value(updated).map_err(|_| AppError::InternalServerError)?))
+}
+
+/// DELETE /admin/vocabulary/:id
+pub async fn delete_vocabulary(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, AppError> {
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
+    let collection: Collection<Vocabulary> = state.db.database("rustapi").collection("vocabulary");
+    let result = collection.delete_one(doc! { "_id": oid }).await?;
+    if result.deleted_count == 0 { return Err(AppError::NotFound); }
+    Ok(Json(serde_json::json!({ "message": "Vocabulary deleted" })))
+}
+
+// ==================== DIALOGUES ====================
+
 /// POST /admin/dialogues
 pub async fn create_dialogue(
     State(state): State<Arc<AppState>>,
@@ -437,6 +491,61 @@ pub async fn list_dialogues(
     let data: Vec<Dialogue> = cursor.try_collect().await?;
 
     Ok(Json(data))
+}
+
+// ==================== QUIZZES ====================
+
+/// GET /admin/dialogues/:id
+pub async fn get_dialogue(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, AppError> {
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
+    let collection: Collection<Dialogue> = state.db.database("rustapi").collection("dialogues");
+    let dialogue = collection.find_one(doc! { "_id": oid }).await?.ok_or(AppError::NotFound)?;
+    Ok(Json(dialogue))
+}
+
+/// PUT /admin/dialogues/:id
+pub async fn update_dialogue(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+    Path(id): Path<String>,
+    Json(payload): Json<UpdateDialogueRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
+    let collection: Collection<Dialogue> = state.db.database("rustapi").collection("dialogues");
+
+    let mut update = doc! {};
+    if let Some(v) = payload.title { update.insert("title", v); }
+    if let Some(v) = payload.context { update.insert("context", v); }
+    if let Some(v) = payload.lines {
+        // We have to convert Vec<DialogueLine> to BSON to insert
+        let bson_lines = mongodb::bson::to_bson(&v).map_err(|_| AppError::InternalServerError)?;
+        update.insert("lines", bson_lines);
+    }
+
+    if update.is_empty() { return Ok(Json(serde_json::json!({ "message": "No changes" }))); }
+
+    let result = collection.update_one(doc! { "_id": oid }, doc! { "$set": update }).await?;
+    if result.matched_count == 0 { return Err(AppError::NotFound); }
+
+    let updated = collection.find_one(doc! { "_id": oid }).await?.ok_or(AppError::NotFound)?;
+    Ok(Json(serde_json::to_value(updated).map_err(|_| AppError::InternalServerError)?))
+}
+
+/// DELETE /admin/dialogues/:id
+pub async fn delete_dialogue(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, AppError> {
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
+    let collection: Collection<Dialogue> = state.db.database("rustapi").collection("dialogues");
+    let result = collection.delete_one(doc! { "_id": oid }).await?;
+    if result.deleted_count == 0 { return Err(AppError::NotFound); }
+    Ok(Json(serde_json::json!({ "message": "Dialogue deleted" })))
 }
 
 // ==================== QUIZZES ====================
@@ -481,6 +590,59 @@ pub async fn list_quizzes(
     let data: Vec<Quiz> = cursor.try_collect().await?;
 
     Ok(Json(data))
+}
+
+// ==================== PUBLIC CONTENT ENDPOINTS (for mobile app) ====================
+
+/// GET /admin/quizzes/:id
+pub async fn get_quiz(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, AppError> {
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
+    let collection: Collection<Quiz> = state.db.database("rustapi").collection("quizzes");
+    let quiz = collection.find_one(doc! { "_id": oid }).await?.ok_or(AppError::NotFound)?;
+    Ok(Json(quiz))
+}
+
+/// PUT /admin/quizzes/:id
+pub async fn update_quiz(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+    Path(id): Path<String>,
+    Json(payload): Json<UpdateQuizRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
+    let collection: Collection<Quiz> = state.db.database("rustapi").collection("quizzes");
+
+    let mut update = doc! { "updated_at": chrono::Utc::now() };
+    if let Some(v) = payload.title { update.insert("title", v); }
+    if let Some(v) = payload.passing_score { update.insert("passing_score", v); }
+    if let Some(v) = payload.xp_reward { update.insert("xp_reward", v); }
+    if let Some(v) = payload.questions {
+        let bson_qs = mongodb::bson::to_bson(&v).map_err(|_| AppError::InternalServerError)?;
+        update.insert("questions", bson_qs);
+    }
+
+    let result = collection.update_one(doc! { "_id": oid }, doc! { "$set": update }).await?;
+    if result.matched_count == 0 { return Err(AppError::NotFound); }
+
+    let updated = collection.find_one(doc! { "_id": oid }).await?.ok_or(AppError::NotFound)?;
+    Ok(Json(serde_json::to_value(updated).map_err(|_| AppError::InternalServerError)?))
+}
+
+/// DELETE /admin/quizzes/:id
+pub async fn delete_quiz(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, AppError> {
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
+    let collection: Collection<Quiz> = state.db.database("rustapi").collection("quizzes");
+    let result = collection.delete_one(doc! { "_id": oid }).await?;
+    if result.deleted_count == 0 { return Err(AppError::NotFound); }
+    Ok(Json(serde_json::json!({ "message": "Quiz deleted" })))
 }
 
 // ==================== PUBLIC CONTENT ENDPOINTS (for mobile app) ====================

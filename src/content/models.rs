@@ -179,6 +179,16 @@ pub struct CreateVocabularyRequest {
     pub example_id: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct UpdateVocabularyRequest {
+    pub word: Option<String>,
+    pub translation: Option<String>,
+    pub pronunciation: Option<String>,
+    pub audio_url: Option<String>,
+    pub example_en: Option<String>,
+    pub example_id: Option<String>,
+}
+
 // ============ Dialogue ============
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -206,6 +216,13 @@ pub struct CreateDialogueRequest {
     pub title: String,
     pub context: Option<String>,
     pub lines: Vec<DialogueLine>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateDialogueRequest {
+    pub title: Option<String>,
+    pub context: Option<String>,
+    pub lines: Option<Vec<DialogueLine>>,
 }
 
 // ============ Quiz ============
@@ -238,4 +255,12 @@ pub struct CreateQuizRequest {
     pub passing_score: Option<i32>,
     pub xp_reward: Option<i32>,
     pub questions: Vec<QuizQuestion>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateQuizRequest {
+    pub title: Option<String>,
+    pub passing_score: Option<i32>,
+    pub xp_reward: Option<i32>,
+    pub questions: Option<Vec<QuizQuestion>>,
 }

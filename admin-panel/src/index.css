@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #1e3a8a;
+  --color-secondary: #0f172a;
+  --color-accent: #3b82f6;
+  --color-background: #f8fafc;
+  --color-surface: #ffffff;
+}
+
+@layer base {
+  body {
+    @apply bg-[var(--color-background)] text-slate-800 antialiased;
+    font-family: 'Outfit', sans-serif;
+  }
+}

@@ -23,6 +23,7 @@ pub struct User {
     pub id: Option<ObjectId>,
 
     pub email: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
     pub password: String, // hashed
     pub name: Option<String>,
     pub profile_image_url: Option<String>,
@@ -100,13 +101,15 @@ pub struct Admin {
     pub id: Option<ObjectId>,
 
     pub email: String,
-    #[serde(skip_serializing)]
+    #[serde(skip_serializing_if = "String::is_empty")]
     pub password: String, // hashed — never returned in responses
     pub name: String,
     pub role: Role,
     pub is_active: bool,
 
+    #[serde(with = "bson::serde_helpers::chrono_datetime_as_bson_datetime")]
     pub created_at: DateTime<Utc>,
+    #[serde(with = "bson::serde_helpers::chrono_datetime_as_bson_datetime")]
     pub updated_at: DateTime<Utc>,
 }
 

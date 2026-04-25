@@ -29,7 +29,7 @@ pub async fn submit_lesson_rating(
     let filter = doc! { "user_id": user_id, "lesson_id": lesson_id };
     
     let mut update = doc! {
-        "updated_at": mongodb::bson::DateTime::now()
+        "updated_at": chrono::Utc::now()
     };
     
     if let Some(r) = payload.rating { update.insert("rating", r); }
@@ -42,7 +42,7 @@ pub async fn submit_lesson_rating(
         filter.clone(),
         doc! { 
             "$set": update,
-            "$setOnInsert": { "created_at": mongodb::bson::DateTime::now() } 
+            "$setOnInsert": { "created_at": chrono::Utc::now() } 
         }
     ).with_options(options).await?;
 
@@ -102,7 +102,7 @@ async fn update_lesson_stats(state: &Arc<AppState>, lesson_id: ObjectId) {
                 "avg_rating": avg_rating,
                 "total_ratings": total_ratings,
                 "popularity_score": popularity,
-                "updated_at": mongodb::bson::DateTime::now()
+                "updated_at": chrono::Utc::now()
             }
         };
         

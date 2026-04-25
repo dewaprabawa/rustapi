@@ -73,8 +73,11 @@ pub async fn create_app() -> Router {
         .route("/lessons", get(list_lessons).post(create_lesson))
         .route("/lessons/:id", put(update_lesson).delete(delete_lesson))
         .route("/vocabulary", get(list_vocabulary).post(create_vocabulary))
+        .route("/vocabulary/:id", get(get_vocabulary).put(update_vocabulary).delete(delete_vocabulary))
         .route("/dialogues", get(list_dialogues).post(create_dialogue))
+        .route("/dialogues/:id", get(get_dialogue).put(update_dialogue).delete(delete_dialogue))
         .route("/quizzes", get(list_quizzes).post(create_quiz))
+        .route("/quizzes/:id", get(get_quiz).put(update_quiz).delete(delete_quiz))
         // Interview Scenario Manager
         .route("/scenarios", get(list_scenarios).post(create_scenario))
         .route("/scenarios/:id", get(get_scenario).put(update_scenario).delete(delete_scenario))

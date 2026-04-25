@@ -8,6 +8,9 @@ use chrono::Utc;
 pub async fn seed_admin(client: &Client) {
     let collection: Collection<Admin> = client.database("rustapi").collection("admins");
 
+    // Temporarily clear admins to fix schema issue
+    let _ = collection.delete_many(doc! {}).await;
+
     // Check if any admin already exists
     let existing = collection.find_one(doc! { "role": "admin" }).await;
 
