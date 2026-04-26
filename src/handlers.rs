@@ -8,9 +8,9 @@ use crate::models::{User, RegisterRequest, LoginRequest, FirebaseLoginRequest, A
 use crate::auth::{hash_password, verify_password, create_jwt};
 use chrono::Utc;
 use std::sync::Arc;
-use serde_json::{json, Value};
+use serde_json::json;
 use jsonwebtoken::{decode_header, decode, DecodingKey, Validation, Algorithm};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 pub struct AppState {
     pub db: Client,

@@ -17,6 +17,9 @@ pub struct UserProgress {
     pub completed_quizzes: Vec<ObjectId>,
     pub interview_count: i32,
     pub average_interview_score: f64,
+    pub streak_freezes: i32,
+    pub current_unit: i32,
+    pub current_lesson_node: i32,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -46,6 +49,7 @@ pub struct GamificationConfig {
     pub xp_per_quiz: i64,
     pub xp_per_interview: i64,
     pub streak_bonus_xp: i64,
+    pub max_streak_freezes: i32,
     pub level_thresholds: Vec<LevelThreshold>,
     pub updated_at: DateTime<Utc>,
 }
@@ -64,6 +68,7 @@ pub struct UpdateGamificationRequest {
     pub xp_per_quiz: Option<i64>,
     pub xp_per_interview: Option<i64>,
     pub streak_bonus_xp: Option<i64>,
+    pub max_streak_freezes: Option<i32>,
     pub level_thresholds: Option<Vec<LevelThreshold>>,
 }
 

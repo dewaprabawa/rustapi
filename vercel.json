@@ -1,9 +1,15 @@
 {
   "version": 2,
+  "buildCommand": "cd admin-panel && npm install && npm run build",
+  "outputDirectory": "admin-panel/dist",
   "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/api/index"
-    }
+    { "source": "/admin/:path*", "destination": "/api/index" },
+    { "source": "/api/:path*", "destination": "/api/index" },
+    { "source": "/auth/:path*", "destination": "/api/index" },
+    { "source": "/progress/:path*", "destination": "/api/index" },
+    { "source": "/ratings/:path*", "destination": "/api/index" },
+    { "source": "/swagger-ui/:path*", "destination": "/api/index" },
+    { "source": "/api-docs/:path*", "destination": "/api/index" },
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

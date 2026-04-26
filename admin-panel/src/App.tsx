@@ -10,6 +10,7 @@ import Users from "./pages/Users"
 import Scenarios from "./pages/Scenarios"
 import Gamification from "./pages/Gamification"
 import Monetization from "./pages/Monetization"
+import Notifications from "./pages/Notifications"
 import Settings from "./pages/Settings"
 
 function App() {
@@ -35,6 +36,7 @@ function App() {
             <Route path="scenarios" element={<Scenarios />} />
             <Route path="gamification" element={<Gamification />} />
             <Route path="monetization" element={<Monetization />} />
+            <Route path="notifications" element={<Notifications />} />
             <Route path="settings" element={<Settings />} />
             <Route
               path="*"

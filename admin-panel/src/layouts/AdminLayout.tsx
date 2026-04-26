@@ -15,6 +15,7 @@ export default function AdminLayout() {
     { name: "AI Scenarios", path: "/scenarios", icon: BrainCircuit },
     { name: "Gamification", path: "/gamification", icon: Trophy },
     { name: "Monetization", path: "/monetization", icon: CreditCard },
+    { name: "Notifications", path: "/notifications", icon: Bell },
     { name: "Settings", path: "/settings", icon: Settings },
   ]
 

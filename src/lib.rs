@@ -43,8 +43,18 @@ pub async fn create_app() -> Router {
         .await
         .expect("Failed to initialize MongoDB client");
 
+    // Map FIREBASE_SERVICE_ACCOUNT_JSON to GOOGLE_APPLICATION_CREDENTIALS_JSON if needed
+    if let Ok(json) = std::env::var("FIREBASE_SERVICE_ACCOUNT_JSON") {
+        unsafe {
+            std::env::set_var("GOOGLE_APPLICATION_CREDENTIALS_JSON", json);
+        }
+    }
+
     // Seed default admin on startup
     seed_admin(&client).await;
+    
+    // Seed default learning content
+    crate::seed::seed_content(&client).await;
 
     let state = Arc::new(AppState {
         db: client,

@@ -12,6 +12,10 @@ pub enum GameType {
     FixSentence,
     SpeedService,
     Pronunciation,
+    WordScramble,
+    Matching,
+    Translation,
+    FillInTheBlank,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

@@ -37,6 +37,9 @@ pub async fn get_progress(
                 completed_quizzes: vec![],
                 interview_count: 0,
                 average_interview_score: 0.0,
+                streak_freezes: 1, // Default 1 freeze
+                current_unit: 1,
+                current_lesson_node: 1,
                 created_at: Utc::now(),
                 updated_at: Utc::now(),
             };
@@ -69,6 +72,9 @@ pub async fn add_xp(
             completed_quizzes: vec![],
             interview_count: 0,
             average_interview_score: 0.0,
+            streak_freezes: 1,
+            current_unit: 1,
+            current_lesson_node: 1,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };
@@ -222,6 +228,7 @@ pub async fn get_gamification_config(
                 xp_per_quiz: 20,
                 xp_per_interview: 50,
                 streak_bonus_xp: 5,
+                max_streak_freezes: 2,
                 level_thresholds: vec![
                     LevelThreshold { level: 1, min_xp: 0, title: "Beginner".into(), title_id: Some("Pemula".into()) },
                     LevelThreshold { level: 2, min_xp: 100, title: "Elementary".into(), title_id: Some("Dasar".into()) },
@@ -250,6 +257,7 @@ pub async fn update_gamification_config(
     if let Some(v) = payload.xp_per_quiz { update.insert("xp_per_quiz", v); }
     if let Some(v) = payload.xp_per_interview { update.insert("xp_per_interview", v); }
     if let Some(v) = payload.streak_bonus_xp { update.insert("streak_bonus_xp", v); }
+    if let Some(v) = payload.max_streak_freezes { update.insert("max_streak_freezes", v); }
     if let Some(ref v) = payload.level_thresholds {
         update.insert("level_thresholds", mongodb::bson::to_bson(v).unwrap());
     }

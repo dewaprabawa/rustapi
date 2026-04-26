@@ -91,6 +91,7 @@ function GamificationConfigPanel({ config, isLoading }: { config: any; isLoading
             { label: "XP per Quiz Pass", key: "xp_per_quiz", icon: "✅" },
             { label: "XP per Game Win", key: "xp_per_game", icon: "🎮" },
             { label: "Daily Login Bonus", key: "daily_login_xp", icon: "📅" },
+            { label: "Max Streak Freezes", key: "max_streak_freezes", icon: "❄️" },
           ].map((item) => (
             <div key={item.key}>
               <label className="block text-sm font-medium text-slate-700 mb-1.5">
