@@ -206,7 +206,7 @@ pub async fn firebase_login(
             weakness: None,
         };
 
-        // Create random password since they login via OAuth
+        // Create random password since they log in via OAuth
         let random_password = format!("oauth-{}", claims.sub);
         
         let new_user = User {

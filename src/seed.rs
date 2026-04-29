@@ -3,7 +3,6 @@ use crate::models::{Admin, Role};
 use crate::auth::hash_password;
 use chrono::Utc;
 use crate::content::models::{Course, Module, Lesson, Vocabulary, Dialogue, DialogueLine, Quiz, QuizQuestion, ContentLevel, ContentCategory};
-use serde_json::json;
 
 /// Seeds the default admin account if none exists.
 /// Credentials: admin@app.com / admin123
