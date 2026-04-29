@@ -86,7 +86,7 @@ pub async fn update_game(
     let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
     let collection: Collection<GameContent> = state.db.database("rustapi").collection("games");
 
-    let mut update = doc! { "updated_at": chrono::Utc::now() };
+    let mut update = doc! { "updated_at": bson::DateTime::now() };
     if let Some(v) = payload.title { update.insert("title", v); }
     if let Some(v) = payload.instructions { update.insert("instructions", v); }
     if let Some(v) = payload.difficulty { update.insert("difficulty", v); }

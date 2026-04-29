@@ -34,7 +34,7 @@ pub async fn admin_login(
     // Update last login timestamp
     collection.update_one(
         doc! { "_id": admin.id.unwrap() },
-        doc! { "$set": { "updated_at": chrono::Utc::now() } }
+        doc! { "$set": { "updated_at": bson::DateTime::now() } }
     ).await?;
 
     let token = create_admin_jwt(&admin.id.unwrap().to_string(), &state.jwt_secret)

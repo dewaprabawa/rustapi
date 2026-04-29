@@ -94,7 +94,7 @@ pub async fn login(
     // Update last login
     collection.update_one(
         doc! { "_id": user.id.unwrap() },
-        doc! { "$set": { "last_login": chrono::Utc::now() } }
+        doc! { "$set": { "last_login": bson::DateTime::now() } }
     ).await?;
 
     let token = create_jwt(&user.id.unwrap().to_string(), &state.jwt_secret)
@@ -131,7 +131,7 @@ pub async fn update_onboarding(
         doc! { 
             "$set": { 
                 "persona": mongodb::bson::to_bson(&updated_persona).unwrap(),
-                "updated_at": chrono::Utc::now()
+                "updated_at": bson::DateTime::now()
             } 
         }
     ).await?;
@@ -216,52 +216,72 @@ pub async fn firebase_login(
     let collection: Collection<User> = state.db.database("rustapi").collection("users");
 
     // 5. Find or create user
-    let user = if let Some(mut existing_user) = collection.find_one(doc! { "email": &email }).await? {
-        // Update last login
-        collection.update_one(
-            doc! { "_id": existing_user.id.unwrap() },
-            doc! { "$set": { "last_login": chrono::Utc::now() } }
-        ).await?;
-        existing_user.last_login = Some(Utc::now());
-        existing_user
-    } else {
-        let default_persona = Persona {
-            level: "beginner".to_string(),
-            tone: "friendly".to_string(),
-            goal: "General".to_string(),
-            weakness: None,
-        };
+    println!("🔍 Looking up user by email: {}", email);
+    let user = match collection.find_one(doc! { "email": &email }).await {
+        Ok(Some(mut existing_user)) => {
+            println!("✅ Found existing user: {:?}", existing_user.id);
+            // Update last login
+            collection.update_one(
+                doc! { "_id": existing_user.id.unwrap() },
+                doc! { "$set": { "last_login": bson::DateTime::now() } }
+            ).await?;
+            existing_user.last_login = Some(Utc::now());
+            existing_user
+        }
+        Ok(None) => {
+            println!("🆕 No existing user found, creating new user for: {}", email);
+            let default_persona = Persona {
+                level: "beginner".to_string(),
+                tone: "friendly".to_string(),
+                goal: "General".to_string(),
+                weakness: None,
+            };
 
-        // Create random password since they log in via OAuth
-        let random_password = format!("oauth-{}", claims.sub);
-        
-        let new_user = User {
-            id: None,
-            email: email.clone(),
-            password: hash_password(&random_password),
-            name: claims.name,
-            profile_image_url: claims.picture,
-            fcm_token: None,
-            persona: default_persona,
-            progress: Progress {
-                streak_days: 0,
-                total_practice: 0,
-            },
-            is_verified: true, // Auto verify OAuth users
-            last_login: Some(Utc::now()),
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
-        };
+            // Create random password since they log in via OAuth
+            let random_password = format!("oauth-{}", claims.sub);
+            
+            let new_user = User {
+                id: None,
+                email: email.clone(),
+                password: hash_password(&random_password),
+                name: claims.name,
+                profile_image_url: claims.picture,
+                fcm_token: None,
+                persona: default_persona,
+                progress: Progress {
+                    streak_days: 0,
+                    total_practice: 0,
+                },
+                is_verified: true, // Auto verify OAuth users
+                last_login: Some(Utc::now()),
+                created_at: Utc::now(),
+                updated_at: Utc::now(),
+            };
 
-        let result = collection.insert_one(new_user.clone()).await?;
-        let mut user_with_id = new_user;
-        user_with_id.id = Some(result.inserted_id.as_object_id().unwrap());
-        user_with_id
+            match collection.insert_one(new_user.clone()).await {
+                Ok(result) => {
+                    let inserted_id = result.inserted_id.as_object_id().unwrap();
+                    println!("✅ New user inserted with id: {}", inserted_id);
+                    let mut user_with_id = new_user;
+                    user_with_id.id = Some(inserted_id);
+                    user_with_id
+                }
+                Err(e) => {
+                    eprintln!("❌ Failed to insert new user into MongoDB: {:?}", e);
+                    return Err(AppError::DatabaseError(e));
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("❌ MongoDB find_one error: {:?}", e);
+            return Err(AppError::DatabaseError(e));
+        }
     };
 
     let token = create_jwt(&user.id.unwrap().to_string(), &state.jwt_secret)
         .map_err(|_| AppError::InternalServerError)?;
 
+    println!("✅ Firebase login complete — returning JWT + user (id: {:?}, email: {})", user.id, user.email);
     Ok(Json(AuthResponse { token, user }))
 }
 
@@ -320,7 +340,7 @@ pub async fn upload_profile_image(
         doc! { 
             "$set": { 
                 "profile_image_url": &public_url,
-                "updated_at": chrono::Utc::now()
+                "updated_at": bson::DateTime::now()
             } 
         }
     ).await?;
@@ -343,7 +363,7 @@ pub async fn update_fcm_token(
         doc! { 
             "$set": { 
                 "fcm_token": payload.fcm_token,
-                "updated_at": chrono::Utc::now()
+                "updated_at": bson::DateTime::now()
             } 
         }
     ).await?;

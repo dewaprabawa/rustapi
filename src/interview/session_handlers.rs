@@ -112,7 +112,7 @@ pub async fn send_chat_message(
         doc! { 
             "$set": { 
                 "transcript": mongodb::bson::to_bson(&session.transcript).unwrap(),
-                "updated_at": chrono::Utc::now()
+                "updated_at": bson::DateTime::now()
             } 
         }
     ).await?;
@@ -161,7 +161,7 @@ pub async fn complete_interview_session(
                 "completed": true,
                 "score": final_score,
                 "feedback": &session.feedback,
-                "updated_at": chrono::Utc::now()
+                "updated_at": bson::DateTime::now()
             } 
         }
     ).await?;

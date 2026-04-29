@@ -32,7 +32,7 @@ pub async fn update_feature(
 ) -> Result<impl IntoResponse, AppError> {
     let collection: Collection<FeatureAccess> = state.db.database("rustapi").collection("feature_access");
 
-    let mut update = doc! { "updated_at": chrono::Utc::now() };
+    let mut update = doc! { "updated_at": bson::DateTime::now() };
     if let Some(v) = payload.is_premium { update.insert("is_premium", v); }
     if let Some(v) = payload.description { update.insert("description", v); }
 
@@ -76,7 +76,7 @@ pub async fn update_monetization_config(
 ) -> Result<impl IntoResponse, AppError> {
     let collection: Collection<AIUsageConfig> = state.db.database("rustapi").collection("ai_usage_config");
 
-    let mut update = doc! { "updated_at": chrono::Utc::now() };
+    let mut update = doc! { "updated_at": bson::DateTime::now() };
     if let Some(v) = payload.free_tier_daily_limit { update.insert("free_tier_daily_limit", v); }
     if let Some(v) = payload.premium_tier_daily_limit { update.insert("premium_tier_daily_limit", v); }
 

@@ -92,7 +92,7 @@ pub async fn update_course(
     let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
     let collection: Collection<Course> = state.db.database("rustapi").collection("courses");
 
-    let mut update = doc! { "updated_at": chrono::Utc::now() };
+    let mut update = doc! { "updated_at": bson::DateTime::now() };
     if let Some(v) = payload.title { update.insert("title", v); }
     if let Some(v) = payload.title_id { update.insert("title_id", v); }
     if let Some(v) = payload.description { update.insert("description", v); }
@@ -203,7 +203,7 @@ pub async fn update_module(
     let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
     let collection: Collection<Module> = state.db.database("rustapi").collection("modules");
 
-    let mut update = doc! { "updated_at": chrono::Utc::now() };
+    let mut update = doc! { "updated_at": bson::DateTime::now() };
     if let Some(v) = payload.title { update.insert("title", v); }
     if let Some(v) = payload.title_id { update.insert("title_id", v); }
     if let Some(v) = payload.description { update.insert("description", v); }
@@ -311,7 +311,7 @@ pub async fn update_lesson(
     let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
     let collection: Collection<Lesson> = state.db.database("rustapi").collection("lessons");
 
-    let mut update = doc! { "updated_at": chrono::Utc::now() };
+    let mut update = doc! { "updated_at": bson::DateTime::now() };
     if let Some(v) = payload.title { update.insert("title", v); }
     if let Some(v) = payload.title_id { update.insert("title_id", v); }
     if let Some(v) = payload.content { update.insert("content", v); }
@@ -616,7 +616,7 @@ pub async fn update_quiz(
     let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
     let collection: Collection<Quiz> = state.db.database("rustapi").collection("quizzes");
 
-    let mut update = doc! { "updated_at": chrono::Utc::now() };
+    let mut update = doc! { "updated_at": bson::DateTime::now() };
     if let Some(v) = payload.title { update.insert("title", v); }
     if let Some(v) = payload.passing_score { update.insert("passing_score", v); }
     if let Some(v) = payload.xp_reward { update.insert("xp_reward", v); }

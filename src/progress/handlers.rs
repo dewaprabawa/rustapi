@@ -85,8 +85,8 @@ pub async fn add_xp(
     let mut update = doc! {
         "$inc": { "xp": payload.xp },
         "$set": {
-            "updated_at": chrono::Utc::now(),
-            "last_activity_date": chrono::Utc::now()
+            "updated_at": bson::DateTime::now(),
+            "last_activity_date": bson::DateTime::now()
         }
     };
 
@@ -182,7 +182,7 @@ pub async fn submit_quiz(
             doc! {
                 "$inc": { "xp": xp_earned },
                 "$addToSet": { "completed_quizzes": quiz_id },
-                "$set": { "updated_at": chrono::Utc::now() }
+                "$set": { "updated_at": bson::DateTime::now() }
             }
         ).await?;
 
@@ -252,7 +252,7 @@ pub async fn update_gamification_config(
 ) -> Result<impl IntoResponse, AppError> {
     let collection: Collection<GamificationConfig> = state.db.database("rustapi").collection("gamification_config");
 
-    let mut update = doc! { "updated_at": chrono::Utc::now() };
+    let mut update = doc! { "updated_at": bson::DateTime::now() };
     if let Some(v) = payload.xp_per_lesson { update.insert("xp_per_lesson", v); }
     if let Some(v) = payload.xp_per_quiz { update.insert("xp_per_quiz", v); }
     if let Some(v) = payload.xp_per_interview { update.insert("xp_per_interview", v); }

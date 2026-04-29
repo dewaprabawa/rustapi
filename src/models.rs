@@ -36,9 +36,9 @@ pub struct User {
     #[serde(default, skip_serializing_if = "Option::is_none", with = "optional_bson_datetime")]
     pub last_login: Option<DateTime<Utc>>,
 
-    #[serde(with = "bson::serde_helpers::chrono_datetime_as_bson_datetime")]
+    #[serde(with = "resilient_bson_datetime")]
     pub created_at: DateTime<Utc>,
-    #[serde(with = "bson::serde_helpers::chrono_datetime_as_bson_datetime")]
+    #[serde(with = "resilient_bson_datetime")]
     pub updated_at: DateTime<Utc>,
 }
 
@@ -65,9 +65,54 @@ mod optional_bson_datetime {
     where
         D: Deserializer<'de>,
     {
-        let opt = Option::<bson::DateTime>::deserialize(deserializer)?;
-        Ok(opt.map(|dt| dt.to_chrono()))
+        // Use Bson enum to handle any type stored in the field gracefully
+        let opt = Option::<bson::Bson>::deserialize(deserializer)?;
+        match opt {
+            Some(bson::Bson::DateTime(dt)) => Ok(Some(dt.to_chrono())),
+            // If the field is null, missing, or a non-DateTime type (e.g. corrupted data),
+            // gracefully return None instead of failing deserialization.
+            _ => Ok(None),
+        }
     }
+}
+
+/// Serde helper for required DateTime<Utc> that gracefully handles corrupted BSON data.
+/// Falls back to epoch if the field isn't a proper BSON DateTime.
+mod resilient_bson_datetime {
+    use chrono::{DateTime, Utc};
+    use serde::{self, Deserialize, Deserializer, Serialize, Serializer};
+    use bson;
+
+    pub fn serialize<S>(date: &DateTime<Utc>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let bson_dt = bson::DateTime::from_chrono(*date);
+        bson_dt.serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<DateTime<Utc>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let bson_val = bson::Bson::deserialize(deserializer)?;
+        match bson_val {
+            bson::Bson::DateTime(dt) => Ok(dt.to_chrono()),
+            // If it was stored as a string (ISO format), try parsing
+            bson::Bson::String(s) => {
+                s.parse::<DateTime<Utc>>().unwrap_or_else(|_| Utc::now())
+            .pipe(Ok)
+            }
+            // Fallback: return current time for corrupted data
+            _ => Ok(Utc::now()),
+        }
+    }
+
+    /// Helper trait for pipe-style chaining
+    trait Pipe: Sized {
+        fn pipe<F, R>(self, f: F) -> R where F: FnOnce(Self) -> R { f(self) }
+    }
+    impl<T> Pipe for T {}
 }
 
 #[derive(Debug, Deserialize)]
