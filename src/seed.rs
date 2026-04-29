@@ -1,8 +1,11 @@
-use mongodb::{Client, Collection, bson::doc};
-use crate::models::{Admin, Role};
 use crate::auth::hash_password;
+use crate::content::models::{
+    ContentCategory, ContentLevel, Course, Dialogue, DialogueLine, Lesson, Module, Quiz,
+    QuizQuestion, Vocabulary,
+};
+use crate::models::{Admin, Role};
 use chrono::Utc;
-use crate::content::models::{Course, Module, Lesson, Vocabulary, Dialogue, DialogueLine, Quiz, QuizQuestion, ContentLevel, ContentCategory};
+use mongodb::{Client, Collection, bson::doc};
 
 /// Seeds the default admin account if none exists.
 /// Credentials: admin@app.com / admin123
@@ -77,7 +80,10 @@ pub async fn seed_content(client: &Client) {
         created_at: Utc::now(),
         updated_at: Utc::now(),
     };
-    let c_res = course_col.insert_one(course).await.expect("Failed to seed course");
+    let c_res = course_col
+        .insert_one(course)
+        .await
+        .expect("Failed to seed course");
     let course_id = c_res.inserted_id.as_object_id().unwrap();
 
     // 2. Create Module (Unit)
@@ -88,13 +94,18 @@ pub async fn seed_content(client: &Client) {
         title: "Unit 1: The Front Desk".to_string(),
         title_id: Some("Unit 1: Resepsionis".to_string()),
         description: "Learn how to greet guests properly when they arrive.".to_string(),
-        description_id: Some("Pelajari cara menyapa tamu dengan benar saat mereka tiba.".to_string()),
+        description_id: Some(
+            "Pelajari cara menyapa tamu dengan benar saat mereka tiba.".to_string(),
+        ),
         order: 1,
         is_published: true,
         created_at: Utc::now(),
         updated_at: Utc::now(),
     };
-    let m_res = module_col.insert_one(module).await.expect("Failed to seed module");
+    let m_res = module_col
+        .insert_one(module)
+        .await
+        .expect("Failed to seed module");
     let module_id = m_res.inserted_id.as_object_id().unwrap();
 
     // 3. Create Lesson (Node)
@@ -115,35 +126,41 @@ pub async fn seed_content(client: &Client) {
         created_at: Utc::now(),
         updated_at: Utc::now(),
     };
-    let l_res = lesson_col.insert_one(lesson).await.expect("Failed to seed lesson");
+    let l_res = lesson_col
+        .insert_one(lesson)
+        .await
+        .expect("Failed to seed lesson");
     let lesson_id = l_res.inserted_id.as_object_id().unwrap();
 
     // 4. Create Vocabulary
     let vocab_col: Collection<Vocabulary> = db.collection("vocabulary");
-    vocab_col.insert_many(vec![
-        Vocabulary {
-            id: None,
-            lesson_id,
-            word: "Welcome".to_string(),
-            translation: "Selamat datang".to_string(),
-            pronunciation: Some("/ˈwɛlkəm/".to_string()),
-            audio_url: None,
-            example_en: "Welcome to the Grand Hotel.".to_string(),
-            example_id: Some("Selamat datang di Grand Hotel.".to_string()),
-            created_at: Utc::now(),
-        },
-        Vocabulary {
-            id: None,
-            lesson_id,
-            word: "Reservation".to_string(),
-            translation: "Pemesanan".to_string(),
-            pronunciation: Some("/ˌrɛzərˈveɪʃən/".to_string()),
-            audio_url: None,
-            example_en: "Do you have a reservation?".to_string(),
-            example_id: Some("Apakah Anda memiliki pemesanan?".to_string()),
-            created_at: Utc::now(),
-        }
-    ]).await.expect("Failed to seed vocabulary");
+    vocab_col
+        .insert_many(vec![
+            Vocabulary {
+                id: None,
+                lesson_id,
+                word: "Welcome".to_string(),
+                translation: "Selamat datang".to_string(),
+                pronunciation: Some("/ˈwɛlkəm/".to_string()),
+                audio_url: None,
+                example_en: "Welcome to the Grand Hotel.".to_string(),
+                example_id: Some("Selamat datang di Grand Hotel.".to_string()),
+                created_at: Utc::now(),
+            },
+            Vocabulary {
+                id: None,
+                lesson_id,
+                word: "Reservation".to_string(),
+                translation: "Pemesanan".to_string(),
+                pronunciation: Some("/ˌrɛzərˈveɪʃən/".to_string()),
+                audio_url: None,
+                example_en: "Do you have a reservation?".to_string(),
+                example_id: Some("Apakah Anda memiliki pemesanan?".to_string()),
+                created_at: Utc::now(),
+            },
+        ])
+        .await
+        .expect("Failed to seed vocabulary");
 
     // 5. Create Dialogue
     let dialogue_col: Collection<Dialogue> = db.collection("dialogues");
@@ -155,8 +172,12 @@ pub async fn seed_content(client: &Client) {
         lines: vec![
             DialogueLine {
                 speaker: "Receptionist".to_string(),
-                text_en: "Good afternoon, welcome to the Grand Hotel. How can I help you?".to_string(),
-                text_id: Some("Selamat siang, selamat datang di Grand Hotel. Ada yang bisa saya bantu?".to_string()),
+                text_en: "Good afternoon, welcome to the Grand Hotel. How can I help you?"
+                    .to_string(),
+                text_id: Some(
+                    "Selamat siang, selamat datang di Grand Hotel. Ada yang bisa saya bantu?"
+                        .to_string(),
+                ),
                 audio_url: None,
             },
             DialogueLine {
@@ -164,11 +185,14 @@ pub async fn seed_content(client: &Client) {
                 text_en: "Hi, I have a reservation under the name John Smith.".to_string(),
                 text_id: Some("Hai, saya ada pemesanan atas nama John Smith.".to_string()),
                 audio_url: None,
-            }
+            },
         ],
         created_at: Utc::now(),
     };
-    dialogue_col.insert_one(dialogue).await.expect("Failed to seed dialogue");
+    dialogue_col
+        .insert_one(dialogue)
+        .await
+        .expect("Failed to seed dialogue");
 
     // 6. Create Quiz
     let quiz_col: Collection<Quiz> = db.collection("quizzes");
@@ -178,18 +202,24 @@ pub async fn seed_content(client: &Client) {
         title: "Greeting Basics Quiz".to_string(),
         passing_score: 70,
         xp_reward: 30,
-        questions: vec![
-            QuizQuestion {
-                question: "What is the best way to greet a guest arriving at 2 PM?".to_string(),
-                question_id: None,
-                options: vec!["Good morning".to_string(), "Good afternoon".to_string(), "Good evening".to_string(), "Good night".to_string()],
-                correct_answer: 1,
-            }
-        ],
+        questions: vec![QuizQuestion {
+            question: "What is the best way to greet a guest arriving at 2 PM?".to_string(),
+            question_id: None,
+            options: vec![
+                "Good morning".to_string(),
+                "Good afternoon".to_string(),
+                "Good evening".to_string(),
+                "Good night".to_string(),
+            ],
+            correct_answer: 1,
+        }],
         created_at: Utc::now(),
         updated_at: Utc::now(),
     };
-    quiz_col.insert_one(quiz).await.expect("Failed to seed quiz");
+    quiz_col
+        .insert_one(quiz)
+        .await
+        .expect("Failed to seed quiz");
 
     println!("✅ Successfully seeded example course, module, lesson, vocab, dialogue, and quiz!");
 }

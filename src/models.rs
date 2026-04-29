@@ -33,10 +33,41 @@ pub struct User {
     pub progress: Progress,
 
     pub is_verified: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none", with = "optional_bson_datetime")]
     pub last_login: Option<DateTime<Utc>>,
 
+    #[serde(with = "bson::serde_helpers::chrono_datetime_as_bson_datetime")]
     pub created_at: DateTime<Utc>,
+    #[serde(with = "bson::serde_helpers::chrono_datetime_as_bson_datetime")]
     pub updated_at: DateTime<Utc>,
+}
+
+/// Serde helper for Option<DateTime<Utc>> stored as BSON DateTime
+mod optional_bson_datetime {
+    use chrono::{DateTime, Utc};
+    use serde::{self, Deserialize, Deserializer, Serialize, Serializer};
+    use bson;
+
+    pub fn serialize<S>(date: &Option<DateTime<Utc>>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match date {
+            Some(dt) => {
+                let bson_dt = bson::DateTime::from_chrono(*dt);
+                bson_dt.serialize(serializer)
+            }
+            None => serializer.serialize_none(),
+        }
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<DateTime<Utc>>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let opt = Option::<bson::DateTime>::deserialize(deserializer)?;
+        Ok(opt.map(|dt| dt.to_chrono()))
+    }
 }
 
 #[derive(Debug, Deserialize)]

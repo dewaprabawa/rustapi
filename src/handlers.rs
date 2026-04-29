@@ -158,21 +158,40 @@ pub async fn firebase_login(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<FirebaseLoginRequest>,
 ) -> Result<impl IntoResponse, AppError> {
+    println!("🔑 Firebase login request received");
+
     // 1. Fetch Google's public keys
     let keys_url = "https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com";
     let certs: std::collections::HashMap<String, String> = reqwest::get(keys_url)
         .await
-        .map_err(|_| AppError::InternalServerError)?
+        .map_err(|e| {
+            eprintln!("❌ Failed to fetch Google certs: {:?}", e);
+            AppError::InternalServerError
+        })?
         .json()
         .await
-        .map_err(|_| AppError::InternalServerError)?;
+        .map_err(|e| {
+            eprintln!("❌ Failed to parse Google certs: {:?}", e);
+            AppError::InternalServerError
+        })?;
+    println!("✅ Fetched {} Google certificates", certs.len());
 
     // 2. Decode JWT header to find the kid
-    let header = decode_header(&payload.id_token).map_err(|_| AppError::InvalidCredentials)?;
-    let kid = header.kid.ok_or(AppError::InvalidCredentials)?;
+    let header = decode_header(&payload.id_token).map_err(|e| {
+        eprintln!("❌ Failed to decode JWT header: {:?}", e);
+        AppError::InvalidCredentials
+    })?;
+    let kid = header.kid.ok_or_else(|| {
+        eprintln!("❌ No kid found in JWT header");
+        AppError::InvalidCredentials
+    })?;
+    println!("✅ JWT kid: {}", kid);
 
     // 3. Get the correct certificate
-    let cert_pem = certs.get(&kid).ok_or(AppError::InvalidCredentials)?;
+    let cert_pem = certs.get(&kid).ok_or_else(|| {
+        eprintln!("❌ No matching certificate for kid: {}", kid);
+        AppError::InvalidCredentials
+    })?;
     
     // 4. Decode and validate the token (RS256)
     let mut validation = Validation::new(Algorithm::RS256);
@@ -180,11 +199,18 @@ pub async fn firebase_login(
     validation.set_issuer(&["https://securetoken.google.com/rustapi-34bbb"]);
     let token_data = decode::<FirebaseClaims>(
         &payload.id_token,
-        &DecodingKey::from_rsa_pem(cert_pem.as_bytes()).map_err(|_| AppError::InternalServerError)?,
+        &DecodingKey::from_rsa_pem(cert_pem.as_bytes()).map_err(|e| {
+            eprintln!("❌ Failed to parse RSA PEM: {:?}", e);
+            AppError::InternalServerError
+        })?,
         &validation,
-    ).map_err(|_| AppError::InvalidCredentials)?;
+    ).map_err(|e| {
+        eprintln!("❌ Token validation failed: {:?}", e);
+        AppError::InvalidCredentials
+    })?;
 
     let claims = token_data.claims;
+    println!("✅ Token validated — email: {:?}, name: {:?}, sub: {}", claims.email, claims.name, claims.sub);
     let email = claims.email.unwrap_or_else(|| format!("{}@firebase.user", claims.sub));
 
     let collection: Collection<User> = state.db.database("rustapi").collection("users");
