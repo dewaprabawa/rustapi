@@ -20,12 +20,14 @@ use axum::{
 use mongodb::Client;
 use std::sync::Arc;
 use crate::handlers::{AppState, register, login, firebase_login, get_me, update_onboarding, upload_profile_image, update_fcm_token};
-use crate::admin::handlers::{admin_login, admin_me, list_users, get_user, delete_user};
+use crate::admin::handlers::{admin_login, admin_me, list_users, get_user, delete_user, upload_asset};
 use crate::content::handlers::*;
 use crate::interview::handlers::*;
 use crate::interview::session_handlers::*;
 use crate::progress::handlers::*;
 use crate::game::handlers::*;
+use crate::game::session_handlers::*;
+use crate::game::voice_scoring::score_pronunciation;
 use crate::rating::handlers::*;
 use crate::monetization::handlers::*;
 use crate::notification::handlers::{send_notification, list_notifications, mark_notification_read};
@@ -110,7 +112,9 @@ pub async fn create_app() -> Router {
         .route("/features/:name", put(update_feature))
         .route("/monetization/config", get(get_monetization_config).put(update_monetization_config))
         // Notifications
-        .route("/notifications", post(send_notification));
+        .route("/notifications", post(send_notification))
+        // Assets
+        .route("/assets/upload", post(upload_asset));
 
     // ============ Public API Routes (for mobile app) ============
 
@@ -138,7 +142,13 @@ pub async fn create_app() -> Router {
         .route("/xp", post(add_xp))
         .route("/quiz", post(submit_quiz))
         .route("/game", post(submit_game_result))
-        .route("/speaking", post(submit_speaking_result));
+        .route("/speaking", post(submit_speaking_result))
+        // Game Engine Session Routes
+        .route("/session/start", post(start_session))
+        .route("/session/answer", post(submit_answer))
+        .route("/session/sync", post(sync_offline_sessions))
+        // Voice Star Scoring
+        .route("/voice/score", post(score_pronunciation));
 
     // ============ Rating Routes (auth required) ============
     

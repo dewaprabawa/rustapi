@@ -3,6 +3,7 @@ use crate::content::models::{
     ContentCategory, ContentLevel, Course, Dialogue, DialogueLine, Lesson, Module, Quiz,
     QuizQuestion, Vocabulary,
 };
+use crate::game::models::{GameContent, GameType};
 use crate::models::{Admin, Role};
 use chrono::Utc;
 use mongodb::{Client, Collection, bson::doc};
@@ -57,13 +58,14 @@ pub async fn seed_content(client: &Client) {
     let db = client.database("rustapi");
     let course_col: Collection<Course> = db.collection("courses");
 
-    // Only seed if no courses exist
+    // Only seed course/module/lesson if no courses exist
     let count = course_col.count_documents(doc! {}).await.unwrap_or(0);
-    if count > 0 {
-        return;
-    }
+    
+    let mut module_id_for_games = None;
+    let mut lesson_id_for_games = None;
 
-    println!("🌱 Seeding default learning content...");
+    if count == 0 {
+        println!("🌱 Seeding default learning content...");
 
     // 1. Create Course
     let course = Course {
@@ -107,6 +109,7 @@ pub async fn seed_content(client: &Client) {
         .await
         .expect("Failed to seed module");
     let module_id = m_res.inserted_id.as_object_id().unwrap();
+    module_id_for_games = Some(module_id);
 
     // 3. Create Lesson (Node)
     let lesson_col: Collection<Lesson> = db.collection("lessons");
@@ -131,6 +134,7 @@ pub async fn seed_content(client: &Client) {
         .await
         .expect("Failed to seed lesson");
     let lesson_id = l_res.inserted_id.as_object_id().unwrap();
+    lesson_id_for_games = Some(lesson_id);
 
     // 4. Create Vocabulary
     let vocab_col: Collection<Vocabulary> = db.collection("vocabulary");
@@ -222,4 +226,103 @@ pub async fn seed_content(client: &Client) {
         .expect("Failed to seed quiz");
 
     println!("✅ Successfully seeded example course, module, lesson, vocab, dialogue, and quiz!");
+    } else {
+        // If courses exist, just grab the first one to attach the games to
+        if let Ok(Some(module)) = db.collection::<Module>("modules").find_one(doc! {}).await {
+            module_id_for_games = module.id;
+        }
+        if let Ok(Some(lesson)) = db.collection::<Lesson>("lessons").find_one(doc! {}).await {
+            lesson_id_for_games = lesson.id;
+        }
+    }
+
+    // 7. Create Gamification Content
+    let game_col: Collection<GameContent> = db.collection("games");
+    let count_games = game_col.count_documents(doc! {}).await.unwrap_or(0);
+    if count_games == 0 {
+        if let (Some(module_id), Some(lesson_id)) = (module_id_for_games, lesson_id_for_games) {
+            use serde_json::json;
+
+        let games = vec![
+            GameContent {
+                id: None,
+                module_id: Some(module_id),
+                lesson_id,
+                game_type: GameType::SceneMatcher,
+                title: "Greet the Guest".to_string(),
+                instructions: "Select the correct greeting for 2:00 PM.".to_string(),
+                difficulty: "easy".to_string(),
+                asset_url: None,
+                data_json: json!({
+                    "emoji": "🏨",
+                    "question": "A guest walks up to the desk at 2:00 PM. What do you say?",
+                    "options": [
+                        "Good morning!",
+                        "Good afternoon!",
+                        "Good evening!",
+                        "Hey there!"
+                    ],
+                    "correct": "Good afternoon!"
+                }),
+                ai_scenario_id: None,
+                xp_reward: 10,
+                is_active: true,
+                order: 1,
+                created_at: Utc::now(),
+                updated_at: Utc::now(),
+            },
+            GameContent {
+                id: None,
+                module_id: Some(module_id),
+                lesson_id,
+                game_type: GameType::RespectMaster,
+                title: "Polite Refusal".to_string(),
+                instructions: "Choose the most respectful way to decline a request.".to_string(),
+                difficulty: "medium".to_string(),
+                asset_url: None,
+                data_json: json!({
+                    "avatar": "👨‍💼",
+                    "scenario": "A guest asks for a late checkout, but the hotel is fully booked.",
+                    "options": [
+                        "We can't do that. We are full.",
+                        "No late checkout today.",
+                        "I apologize, but we are fully booked tonight, so we cannot accommodate a late checkout.",
+                        "You have to leave by 12."
+                    ],
+                    "correct": "I apologize, but we are fully booked tonight, so we cannot accommodate a late checkout."
+                }),
+                ai_scenario_id: None,
+                xp_reward: 15,
+                is_active: true,
+                order: 2,
+                created_at: Utc::now(),
+                updated_at: Utc::now(),
+            },
+            GameContent {
+                id: None,
+                module_id: Some(module_id),
+                lesson_id,
+                game_type: GameType::VoiceStar,
+                title: "Welcome Phrase".to_string(),
+                instructions: "Read the phrase aloud clearly.".to_string(),
+                difficulty: "easy".to_string(),
+                asset_url: None,
+                data_json: json!({
+                    "script": "Welcome to the Grand Hotel. How can I assist you today?"
+                }),
+                ai_scenario_id: None,
+                xp_reward: 20,
+                is_active: true,
+                order: 3,
+                created_at: Utc::now(),
+                updated_at: Utc::now(),
+            },
+        ];
+
+            game_col.insert_many(games).await.expect("Failed to seed games");
+            println!("🎮 Successfully seeded Gamification Engine games!");
+        } else {
+            println!("⚠️ Could not seed games because no module or lesson was found.");
+        }
+    }
 }

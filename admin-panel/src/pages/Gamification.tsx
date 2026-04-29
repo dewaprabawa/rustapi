@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
 import { Gamepad2, Trophy, Star, Zap, Save, Loader2, Trash2 } from "lucide-react"
-import { getGamificationConfig, updateGamificationConfig, getGames, deleteGame } from "../services/api"
+import { getGamificationConfig, updateGamificationConfig, getGames, createGame, deleteGame, getLessons, getModules, uploadAsset } from "../services/api"
 import { cn } from "../lib/utils"
 
 export default function Gamification() {
@@ -157,6 +157,36 @@ function GamesPanel({ games, isLoading }: { games: any[]; isLoading: boolean }) 
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["games"] }),
   })
 
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
+  const [formData, setFormData] = useState<any>({
+    title: "",
+    game_type: "SCENE_MATCHER",
+    lesson_id: "",
+    module_id: "",
+    difficulty: "easy",
+    xp_reward: 20,
+    instructions: "",
+    asset_url: "",
+    data_json: "{}"
+  })
+
+  const { data: lessonsData } = useQuery({ queryKey: ['lessons'], queryFn: getLessons })
+  const { data: modulesData } = useQuery({ queryKey: ['modules'], queryFn: getModules })
+  const lessons = lessonsData?.data || lessonsData || []
+  const modules = modulesData?.data || modulesData || []
+
+  const createMutation = useMutation({
+    mutationFn: (data: any) => createGame(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["games"] })
+      setIsCreateModalOpen(false)
+      setFormData({
+        title: "", game_type: "SCENE_MATCHER", lesson_id: "", module_id: "", difficulty: "easy", xp_reward: 20, instructions: "", asset_url: "", data_json: "{}"
+      })
+    },
+  })
+
   if (isLoading) {
     return (
       <div className="bg-white rounded-2xl p-12 flex items-center justify-center border border-slate-100">
@@ -165,8 +195,54 @@ function GamesPanel({ games, isLoading }: { games: any[]; isLoading: boolean }) 
     )
   }
 
+  const handleCreate = () => {
+    let parsedData = {}
+    try {
+      parsedData = JSON.parse(formData.data_json)
+    } catch(e) {
+      alert("Invalid JSON format in Data JSON")
+      return
+    }
+
+    const payload = {
+      ...formData,
+      xp_reward: Number(formData.xp_reward),
+      data_json: parsedData
+    }
+    
+    if (payload.lesson_id?.$oid) payload.lesson_id = payload.lesson_id.$oid
+    if (payload.module_id?.$oid) payload.module_id = payload.module_id.$oid
+
+    createMutation.mutate(payload)
+  }
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setIsUploading(true)
+    try {
+      const res = await uploadAsset(file)
+      setFormData({ ...formData, asset_url: res.url })
+    } catch (err) {
+      alert("Failed to upload asset")
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
   return (
     <div className="space-y-4">
+      <div className="flex justify-end mb-4">
+        <button
+          onClick={() => setIsCreateModalOpen(true)}
+          className="flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl shadow-sm transition-all shadow-blue-600/20 hover:shadow-blue-600/40"
+        >
+          <Gamepad2 className="mr-2 h-4 w-4" />
+          Create Game
+        </button>
+      </div>
+
       {games.length === 0 ? (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-12 text-center">
           <Gamepad2 className="h-12 w-12 text-slate-200 mx-auto mb-4" />
@@ -208,6 +284,136 @@ function GamesPanel({ games, isLoading }: { games: any[]; isLoading: boolean }) 
               </div>
             )
           })}
+        </div>
+      )}
+
+      {isCreateModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
+            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 sticky top-0 z-10">
+              <h3 className="text-lg font-bold text-slate-800">Game Builder</h3>
+              <button onClick={() => setIsCreateModalOpen(false)} className="text-slate-400 hover:text-slate-600">×</button>
+            </div>
+            
+            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Game Title</label>
+                  <input
+                    className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/30"
+                    value={formData.title}
+                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                    placeholder="e.g. Lobby Greeting Matching"
+                  />
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Game Type</label>
+                    <select
+                      className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm bg-white"
+                      value={formData.game_type}
+                      onChange={(e) => setFormData({ ...formData, game_type: e.target.value })}
+                    >
+                      <option value="SCENE_MATCHER">Scene Matcher</option>
+                      <option value="RESPECT_MASTER">Respect Master</option>
+                      <option value="VOICE_STAR">Voice Star</option>
+                      <option value="WORD_SCRAMBLE">Word Scramble</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1.5">XP Reward</label>
+                    <input
+                      type="number"
+                      className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm"
+                      value={formData.xp_reward}
+                      onChange={(e) => setFormData({ ...formData, xp_reward: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Linked Lesson</label>
+                  <select
+                    className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm bg-white"
+                    value={formData.lesson_id?.$oid || formData.lesson_id}
+                    onChange={(e) => setFormData({ ...formData, lesson_id: e.target.value })}
+                  >
+                    <option value="" disabled>Select Lesson</option>
+                    {lessons.map((l: any) => {
+                      const lid = l._id?.$oid || l.id
+                      return <option key={lid} value={lid}>{l.title}</option>
+                    })}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Instructions</label>
+                  <textarea
+                    className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm resize-none"
+                    value={formData.instructions}
+                    onChange={(e) => setFormData({ ...formData, instructions: e.target.value })}
+                    placeholder="Game instructions for the player..."
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5 flex justify-between">
+                    <span>Asset URL (Background / Audio)</span>
+                    {isUploading && <span className="text-blue-500 text-xs flex items-center"><Loader2 className="h-3 w-3 animate-spin mr-1"/> Uploading...</span>}
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      className="flex-1 px-4 py-2 border border-slate-200 rounded-xl text-sm"
+                      value={formData.asset_url}
+                      onChange={(e) => setFormData({ ...formData, asset_url: e.target.value })}
+                      placeholder="https://..."
+                    />
+                    <label className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-medium rounded-xl cursor-pointer transition-colors border border-slate-200 flex items-center justify-center whitespace-nowrap">
+                      Upload
+                      <input 
+                        type="file" 
+                        className="hidden" 
+                        onChange={handleFileUpload} 
+                        accept="image/*,audio/*"
+                      />
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 flex flex-col h-full">
+                <label className="block text-sm font-medium text-slate-700 mb-1.5 flex items-center justify-between">
+                  <span>Data Payload (JSON)</span>
+                  <span className="text-xs text-slate-400 font-mono">
+                    {formData.game_type === "SCENE_MATCHER" ? "options: []" : formData.game_type === "VOICE_STAR" ? "script: string" : ""}
+                  </span>
+                </label>
+                <textarea
+                  className="w-full flex-1 px-4 py-3 border border-slate-200 rounded-xl text-sm font-mono focus:ring-2 focus:ring-blue-500/30 resize-none min-h-[250px]"
+                  value={formData.data_json}
+                  onChange={(e) => setFormData({ ...formData, data_json: e.target.value })}
+                  placeholder='{ "options": ["A", "B"], "correct": "A" }'
+                />
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-slate-100 flex justify-end gap-3 bg-slate-50/50 sticky bottom-0 z-10">
+              <button 
+                onClick={() => setIsCreateModalOpen(false)} 
+                className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleCreate}
+                disabled={createMutation.isPending || !formData.title || !formData.lesson_id}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-xl shadow-sm transition-all disabled:opacity-50"
+              >
+                {createMutation.isPending ? 'Saving...' : 'Create Game'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

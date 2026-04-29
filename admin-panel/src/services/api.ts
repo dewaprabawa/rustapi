@@ -207,3 +207,12 @@ export const updateMonetizationConfig = (data: any) =>
 // ============ Notifications ============
 export const sendNotification = (data: any) =>
   api.post("/notifications", data).then(r => r.data)
+
+// ============ Assets ============
+export const uploadAsset = (file: File) => {
+  const formData = new FormData()
+  formData.append("file", file)
+  return api.post("/assets/upload", formData, {
+    headers: { "Content-Type": "multipart/form-data" }
+  }).then(r => r.data)
+}

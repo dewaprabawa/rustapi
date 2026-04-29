@@ -1,5 +1,5 @@
 use axum::{
-    extract::{State, Json, Path, Query},
+    extract::{State, Json, Path, Query, Multipart},
     http::StatusCode,
     response::IntoResponse,
 };
@@ -122,4 +122,54 @@ pub async fn delete_user(
     Ok((StatusCode::OK, Json(serde_json::json!({
         "message": "User deleted successfully"
     }))))
+}
+
+/// POST /admin/assets/upload
+pub async fn upload_asset(
+    State(_state): State<Arc<AppState>>,
+    _admin: Admin,
+    mut multipart: Multipart,
+) -> Result<impl IntoResponse, AppError> {
+    let mut file_bytes = None;
+    let mut filename = None;
+    let mut content_type = None;
+
+    while let Some(field) = multipart.next_field().await.map_err(|_| AppError::InternalServerError)? {
+        if field.name() == Some("file") {
+            filename = field.file_name().map(|s| s.to_string());
+            content_type = field.content_type().map(|s| s.to_string());
+            file_bytes = Some(field.bytes().await.map_err(|_| AppError::InternalServerError)?);
+            break;
+        }
+    }
+
+    let file_bytes = file_bytes.ok_or(AppError::InternalServerError)?;
+    let filename = filename.unwrap_or_else(|| "asset.bin".to_string());
+    let content_type = content_type.unwrap_or_else(|| "application/octet-stream".to_string());
+
+    let supabase_url = "https://jliibnwjluancnoayayd.supabase.co";
+    let supabase_key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpsaWlibndqbHVhbmNub2F5YXlkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwMDUxOTMsImV4cCI6MjA5MjU4MTE5M30.PDGYaSPI9bf4pfSwxrJJ6zAGHZRiQ-ezncn-d2MZoQE";
+    
+    let ext = filename.split('.').last().unwrap_or("bin");
+    let asset_id = ObjectId::new().to_hex();
+    let object_path = format!("assets/{}.{}", asset_id, ext);
+    let upload_url = format!("{}/storage/v1/object/rustapi/{}", supabase_url, object_path);
+
+    let client = reqwest::Client::new();
+    let res = client.post(&upload_url)
+        .header("Authorization", format!("Bearer {}", supabase_key))
+        .header("apikey", supabase_key)
+        .header("Content-Type", content_type)
+        .body(file_bytes)
+        .send()
+        .await
+        .map_err(|_| AppError::InternalServerError)?;
+
+    if !res.status().is_success() {
+        return Err(AppError::InternalServerError);
+    }
+
+    let public_url = format!("{}/storage/v1/object/public/rustapi/{}", supabase_url, object_path);
+
+    Ok(Json(serde_json::json!({ "url": public_url })))
 }

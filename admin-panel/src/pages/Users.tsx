@@ -2,6 +2,7 @@ import { useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { Search, Trash2, Eye, ChevronLeft, ChevronRight, Users as UsersIcon, Shield, Mail } from "lucide-react"
 import { getUsers, deleteUser } from "../services/api"
+import { normalizeDate } from "../lib/utils"
 
 export default function Users() {
   const queryClient = useQueryClient()
@@ -27,11 +28,13 @@ export default function Users() {
   const total = data?.total ?? 0
   const totalPages = Math.ceil(total / limit)
 
+  console.log("users Data", users);
+
   const filtered = search
     ? users.filter((u: any) =>
-        (u.name?.toLowerCase() || "").includes(search.toLowerCase()) ||
-        (u.email?.toLowerCase() || "").includes(search.toLowerCase())
-      )
+      (u.name?.toLowerCase() || "").includes(search.toLowerCase()) ||
+      (u.email?.toLowerCase() || "").includes(search.toLowerCase())
+    )
     : users
 
   return (
@@ -111,7 +114,7 @@ export default function Users() {
                         {user.xp ?? 0}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
-                        {user.created_at ? new Date(user.created_at.$date || user.created_at).toLocaleDateString() : "—"}
+                        {user.created_at ? normalizeDate(user.created_at).toLocaleDateString() : "—"}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right">
                         <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">

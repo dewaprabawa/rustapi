@@ -45,11 +45,11 @@ pub struct XPResponse {
 pub struct GamificationConfig {
     #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
     pub id: Option<ObjectId>,
-    pub xp_per_lesson: i64,
-    pub xp_per_quiz: i64,
-    pub xp_per_interview: i64,
-    pub streak_bonus_xp: i64,
-    pub max_streak_freezes: i32,
+    #[serde(default)] pub xp_per_lesson: i64,
+    #[serde(default)] pub xp_per_quiz: i64,
+    #[serde(default)] pub xp_per_interview: i64,
+    #[serde(default)] pub streak_bonus_xp: i64,
+    #[serde(default)] pub max_streak_freezes: i32,
     pub level_thresholds: Vec<LevelThreshold>,
     pub updated_at: DateTime<Utc>,
 }

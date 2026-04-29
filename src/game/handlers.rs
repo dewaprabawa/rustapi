@@ -29,15 +29,23 @@ pub async fn create_game(
         None
     };
 
+    let module_id = if let Some(mid) = payload.module_id {
+        Some(ObjectId::parse_str(&mid).map_err(|_| AppError::NotFound)?)
+    } else {
+        None
+    };
+
     let collection: Collection<GameContent> = state.db.database("rustapi").collection("games");
 
     let game = GameContent {
         id: None,
+        module_id,
         lesson_id,
         game_type: payload.game_type,
         title: payload.title,
         instructions: payload.instructions,
         difficulty: payload.difficulty,
+        asset_url: payload.asset_url,
         data_json: payload.data_json,
         ai_scenario_id,
         xp_reward: payload.xp_reward.unwrap_or(10),
@@ -90,6 +98,7 @@ pub async fn update_game(
     if let Some(v) = payload.title { update.insert("title", v); }
     if let Some(v) = payload.instructions { update.insert("instructions", v); }
     if let Some(v) = payload.difficulty { update.insert("difficulty", v); }
+    if let Some(v) = payload.asset_url { update.insert("asset_url", v); }
     if let Some(v) = payload.data_json { 
         update.insert("data_json", mongodb::bson::to_document(&v).unwrap_or(doc! {})); 
     }

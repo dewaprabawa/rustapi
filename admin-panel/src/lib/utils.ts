@@ -4,3 +4,11 @@ import { twMerge } from "tailwind-merge"
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
+
+
+export const normalizeDate = (date) => {
+  if (date?.$date?.$numberLong) {
+    return new Date(Number(date.$date.$numberLong));
+  }
+  return new Date(date);
+};
