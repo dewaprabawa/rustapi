@@ -15,6 +15,7 @@ pub mod monetization;
 pub mod notification;
 pub mod voice;
 pub mod speaking;
+pub mod vocab;
 
 use axum::{
     routing::{get, post, put, delete},
@@ -31,7 +32,7 @@ use crate::progress::handlers::*;
 use crate::game::handlers::*;
 use crate::game::session_handlers::*;
 use crate::game::voice_scoring::score_pronunciation;
-use crate::ai::handlers::{generate_course, save_course, get_credit_usage};
+use crate::ai::handlers::{generate_course, save_course, generate_vocab, get_credit_usage, list_conversation_requests, fulfill_conversation_request};
 use crate::rating::handlers::*;
 use crate::monetization::handlers::*;
 use crate::notification::handlers::{send_notification, list_notifications, mark_notification_read};
@@ -139,7 +140,14 @@ pub async fn create_app() -> Router {
         // AI Course Generator
         .route("/ai/generate-course", post(generate_course))
         .route("/ai/save-course", post(save_course))
+        .route("/ai/generate-vocab", post(generate_vocab))
+        .route("/ai/save-vocab", post(vocab::handlers::save_vocab_set))
+        .route("/vocab-sets", get(vocab::handlers::list_vocab_sets))
+        .route("/vocab-sets/:id/words", get(vocab::handlers::get_vocab_words))
         .route("/ai/credit-usage", get(get_credit_usage))
+        // Conversation Requests
+        .route("/conversation-requests", get(list_conversation_requests))
+        .route("/conversation-requests/:id/generate", post(fulfill_conversation_request))
         // Voice Config
         .route("/voice/config", get(get_voice_config).put(update_voice_config))
         // Speaking Monitor
@@ -193,6 +201,16 @@ pub async fn create_app() -> Router {
     let rating_routes = Router::new()
         .route("/lessons", post(submit_lesson_rating));
 
+    // ============ Student Vocab Routes (auth required) ============
+
+    let student_vocab_routes = Router::new()
+        .route("/vocab-sets", get(vocab::student_handlers::get_published_sets))
+        .route("/vocab-sets/:id/words", get(vocab::student_handlers::get_set_words))
+        .route("/vocab-progress", post(vocab::student_handlers::submit_progress))
+        .route("/vocab/:word_id/bookmark", put(vocab::student_handlers::toggle_bookmark))
+        .route("/bookmarks", get(vocab::student_handlers::get_bookmarks))
+        .route("/conversation-requests", get(vocab::student_handlers::list_my_requests).post(vocab::student_handlers::create_conversation_request));
+
     Router::new()
         .route("/", get(root))
         // Swagger UI
@@ -210,6 +228,8 @@ pub async fn create_app() -> Router {
         .nest("/admin", admin_routes)
         // Public content
         .nest("/api", public_content_routes)
+        // Student vocab
+        .nest("/api/student", student_vocab_routes)
         // User progress
         .nest("/progress", progress_routes)
         // User ratings

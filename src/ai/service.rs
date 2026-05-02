@@ -1,6 +1,10 @@
-use crate::ai::models::*;
+use crate::ai::models::{GenerateCourseRequest, GeneratedCoursePreview, GenerateVocabRequest, GeneratedVocabPreview};
 use crate::content::models::LlmApiKey;
 use crate::handlers::AppError;
+
+
+// Vocabulary Generation functions
+
 
 /// Build the full course-generation prompt from the admin's request parameters.
 pub fn build_course_prompt(req: &GenerateCourseRequest) -> String {
@@ -294,3 +298,75 @@ pub fn estimate_cost(provider: &str, input_tokens: i64, output_tokens: i64) -> f
     }
 }
 
+/// Build the vocabulary generation prompt.
+pub fn build_vocab_prompt(req: &GenerateVocabRequest) -> String {
+    let word_count = req.word_count.unwrap_or(10);
+    let target_language = req.target_language.as_deref().unwrap_or("Indonesian");
+
+    let mut prompt = String::new();
+    prompt.push_str("You are an expert language teacher generating a custom vocabulary set.\n\n");
+    prompt.push_str("Generate a vocabulary set in JSON format. Follow this structure EXACTLY.\n\n");
+
+    prompt.push_str(&format!("## Parameters\n"));
+    prompt.push_str(&format!("- Topic: {}\n", req.topic));
+    prompt.push_str(&format!("- Level: {} (CEFR scale)\n", req.level));
+    prompt.push_str(&format!("- Target Language: {}\n", target_language));
+    prompt.push_str(&format!("- Word Count: {}\n\n", word_count));
+
+    prompt.push_str("## Required JSON Structure\n");
+    prompt.push_str("Return a single JSON object with a `title`, `title_id`, `words` array, and `related_topics` array. For each word, include:\n");
+    prompt.push_str("- `word`: The English word/phrase.\n");
+    prompt.push_str("- `translation`: Translation in the target language.\n");
+    prompt.push_str("- `part_of_speech`: noun, verb, adj, etc.\n");
+    prompt.push_str("- `definition`: Simple English definition.\n");
+    prompt.push_str("- `pronunciation_guide`: Simple phonetic spelling or IPA (e.g., 'kəm-PYOO-tər').\n");
+    prompt.push_str("- `colloquial_usage`: How it is most commonly used in natural, daily speaking, or a natural spoken synonym.\n");
+    prompt.push_str("- `example_sentence`: A highly natural, conversational sentence featuring the word.\n");
+    prompt.push_str("- `distractors`: An array of 3 incorrect translation options in the target language for a multiple-choice quiz.\n\n");
+
+    let schema = serde_json::json!({
+        "title": "Vocab set title",
+        "title_id": "Target language title",
+        "words": [
+            {
+                "word": "English word",
+                "translation": "Translation",
+                "part_of_speech": "noun",
+                "definition": "Definition",
+                "pronunciation_guide": "Phonetic",
+                "colloquial_usage": "Colloquial speaking usage",
+                "example_sentence": "Conversational example sentence.",
+                "distractors": ["wrong1", "wrong2", "wrong3"]
+            }
+        ],
+        "related_topics": ["Topic A", "Topic B", "Topic C"]
+    });
+    prompt.push_str(&serde_json::to_string_pretty(&schema).unwrap());
+    prompt.push_str("\n\nOutput only valid JSON.");
+
+    prompt
+}
+
+/// Parse raw LLM JSON output into a structured GeneratedVocabPreview.
+pub fn parse_vocab_preview(raw: &str) -> Result<GeneratedVocabPreview, AppError> {
+    let cleaned = raw.trim();
+    let cleaned = if cleaned.starts_with("```") {
+        let start = cleaned.find('\n').map(|i| i + 1).unwrap_or(0);
+        let end = cleaned.rfind("```").unwrap_or(cleaned.len());
+        &cleaned[start..end]
+    } else {
+        cleaned
+    };
+
+    let preview: GeneratedVocabPreview = serde_json::from_str(cleaned.trim())
+        .map_err(|e| {
+            eprintln!("Failed to parse AI vocab preview: {:?}", e);
+            AppError::BadRequest(format!("AI returned invalid JSON: {}", e))
+        })?;
+
+    if preview.words.is_empty() {
+        return Err(AppError::BadRequest("AI generated zero words".to_string()));
+    }
+
+    Ok(preview)
+}

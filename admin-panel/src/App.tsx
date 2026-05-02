@@ -15,6 +15,7 @@ import Settings from "./pages/Settings"
 import AIGenerator from "./pages/AIGenerator"
 import VoiceConfig from "./pages/VoiceConfig"
 import SpeakingMonitor from "./pages/SpeakingMonitor"
+import VocabForge from "./pages/VocabForge"
 
 function App() {
   return (
@@ -35,6 +36,7 @@ function App() {
           >
             <Route index element={<Dashboard />} />
             <Route path="courses" element={<Courses />} />
+            <Route path="vocab-forge" element={<VocabForge />} />
             <Route path="users" element={<Users />} />
             <Route path="scenarios" element={<Scenarios />} />
             <Route path="gamification" element={<Gamification />} />

@@ -105,6 +105,26 @@ export const updateVocabulary = (id: string, data: any) =>
 export const deleteVocabularyItem = (id: string) =>
   api.delete(`/vocabulary/${id}`).then(r => r.data)
 
+// ============ VocabForge AI ============
+export const generateVocabSet = (data: { topic: string; level: string; word_count?: number; target_language?: string }) =>
+  api.post("/ai/generate-vocab", data).then(r => r.data)
+
+export const saveVocabSet = (data: { preview: any; level: string; language: string; topic: string }) =>
+  api.post("/ai/save-vocab", data).then(r => r.data)
+
+export const getVocabSets = () =>
+  api.get("/vocab-sets").then(r => r.data)
+
+export const getVocabSetWords = (id: string) =>
+  api.get(`/vocab-sets/${id}/words`).then(r => r.data)
+
+// ============ Conversation Requests ============
+export const getConversationRequests = () =>
+  api.get("/conversation-requests").then(r => r.data)
+
+export const generateConversationScenario = (id: string) =>
+  api.post(`/conversation-requests/${id}/generate`).then(r => r.data)
+
 // ============ Dialogues ============
 export const getDialogues = () =>
   api.get("/dialogues").then(r => r.data)

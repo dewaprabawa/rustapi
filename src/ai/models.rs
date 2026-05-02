@@ -280,3 +280,42 @@ pub struct CreditUsageSummary {
     pub daily_remaining: i64,
     pub warning_level: String,       // "ok", "caution" (80%), "critical" (95%), "exceeded"
 }
+
+// ============ VocabForge AI Models ============
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GenerateVocabRequest {
+    pub topic: String,
+    pub level: String,
+    pub target_language: Option<String>,
+    pub word_count: Option<i32>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct GeneratedVocabWord {
+    pub word: String,
+    pub translation: String,
+    pub part_of_speech: String,
+    pub definition: String,
+    pub pronunciation_guide: String,
+    pub colloquial_usage: String,
+    pub example_sentence: String,
+    pub distractors: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct GeneratedVocabPreview {
+    pub title: String,
+    pub title_id: String,
+    pub words: Vec<GeneratedVocabWord>,
+    pub related_topics: Vec<String>,
+}
+
+
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TranslationField {
+    pub english: String,
+    pub indonesian: String,
+}
+

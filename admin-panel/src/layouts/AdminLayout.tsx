@@ -11,6 +11,7 @@ export default function AdminLayout() {
   const navItems = [
     { name: "Dashboard", path: "/", icon: LayoutDashboard },
     { name: "Courses & Content", path: "/courses", icon: BookOpen },
+    { name: "VocabForge AI", path: "/vocab-forge", icon: Sparkles },
     { name: "AI Generator", path: "/ai-generator", icon: Sparkles },
     { name: "Users", path: "/users", icon: Users },
     { name: "AI Scenarios", path: "/scenarios", icon: BrainCircuit },

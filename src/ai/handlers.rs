@@ -14,6 +14,7 @@ use std::sync::Arc;
 use bson::oid::ObjectId;
 use chrono::{Utc, Datelike};
 use mongodb::bson::doc;
+use futures::stream::StreamExt;
 
 // ==================== Phase 1: Generate Course Preview ====================
 
@@ -113,6 +114,211 @@ pub async fn generate_course(
     });
 
     Ok((StatusCode::OK, Json(response)))
+}
+
+// ==================== Phase 1.5: Generate Vocabulary Set ====================
+
+/// POST /admin/ai/generate-vocab
+pub async fn generate_vocab(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+    Json(payload): Json<GenerateVocabRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    let db = state.db.database("rustapi");
+    let log_col: Collection<AiGenerationLog> = db.collection("ai_generation_logs");
+    
+    // 1. Check daily rate limit
+    let today_start = Utc::now().date_naive().and_hms_opt(0, 0, 0).unwrap();
+    let today_bson = bson::DateTime::from_chrono(today_start.and_utc());
+    let today_count = log_col.count_documents(doc! {
+        "created_at": { "$gte": today_bson },
+        "action": "generate_vocab"
+    }).await.unwrap_or(0) as i64;
+
+    if today_count >= DAILY_GENERATION_LIMIT {
+        return Err(AppError::BadRequest(format!(
+            "Daily generation limit reached ({}/{}). Try again tomorrow.",
+            today_count, DAILY_GENERATION_LIMIT
+        )));
+    }
+
+    // 2. Get active LLM API key
+    let key_col: Collection<LlmApiKey> = db.collection("llm_api_keys");
+    let active_key = key_col.find_one(doc! { "is_active": true }).await?
+        .ok_or(AppError::NotFound)?;
+
+    // 3. Build the prompt
+    let prompt = build_vocab_prompt(&payload);
+
+    // 4. Call the LLM
+    let llm_response = call_llm_for_course(&active_key, &prompt).await;
+
+    // 5. Log the generation
+    let (status, error_msg, tokens) = match &llm_response {
+        Ok(r) => ("success".to_string(), None, (r.input_tokens, r.output_tokens, r.total_tokens)),
+        Err(_) => ("error".to_string(), Some("LLM call failed".to_string()), (0, 0, 0)),
+    };
+
+    let cost = estimate_cost(&active_key.provider, tokens.0, tokens.1);
+
+    let log_entry = AiGenerationLog {
+        id: None,
+        admin_id: _admin.email.clone(),
+        provider: active_key.provider.clone(),
+        action: "generate_vocab".to_string(),
+        params: serde_json::json!(payload),
+        input_tokens: tokens.0,
+        output_tokens: tokens.1,
+        total_tokens: tokens.2,
+        estimated_cost_usd: cost,
+        status,
+        error_message: error_msg,
+        created_at: Utc::now(),
+    };
+    let _ = log_col.insert_one(log_entry).await;
+
+    // 6. Parse the response
+    let llm_response = llm_response?;
+    let preview = parse_vocab_preview(&llm_response.text)?;
+
+    // 7. Build response
+    let remaining = DAILY_GENERATION_LIMIT - today_count - 1;
+    let warning_level = if remaining <= 1 { "critical" } else if remaining <= 4 { "caution" } else { "ok" };
+
+    let response = serde_json::json!({
+        "preview": preview,
+        "_meta": {
+            "tokens_used": llm_response.total_tokens,
+            "estimated_cost_usd": format!("{:.4}", cost),
+            "daily_remaining": remaining,
+            "daily_limit": DAILY_GENERATION_LIMIT,
+            "warning_level": warning_level,
+            "provider": active_key.provider,
+        }
+    });
+
+    Ok((StatusCode::OK, Json(response)))
+}
+
+// ==================== Phase 3: Admin Conversation Request Queue ====================
+
+/// GET /admin/conversation-requests — list all pending student requests
+pub async fn list_conversation_requests(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+) -> Result<impl IntoResponse, AppError> {
+    let db = state.db.database("rustapi");
+    let col = db.collection::<crate::vocab::models::ConversationRequest>("conversation_requests");
+    let word_col = db.collection::<crate::vocab::models::VocabWord>("vocab_words");
+
+    let mut cursor = col.find(doc! {}).await?;
+    let mut results = Vec::new();
+
+    while let Some(req) = cursor.next().await {
+        let r = req?;
+        // Fetch the actual word data for each request
+        let mut words = Vec::new();
+        for wid in &r.target_vocab {
+            if let Ok(Some(w)) = word_col.find_one(doc! { "_id": wid }).await {
+                words.push(serde_json::json!({
+                    "_id": w.id.map(|id| id.to_hex()),
+                    "word": w.word,
+                    "translation": w.translation,
+                }));
+            }
+        }
+
+        results.push(serde_json::json!({
+            "_id": r.id.map(|id| id.to_hex()),
+            "user_id": r.user_id,
+            "context_note": r.context_note,
+            "status": r.status,
+            "target_words": words,
+            "created_at": r.created_at,
+            "resolved_at": r.resolved_at,
+        }));
+    }
+
+    Ok(Json(results))
+}
+
+/// POST /admin/conversation-requests/:id/generate — generate a speaking scenario
+pub async fn fulfill_conversation_request(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+    axum::extract::Path(request_id): axum::extract::Path<String>,
+) -> Result<impl IntoResponse, AppError> {
+    let db = state.db.database("rustapi");
+    let req_col = db.collection::<crate::vocab::models::ConversationRequest>("conversation_requests");
+    let word_col = db.collection::<crate::vocab::models::VocabWord>("vocab_words");
+
+    let req_oid = ObjectId::parse_str(&request_id)
+        .map_err(|_| AppError::BadRequest("Invalid request ID".to_string()))?;
+
+    // 1. Find the request
+    let conv_req = req_col.find_one(doc! { "_id": req_oid }).await?
+        .ok_or(AppError::NotFound)?;
+
+    if conv_req.status != "pending" {
+        return Err(AppError::BadRequest("Request already processed".to_string()));
+    }
+
+    // 2. Fetch the target words
+    let mut word_list = Vec::new();
+    for wid in &conv_req.target_vocab {
+        if let Ok(Some(w)) = word_col.find_one(doc! { "_id": wid }).await {
+            word_list.push(format!("{} ({})", w.word, w.translation));
+        }
+    }
+
+    // 3. Build a conversation scenario prompt
+    let mut prompt = String::new();
+    prompt.push_str("You are an expert ESL conversation designer.\n\n");
+    prompt.push_str("Generate a realistic roleplay conversation scenario in JSON format.\n\n");
+    prompt.push_str(&format!("## Context\nStudent's note: \"{}\"\n\n", conv_req.context_note));
+    prompt.push_str("## Target Vocabulary (MUST be used naturally in the dialogue)\n");
+    for w in &word_list {
+        prompt.push_str(&format!("- {}\n", w));
+    }
+    prompt.push_str("\n## Required JSON Structure\n");
+    let schema = serde_json::json!({
+        "title": "Scenario title",
+        "context": "Scene description",
+        "roles": ["Student", "Partner"],
+        "lines": [
+            { "speaker": "Partner", "text_en": "English", "text_id": "Indonesian" },
+            { "speaker": "Student", "text_en": "English", "text_id": "Indonesian" }
+        ],
+        "coaching_tips": ["Tip about using word X", "Tip about pronunciation"]
+    });
+    prompt.push_str(&serde_json::to_string_pretty(&schema).unwrap());
+    prompt.push_str("\n\nOutput only valid JSON. Dialogue should be 8-12 lines.");
+
+    // 4. Call LLM
+    let key_col: Collection<LlmApiKey> = db.collection("llm_api_keys");
+    let active_key = key_col.find_one(doc! { "is_active": true }).await?
+        .ok_or(AppError::NotFound)?;
+    let llm_response = call_llm_for_course(&active_key, &prompt).await?;
+
+    // 5. Update request status
+    let now = mongodb::bson::DateTime::now();
+    req_col.update_one(
+        doc! { "_id": req_oid },
+        doc! { "$set": {
+            "status": "generated",
+            "resolved_at": now,
+        }},
+    ).await?;
+
+    // 6. Return the generated scenario
+    let scenario: serde_json::Value = serde_json::from_str(llm_response.text.trim())
+        .unwrap_or_else(|_| serde_json::json!({ "raw": llm_response.text }));
+
+    Ok((StatusCode::OK, Json(serde_json::json!({
+        "scenario": scenario,
+        "request_id": request_id,
+        "status": "generated",
+    }))))
 }
 
 /// GET /admin/ai/credit-usage
