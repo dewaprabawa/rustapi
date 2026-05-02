@@ -12,34 +12,171 @@ use crate::models::Admin;
 use crate::handlers::{AppState, AppError};
 use std::sync::Arc;
 use bson::oid::ObjectId;
-use chrono::Utc;
+use chrono::{Utc, Datelike};
 use mongodb::bson::doc;
 
 // ==================== Phase 1: Generate Course Preview ====================
 
+const DAILY_GENERATION_LIMIT: i64 = 20;
+
 /// POST /admin/ai/generate-course
 /// Calls the LLM with a structured prompt, parses the response,
 /// and returns a full course preview WITHOUT saving to the database.
+/// Also logs token usage and checks credit limits.
 pub async fn generate_course(
     State(state): State<Arc<AppState>>,
     _admin: Admin,
     Json(payload): Json<GenerateCourseRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    // 1. Get active LLM API key
-    let col: Collection<LlmApiKey> = state.db.database("rustapi").collection("llm_api_keys");
-    let active_key = col.find_one(doc! { "is_active": true }).await?
+    let db = state.db.database("rustapi");
+
+    // 1. Check daily rate limit
+    let log_col: Collection<AiGenerationLog> = db.collection("ai_generation_logs");
+    let today_start = Utc::now().date_naive().and_hms_opt(0, 0, 0).unwrap();
+    let today_bson = bson::DateTime::from_chrono(today_start.and_utc());
+    let today_count = log_col.count_documents(doc! {
+        "created_at": { "$gte": today_bson },
+        "action": "generate_course"
+    }).await.unwrap_or(0) as i64;
+
+    if today_count >= DAILY_GENERATION_LIMIT {
+        return Err(AppError::BadRequest(format!(
+            "Daily generation limit reached ({}/{}). Try again tomorrow.",
+            today_count, DAILY_GENERATION_LIMIT
+        )));
+    }
+
+    // 2. Get active LLM API key
+    let key_col: Collection<LlmApiKey> = db.collection("llm_api_keys");
+    let active_key = key_col.find_one(doc! { "is_active": true }).await?
         .ok_or(AppError::NotFound)?;
 
-    // 2. Build the prompt
+    // 3. Build the prompt
     let prompt = build_course_prompt(&payload);
 
-    // 3. Call the LLM
-    let raw_response = call_llm_for_course(&active_key, &prompt).await?;
+    // 4. Call the LLM
+    let llm_response = call_llm_for_course(&active_key, &prompt).await;
 
-    // 4. Parse into structured preview
-    let preview = parse_course_preview(&raw_response)?;
+    // 5. Log the generation (success or failure)
+    let (status, error_msg, tokens) = match &llm_response {
+        Ok(r) => ("success".to_string(), None, (r.input_tokens, r.output_tokens, r.total_tokens)),
+        Err(_) => ("error".to_string(), Some("LLM call failed".to_string()), (0, 0, 0)),
+    };
 
-    Ok((StatusCode::OK, Json(preview)))
+    let cost = estimate_cost(&active_key.provider, tokens.0, tokens.1);
+
+    let log_entry = AiGenerationLog {
+        id: None,
+        admin_id: _admin.email.clone(),
+        provider: active_key.provider.clone(),
+        action: "generate_course".to_string(),
+        params: serde_json::json!({
+            "topic": payload.topic,
+            "level": payload.level,
+            "category": payload.category,
+        }),
+        input_tokens: tokens.0,
+        output_tokens: tokens.1,
+        total_tokens: tokens.2,
+        estimated_cost_usd: cost,
+        status,
+        error_message: error_msg,
+        created_at: Utc::now(),
+    };
+    let _ = log_col.insert_one(log_entry).await;
+
+    // 6. Parse the response
+    let llm_response = llm_response?;
+    let preview = parse_course_preview(&llm_response.text)?;
+
+    // 7. Build response with credit usage info
+    let remaining = DAILY_GENERATION_LIMIT - today_count - 1;
+    let warning_level = if remaining <= 1 {
+        "critical"
+    } else if remaining <= 4 {
+        "caution"
+    } else {
+        "ok"
+    };
+
+    let response = serde_json::json!({
+        "course": preview.course,
+        "modules": preview.modules,
+        "_meta": {
+            "tokens_used": llm_response.total_tokens,
+            "estimated_cost_usd": format!("{:.4}", cost),
+            "daily_remaining": remaining,
+            "daily_limit": DAILY_GENERATION_LIMIT,
+            "warning_level": warning_level,
+            "provider": active_key.provider,
+        }
+    });
+
+    Ok((StatusCode::OK, Json(response)))
+}
+
+/// GET /admin/ai/credit-usage
+/// Returns current credit usage summary for the admin dashboard.
+pub async fn get_credit_usage(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+) -> Result<impl IntoResponse, AppError> {
+    let db = state.db.database("rustapi");
+    let log_col: Collection<AiGenerationLog> = db.collection("ai_generation_logs");
+
+    // Today's usage
+    let today_start = Utc::now().date_naive().and_hms_opt(0, 0, 0).unwrap();
+    let today_bson = bson::DateTime::from_chrono(today_start.and_utc());
+
+    let today_count = log_col.count_documents(doc! {
+        "created_at": { "$gte": today_bson }
+    }).await.unwrap_or(0) as i64;
+
+    // Month's usage
+    let month_start = Utc::now().date_naive().with_day(1).unwrap().and_hms_opt(0, 0, 0).unwrap();
+    let month_bson = bson::DateTime::from_chrono(month_start.and_utc());
+
+    let month_count = log_col.count_documents(doc! {
+        "created_at": { "$gte": month_bson }
+    }).await.unwrap_or(0) as i64;
+
+    // Aggregate tokens and cost for today
+    use futures::TryStreamExt;
+    let today_cursor = log_col.find(doc! { "created_at": { "$gte": today_bson } }).await?;
+    let today_logs: Vec<AiGenerationLog> = today_cursor.try_collect().await?;
+    let today_tokens: i64 = today_logs.iter().map(|l| l.total_tokens).sum();
+    let today_cost: f64 = today_logs.iter().map(|l| l.estimated_cost_usd).sum();
+
+    // Aggregate for month
+    let month_cursor = log_col.find(doc! { "created_at": { "$gte": month_bson } }).await?;
+    let month_logs: Vec<AiGenerationLog> = month_cursor.try_collect().await?;
+    let month_tokens: i64 = month_logs.iter().map(|l| l.total_tokens).sum();
+    let month_cost: f64 = month_logs.iter().map(|l| l.estimated_cost_usd).sum();
+
+    let daily_remaining = (DAILY_GENERATION_LIMIT - today_count).max(0);
+    let warning_level = if daily_remaining == 0 {
+        "exceeded"
+    } else if daily_remaining <= 1 {
+        "critical"
+    } else if daily_remaining <= 4 {
+        "caution"
+    } else {
+        "ok"
+    };
+
+    let summary = CreditUsageSummary {
+        today_count,
+        today_tokens,
+        today_cost_usd: today_cost,
+        month_count,
+        month_tokens,
+        month_cost_usd: month_cost,
+        daily_limit: DAILY_GENERATION_LIMIT,
+        daily_remaining,
+        warning_level: warning_level.to_string(),
+    };
+
+    Ok(Json(summary))
 }
 
 // ==================== Phase 2: Save Course to MongoDB ====================
@@ -111,6 +248,7 @@ pub async fn save_course(
         enrollment_cap: None,
         visibility: Visibility::Public,
         cover_image_url: None,
+        source: Some("ai_generated".to_string()),
         is_published: false,
         order: 0,
         tags: if p.tags.is_empty() { None } else { Some(p.tags.clone()) },

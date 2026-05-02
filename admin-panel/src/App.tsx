@@ -13,6 +13,8 @@ import Monetization from "./pages/Monetization"
 import Notifications from "./pages/Notifications"
 import Settings from "./pages/Settings"
 import AIGenerator from "./pages/AIGenerator"
+import VoiceConfig from "./pages/VoiceConfig"
+import SpeakingMonitor from "./pages/SpeakingMonitor"
 
 function App() {
   return (
@@ -40,6 +42,8 @@ function App() {
             <Route path="notifications" element={<Notifications />} />
             <Route path="settings" element={<Settings />} />
             <Route path="ai-generator" element={<AIGenerator />} />
+            <Route path="voice-config" element={<VoiceConfig />} />
+            <Route path="speaking-monitor" element={<SpeakingMonitor />} />
             <Route
               path="*"
               element={

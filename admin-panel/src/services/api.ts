@@ -268,3 +268,20 @@ export const generateCourse = (data: {
 
 export const saveCourse = (preview: any) =>
   api.post("/ai/save-course", { preview }).then(r => r.data)
+
+export const getCreditUsage = () =>
+  api.get("/ai/credit-usage").then(r => r.data)
+
+// ============ Voice Abstraction ============
+export const getVoiceConfig = () =>
+  api.get("/voice/config").then(r => r.data)
+
+export const updateVoiceConfig = (data: any) =>
+  api.put("/voice/config", data).then(r => r.data)
+
+export const testTts = (data: { text: string, voice_id: string }) =>
+  api.post("/voice/tts", data, { responseType: 'blob' }).then(r => r.data)
+
+// ============ Speaking Monitor ============
+export const getSpeakingSessions = () =>
+  api.get("/speaking/sessions").then(r => r.data)

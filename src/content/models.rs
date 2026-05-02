@@ -63,6 +63,7 @@ pub struct Course {
     pub is_published: bool, // Legacy field, keeping for compatibility
     pub order: i32,
     pub tags: Option<Vec<String>>,
+    pub source: Option<String>,
     #[serde(with = "mongodb::bson::serde_helpers::chrono_datetime_as_bson_datetime")]
     pub created_at: DateTime<Utc>,
     #[serde(with = "mongodb::bson::serde_helpers::chrono_datetime_as_bson_datetime")]

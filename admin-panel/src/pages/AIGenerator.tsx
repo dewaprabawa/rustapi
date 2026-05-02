@@ -1,11 +1,11 @@
 import { useState } from "react"
-import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import {
   Sparkles, Loader2, Save, RefreshCw, ChevronDown, ChevronRight,
   BookOpen, Layers, MessageSquare, HelpCircle, Gamepad2, Languages,
   Check, AlertTriangle
 } from "lucide-react"
-import { generateCourse, saveCourse } from "../services/api"
+import { generateCourse, saveCourse, getCreditUsage } from "../services/api"
 import { cn } from "../lib/utils"
 
 type TabKey = "course" | "modules" | "vocabulary" | "games"
@@ -25,11 +25,17 @@ export default function AIGenerator() {
     vocab_per_lesson: 4,
   })
 
+  const { data: creditUsage, refetch: refetchCreditUsage } = useQuery({
+    queryKey: ["credit-usage"],
+    queryFn: getCreditUsage,
+  })
+
   const generateMutation = useMutation({
     mutationFn: generateCourse,
     onSuccess: (data) => {
       setPreview(data)
       setActiveTab("course")
+      refetchCreditUsage()
     },
     onError: (err: any) => {
       const msg = typeof err?.response?.data === "string"
@@ -93,6 +99,32 @@ export default function AIGenerator() {
           </p>
         </div>
       </div>
+
+      {/* Credit Usage Notifier */}
+      {creditUsage && creditUsage.warning_level !== "ok" && (
+        <div className={cn(
+          "rounded-xl p-4 border flex items-start gap-3",
+          creditUsage.warning_level === "exceeded" ? "bg-red-50 border-red-200 text-red-800" :
+          creditUsage.warning_level === "critical" ? "bg-red-50 border-red-200 text-red-800" :
+          "bg-amber-50 border-amber-200 text-amber-800"
+        )}>
+          <AlertTriangle className={cn(
+            "h-5 w-5 shrink-0",
+            creditUsage.warning_level === "caution" ? "text-amber-600" : "text-red-600"
+          )} />
+          <div>
+            <h4 className="font-semibold text-sm">
+              {creditUsage.warning_level === "exceeded" ? "Daily Generation Limit Exceeded" :
+               creditUsage.warning_level === "critical" ? "Critical Limit Approaching" :
+               "Generation Limit Approaching"}
+            </h4>
+            <p className="text-sm mt-1 opacity-90">
+              You have {creditUsage.daily_remaining} generations remaining today (out of {creditUsage.daily_limit}).
+              {creditUsage.warning_level === "exceeded" ? " Please try again tomorrow." : " Use them carefully."}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Generator Form */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">

@@ -247,3 +247,36 @@ impl Default for GeneratedGame {
 pub struct SaveCourseRequest {
     pub preview: GeneratedCoursePreview,
 }
+
+// ============ AI Generation Logs & Credit Tracking ============
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AiGenerationLog {
+    #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
+    pub id: Option<bson::oid::ObjectId>,
+    pub admin_id: String,
+    pub provider: String,
+    pub action: String,              // "generate_course", "translate", "ai_generate"
+    pub params: Value,               // request params snapshot
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub total_tokens: i64,
+    pub estimated_cost_usd: f64,     // estimated cost in USD
+    pub status: String,              // "success", "error"
+    pub error_message: Option<String>,
+    #[serde(with = "mongodb::bson::serde_helpers::chrono_datetime_as_bson_datetime")]
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Debug, Serialize, Clone)]
+pub struct CreditUsageSummary {
+    pub today_count: i64,
+    pub today_tokens: i64,
+    pub today_cost_usd: f64,
+    pub month_count: i64,
+    pub month_tokens: i64,
+    pub month_cost_usd: f64,
+    pub daily_limit: i64,
+    pub daily_remaining: i64,
+    pub warning_level: String,       // "ok", "caution" (80%), "critical" (95%), "exceeded"
+}

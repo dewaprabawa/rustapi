@@ -145,8 +145,16 @@ pub fn build_course_prompt(req: &GenerateCourseRequest) -> String {
     prompt
 }
 
+/// Response from LLM call — includes text and token usage for credit tracking.
+pub struct LlmResponse {
+    pub text: String,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub total_tokens: i64,
+}
+
 /// Call the Anthropic (Claude) API.
-pub async fn call_anthropic(api_key: &str, prompt: &str) -> Result<String, AppError> {
+pub async fn call_anthropic(api_key: &str, prompt: &str) -> Result<LlmResponse, AppError> {
     let client = reqwest::Client::new();
     let res = client.post("https://api.anthropic.com/v1/messages")
         .header("x-api-key", api_key)
@@ -182,13 +190,21 @@ pub async fn call_anthropic(api_key: &str, prompt: &str) -> Result<String, AppEr
         AppError::InternalServerError
     })?;
 
-    // Anthropic returns { content: [{ type: "text", text: "..." }] }
+    // Anthropic returns { content: [{ type: "text", text: "..." }], usage: { input_tokens, output_tokens } }
     let text = data["content"][0]["text"]
         .as_str()
         .unwrap_or("{}")
         .to_string();
 
-    Ok(text)
+    let input_tokens = data["usage"]["input_tokens"].as_i64().unwrap_or(0);
+    let output_tokens = data["usage"]["output_tokens"].as_i64().unwrap_or(0);
+
+    Ok(LlmResponse {
+        text,
+        input_tokens,
+        output_tokens,
+        total_tokens: input_tokens + output_tokens,
+    })
 }
 
 /// Parse raw LLM JSON output into a structured GeneratedCoursePreview.
@@ -224,28 +240,27 @@ pub fn parse_course_preview(raw: &str) -> Result<GeneratedCoursePreview, AppErro
                 format!("Module '{}' has zero lessons", module.title)
             ));
         }
-        for lesson in &module.lessons {
-            if lesson.vocabulary.is_empty() {
-                return Err(AppError::BadRequest(
-                    format!("Lesson '{}' has no vocabulary", lesson.title)
-                ));
-            }
-        }
     }
 
     Ok(preview)
 }
 
 /// Call the appropriate LLM provider based on the stored key config.
-/// Extends the existing call_llm dispatcher with Anthropic support.
-pub async fn call_llm_for_course(key: &LlmApiKey, prompt: &str) -> Result<String, AppError> {
+pub async fn call_llm_for_course(key: &LlmApiKey, prompt: &str) -> Result<LlmResponse, AppError> {
     match key.provider.as_str() {
         "anthropic" => call_anthropic(&key.api_key, prompt).await,
         "gemini" => {
-            crate::content::handlers::call_gemini_pub(&key.api_key, prompt).await
+            let text = crate::content::handlers::call_gemini_pub(&key.api_key, prompt).await?;
+            // Gemini doesn't return token counts in the same way — estimate from text length
+            let est_input = (prompt.len() / 4) as i64;
+            let est_output = (text.len() / 4) as i64;
+            Ok(LlmResponse { text, input_tokens: est_input, output_tokens: est_output, total_tokens: est_input + est_output })
         },
         "groq" => {
-            crate::content::handlers::call_groq_pub(&key.api_key, prompt).await
+            let text = crate::content::handlers::call_groq_pub(&key.api_key, prompt).await?;
+            let est_input = (prompt.len() / 4) as i64;
+            let est_output = (text.len() / 4) as i64;
+            Ok(LlmResponse { text, input_tokens: est_input, output_tokens: est_output, total_tokens: est_input + est_output })
         },
         _ => {
             eprintln!("Unsupported provider for course generation: {}", key.provider);
@@ -253,3 +268,29 @@ pub async fn call_llm_for_course(key: &LlmApiKey, prompt: &str) -> Result<String
         }
     }
 }
+
+/// Estimate cost in USD based on provider and token counts.
+pub fn estimate_cost(provider: &str, input_tokens: i64, output_tokens: i64) -> f64 {
+    match provider {
+        // Claude Sonnet 4 pricing (per 1M tokens)
+        "anthropic" => {
+            let input_cost = (input_tokens as f64 / 1_000_000.0) * 3.0;
+            let output_cost = (output_tokens as f64 / 1_000_000.0) * 15.0;
+            input_cost + output_cost
+        },
+        // Gemini 2.0 Flash — free tier / very low cost
+        "gemini" => {
+            let input_cost = (input_tokens as f64 / 1_000_000.0) * 0.10;
+            let output_cost = (output_tokens as f64 / 1_000_000.0) * 0.40;
+            input_cost + output_cost
+        },
+        // Groq Llama — very cheap
+        "groq" => {
+            let input_cost = (input_tokens as f64 / 1_000_000.0) * 0.59;
+            let output_cost = (output_tokens as f64 / 1_000_000.0) * 0.79;
+            input_cost + output_cost
+        },
+        _ => 0.0,
+    }
+}
+

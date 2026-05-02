@@ -13,6 +13,8 @@ pub mod ai;
 pub mod rating;
 pub mod monetization;
 pub mod notification;
+pub mod voice;
+pub mod speaking;
 
 use axum::{
     routing::{get, post, put, delete},
@@ -29,10 +31,12 @@ use crate::progress::handlers::*;
 use crate::game::handlers::*;
 use crate::game::session_handlers::*;
 use crate::game::voice_scoring::score_pronunciation;
-use crate::ai::handlers::{generate_course, save_course};
+use crate::ai::handlers::{generate_course, save_course, get_credit_usage};
 use crate::rating::handlers::*;
 use crate::monetization::handlers::*;
 use crate::notification::handlers::{send_notification, list_notifications, mark_notification_read};
+use crate::voice::handlers::{get_voice_config, update_voice_config, speech_to_text, text_to_speech};
+use crate::speaking::handlers as speaking_handlers;
 use crate::seed::seed_admin;
 use tower_http::cors::{CorsLayer, Any};
 use utoipa::OpenApi;
@@ -134,7 +138,17 @@ pub async fn create_app() -> Router {
         .route("/ai-prompts/:entity_type", put(update_ai_prompt))
         // AI Course Generator
         .route("/ai/generate-course", post(generate_course))
-        .route("/ai/save-course", post(save_course));
+        .route("/ai/save-course", post(save_course))
+        .route("/ai/credit-usage", get(get_credit_usage))
+        // Voice Config
+        .route("/voice/config", get(get_voice_config).put(update_voice_config))
+        // Speaking Monitor
+        .route("/speaking/sessions", get(speaking_handlers::list_all_sessions));
+
+    // ============ Voice Abstraction Routes (auth recommended) ============
+    let voice_routes = Router::new()
+        .route("/stt", post(speech_to_text))
+        .route("/tts", post(text_to_speech));
 
     // ============ Public API Routes (for mobile app) ============
 
@@ -167,6 +181,10 @@ pub async fn create_app() -> Router {
         .route("/session/start", post(start_session))
         .route("/session/answer", post(submit_answer))
         .route("/session/sync", post(sync_offline_sessions))
+        // Speaking Practice Session API
+        .route("/speaking/sessions/start", post(speaking_handlers::start_session))
+        .route("/speaking/sessions/:id/turn", post(speaking_handlers::session_turn))
+        .route("/speaking/sessions/:id/end", post(speaking_handlers::end_session))
         // Voice Star Scoring
         .route("/voice/score", post(score_pronunciation));
 
@@ -196,6 +214,8 @@ pub async fn create_app() -> Router {
         .nest("/progress", progress_routes)
         // User ratings
         .nest("/ratings", rating_routes)
+        // Voice Proxy
+        .nest("/voice", voice_routes)
         .layer(cors)
         .with_state(state)
 }

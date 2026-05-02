@@ -40,6 +40,7 @@ pub async fn create_course(
         enrollment_cap: payload.enrollment_cap,
         visibility: payload.visibility.unwrap_or(Visibility::Public),
         cover_image_url: payload.cover_image_url,
+        source: None,
         is_published: false,
         order: payload.order.unwrap_or(0),
         tags: payload.tags.unwrap_or_default().into(),

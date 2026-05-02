@@ -157,6 +157,21 @@ export default function Courses() {
     }
   })
 
+  const togglePublishMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string, data: any }) => {
+      if (activeTab === 'courses') return updateCourse(id, data)
+      if (activeTab === 'modules') return updateModule(id, data)
+      return updateLesson(id, data)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [activeTab] })
+    },
+    onError: (err: any) => {
+      console.error('Toggle publish failed:', err)
+      alert('Failed to update publish status.')
+    }
+  })
+
   const cloneMutation = useMutation({
     mutationFn: (id: string) => cloneContent(activeTab.slice(0, -1), id),
     onSuccess: () => {
@@ -406,7 +421,14 @@ export default function Courses() {
                   return (
                     <tr key={id} className="hover:bg-slate-50/50 transition-colors group">
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="font-medium text-slate-800">{item.title}</div>
+                        <div className="font-medium text-slate-800 flex items-center gap-2">
+                          {item.title}
+                          {item.source === "ai_generated" && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-100 text-violet-700 uppercase tracking-wider">
+                              <Sparkles className="h-3 w-3" /> AI
+                            </span>
+                          )}
+                        </div>
                         <div className="text-xs text-slate-400 mt-1">ID: {id}</div>
                       </td>
 
@@ -437,12 +459,22 @@ export default function Courses() {
                       )}
 
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={cn(
-                          "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium",
-                          item.is_published ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
-                        )}>
+                        <button
+                          onClick={() => togglePublishMutation.mutate({ 
+                            id, 
+                            data: { is_published: !item.is_published } 
+                          })}
+                          disabled={togglePublishMutation.isPending}
+                          className={cn(
+                            "inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border transition-colors",
+                            item.is_published 
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100" 
+                              : "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100",
+                            togglePublishMutation.isPending && "opacity-50 cursor-not-allowed"
+                          )}
+                        >
                           {item.is_published ? 'Published' : 'Draft'}
-                        </span>
+                        </button>
                       </td>
 
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">

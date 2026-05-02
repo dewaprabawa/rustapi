@@ -83,6 +83,7 @@ pub async fn seed_content(client: &Client) {
             enrollment_cap: None,
             visibility: Visibility::Public,
             cover_image_url: Some("https://images.unsplash.com/photo-1562790351-d273a961e0e9?q=80&w=200&auto=format&fit=crop".to_string()),
+            source: None,
             is_published: true,
             order: 1,
             tags: None,
