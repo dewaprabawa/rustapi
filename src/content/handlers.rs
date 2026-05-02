@@ -1024,6 +1024,15 @@ async fn call_llm(key: &LlmApiKey, prompt: &str) -> Result<String, AppError> {
     }
 }
 
+/// Public wrappers so the AI course generator module can reuse these callers.
+pub async fn call_gemini_pub(api_key: &str, prompt: &str) -> Result<String, AppError> {
+    call_gemini(api_key, prompt).await
+}
+
+pub async fn call_groq_pub(api_key: &str, prompt: &str) -> Result<String, AppError> {
+    call_groq(api_key, prompt).await
+}
+
 /// POST /admin/translate
 pub async fn translate_text(
     State(state): State<Arc<AppState>>,

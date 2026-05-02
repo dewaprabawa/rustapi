@@ -9,6 +9,7 @@ pub mod content;
 pub mod interview;
 pub mod progress;
 pub mod game;
+pub mod ai;
 pub mod rating;
 pub mod monetization;
 pub mod notification;
@@ -28,6 +29,7 @@ use crate::progress::handlers::*;
 use crate::game::handlers::*;
 use crate::game::session_handlers::*;
 use crate::game::voice_scoring::score_pronunciation;
+use crate::ai::handlers::{generate_course, save_course};
 use crate::rating::handlers::*;
 use crate::monetization::handlers::*;
 use crate::notification::handlers::{send_notification, list_notifications, mark_notification_read};
@@ -129,7 +131,10 @@ pub async fn create_app() -> Router {
         .route("/clone/:entity_type/:entity_id", post(clone_content))
         // AI Prompt Templates
         .route("/ai-prompts", get(get_ai_prompts))
-        .route("/ai-prompts/:entity_type", put(update_ai_prompt));
+        .route("/ai-prompts/:entity_type", put(update_ai_prompt))
+        // AI Course Generator
+        .route("/ai/generate-course", post(generate_course))
+        .route("/ai/save-course", post(save_course));
 
     // ============ Public API Routes (for mobile app) ============
 

@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom"
-import { LayoutDashboard, BookOpen, Users, BrainCircuit, Settings, LogOut, Trophy, CreditCard, Bell } from "lucide-react"
+import { LayoutDashboard, BookOpen, Users, BrainCircuit, Settings, LogOut, Trophy, CreditCard, Bell, Sparkles } from "lucide-react"
 import { cn } from "../lib/utils"
 import { useAuth } from "../contexts/AuthContext"
 
@@ -11,6 +11,7 @@ export default function AdminLayout() {
   const navItems = [
     { name: "Dashboard", path: "/", icon: LayoutDashboard },
     { name: "Courses & Content", path: "/courses", icon: BookOpen },
+    { name: "AI Generator", path: "/ai-generator", icon: Sparkles },
     { name: "Users", path: "/users", icon: Users },
     { name: "AI Scenarios", path: "/scenarios", icon: BrainCircuit },
     { name: "Gamification", path: "/gamification", icon: Trophy },

@@ -253,3 +253,18 @@ export const getAiPrompts = () =>
 
 export const updateAiPrompt = (entity_type: string, prompt_template: string) =>
   api.put(`/ai-prompts/${entity_type}`, { prompt_template }).then(r => r.data)
+
+// ============ AI Course Generator ============
+export const generateCourse = (data: {
+  topic: string
+  level: string
+  category: string
+  skill_focus?: string[]
+  target_age?: string
+  num_modules?: number
+  lessons_per_module?: number
+  vocab_per_lesson?: number
+}) => api.post("/ai/generate-course", data).then(r => r.data)
+
+export const saveCourse = (preview: any) =>
+  api.post("/ai/save-course", { preview }).then(r => r.data)
