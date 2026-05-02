@@ -216,3 +216,40 @@ export const uploadAsset = (file: File) => {
     headers: { "Content-Type": "multipart/form-data" }
   }).then(r => r.data)
 }
+
+// ============ LLM API Keys ============
+export const getApiKeys = () =>
+  api.get("/api-keys").then(r => r.data)
+
+export const createApiKey = (data: { provider: string, name: string, api_key: string }) =>
+  api.post("/api-keys", data).then(r => r.data)
+
+export const deleteApiKey = (id: string) =>
+  api.delete(`/api-keys/${id}`).then(r => r.data)
+
+export const activateApiKey = (id: string) =>
+  api.put(`/api-keys/${id}/activate`).then(r => r.data)
+
+// ============ AI Translation & Generation ============
+export const translateText = (text: string, from?: string, to?: string) =>
+  api.post("/translate", { text, from, to }).then(r => r.data)
+
+export const aiGenerateContent = (entity_type: string, context?: string) =>
+  api.post("/ai-generate", { entity_type, context }).then(r => r.data)
+
+// ============ Content Version History ============
+export const getContentVersions = (entity_type: string, entity_id: string) =>
+  api.get(`/versions/${entity_type}/${entity_id}`).then(r => r.data)
+
+export const rollbackContentVersion = (entity_type: string, entity_id: string, version: number) =>
+  api.post(`/versions/${entity_type}/${entity_id}/rollback/${version}`).then(r => r.data)
+
+export const cloneContent = (entity_type: string, entity_id: string) =>
+  api.post(`/clone/${entity_type}/${entity_id}`).then(r => r.data)
+
+// ============ AI Prompts ============
+export const getAiPrompts = () =>
+  api.get("/ai-prompts").then(r => r.data)
+
+export const updateAiPrompt = (entity_type: string, prompt_template: string) =>
+  api.put(`/ai-prompts/${entity_type}`, { prompt_template }).then(r => r.data)

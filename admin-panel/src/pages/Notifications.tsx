@@ -197,7 +197,7 @@ export default function Notifications() {
                 placeholder="Write your message here..."
                 rows={4}
                 maxLength={200}
-                className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-300 transition-all resize-none"
+                className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-300 transition-all min-h-[120px] resize-y"
               />
               <p className="text-xs text-slate-400 text-right">{message.length}/200</p>
             </div>

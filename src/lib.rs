@@ -19,7 +19,7 @@ use axum::{
 };
 use mongodb::Client;
 use std::sync::Arc;
-use crate::handlers::{AppState, register, login, firebase_login, get_me, update_onboarding, upload_profile_image, update_fcm_token};
+use crate::handlers::{AppState, register, login, firebase_login, get_me, update_onboarding, update_profile, upload_profile_image, update_fcm_token};
 use crate::admin::handlers::{admin_login, admin_me, list_users, get_user, delete_user, upload_asset};
 use crate::content::handlers::*;
 use crate::interview::handlers::*;
@@ -114,7 +114,22 @@ pub async fn create_app() -> Router {
         // Notifications
         .route("/notifications", post(send_notification))
         // Assets
-        .route("/assets/upload", post(upload_asset));
+        .route("/assets/upload", post(upload_asset))
+        // LLM API Key Management
+        .route("/api-keys", get(list_api_keys).post(create_api_key))
+        .route("/api-keys/:id", delete(delete_api_key))
+        .route("/api-keys/:id/activate", put(activate_api_key))
+        // AI Translation & Generation
+        .route("/translate", post(translate_text))
+        .route("/ai-generate", post(ai_generate_content))
+        // Content Version History
+        .route("/versions/:entity_type/:entity_id", get(list_content_versions))
+        .route("/versions/:entity_type/:entity_id/rollback/:version", post(rollback_content_version))
+        // Clone
+        .route("/clone/:entity_type/:entity_id", post(clone_content))
+        // AI Prompt Templates
+        .route("/ai-prompts", get(get_ai_prompts))
+        .route("/ai-prompts/:entity_type", put(update_ai_prompt));
 
     // ============ Public API Routes (for mobile app) ============
 
@@ -165,6 +180,7 @@ pub async fn create_app() -> Router {
         .route("/auth/firebase", post(firebase_login))
         .route("/auth/me", get(get_me))
         .route("/auth/onboarding", put(update_onboarding))
+        .route("/auth/profile", put(update_profile))
         .route("/auth/profile-image", post(upload_profile_image))
         .route("/auth/fcm-token", put(update_fcm_token))
         // Admin panel

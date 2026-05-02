@@ -24,7 +24,7 @@ pub async fn start_session(
     // Close any active sessions for this game
     collection.update_many(
         doc! { "user_id": user_id, "game_id": game_id, "status": "active" },
-        doc! { "$set": { "status": "failed", "updated_at": bson::DateTime::now() } }
+        doc! { "$set": { "status": "failed", "updated_at": mongodb::bson::DateTime::now() } }
     ).await?;
 
     let session = GameSession {
@@ -41,6 +41,9 @@ pub async fn start_session(
     let result = collection.insert_one(session.clone()).await?;
     let mut created = session;
     created.id = result.inserted_id.as_object_id();
+
+    eprintln!("DEBUG: Created new session {} for game {} (user: {})", 
+        created.id.unwrap(), game_id, user_id);
 
     Ok(Json(created))
 }
@@ -60,6 +63,7 @@ pub async fn submit_answer(
         .ok_or(AppError::NotFound)?;
 
     if session.status != "active" {
+        eprintln!("DEBUG: Session {} is not active. Status: {}", session_id, session.status);
         return Err(AppError::Forbidden); // Game over or completed
     }
 
@@ -69,14 +73,37 @@ pub async fn submit_answer(
 
     // Basic logic for SceneMatcher: Validate if payload.answer == game.data_json["correct"]
     let is_correct = match game.game_type {
-        GameType::SceneMatcher | GameType::RespectMaster => {
+        GameType::SceneMatcher | GameType::RespectMaster | GameType::FillInTheBlank => {
             if let Some(correct) = game.data_json.get("correct") {
                 &payload.answer == correct
             } else {
-                true // Fallback
+                true
             }
         },
-        _ => true, // Other games have custom logic
+        GameType::WordScramble => {
+            if let Some(word) = game.data_json.get("word") {
+                // Ignore case for word scramble
+                let guess = payload.answer.as_str().unwrap_or("").to_lowercase();
+                let correct = word.as_str().unwrap_or("").to_lowercase();
+                guess == correct
+            } else {
+                true
+            }
+        },
+        GameType::Matching => {
+            // For matching, the client sends the completed pairs.
+            // We'll trust the client for now but check if they matched everything.
+            if let (Some(pairs), Some(answer)) = (game.data_json.get("pairs"), payload.answer.as_array()) {
+                if let Some(expected_pairs) = pairs.as_array() {
+                    answer.len() == expected_pairs.len()
+                } else {
+                    true
+                }
+            } else {
+                true
+            }
+        },
+        _ => true, // Other games like VoiceStar have custom logic elsewhere
     };
 
     let xp_earned = if is_correct { game.xp_reward } else { 0 };
@@ -99,7 +126,7 @@ pub async fn submit_answer(
             "status": &session.status, 
             "lives": session.lives, 
             "current_xp": session.current_xp,
-            "updated_at": bson::DateTime::now()
+            "updated_at": mongodb::bson::DateTime::now()
         }}
     ).await?;
 

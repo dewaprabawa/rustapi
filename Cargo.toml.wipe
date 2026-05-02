@@ -1,0 +1,8 @@
+[package]
+name = "wipe_db"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1.0", features = ["full"] }
+mongodb = "3.1.1"
