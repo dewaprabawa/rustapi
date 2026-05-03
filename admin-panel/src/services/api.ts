@@ -106,8 +106,13 @@ export const deleteVocabularyItem = (id: string) =>
   api.delete(`/vocabulary/${id}`).then(r => r.data)
 
 // ============ VocabForge AI ============
-export const generateVocabSet = (data: { topic: string; level: string; word_count?: number; target_language?: string }) =>
-  api.post("/ai/generate-vocab", data).then(r => r.data)
+export const generateVocabSet = (data: { topic: string; level: string; word_count?: number; language?: string }) =>
+  api.post("/ai/generate-vocab", {
+    topic: data.topic,
+    level: data.level,
+    word_count: data.word_count,
+    target_language: data.language
+  }).then(r => r.data)
 
 export const saveVocabSet = (data: { preview: any; level: string; language: string; topic: string }) =>
   api.post("/ai/save-vocab", data).then(r => r.data)

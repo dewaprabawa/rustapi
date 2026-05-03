@@ -50,7 +50,7 @@ pub async fn generate_course(
     // 2. Get active LLM API key
     let key_col: Collection<LlmApiKey> = db.collection("llm_api_keys");
     let active_key = key_col.find_one(doc! { "is_active": true }).await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(AppError::BadRequest("No active LLM API key found. Please activate an API key in API Key Management.".to_string()))?;
 
     // 3. Build the prompt
     let prompt = build_course_prompt(&payload);
@@ -145,7 +145,7 @@ pub async fn generate_vocab(
     // 2. Get active LLM API key
     let key_col: Collection<LlmApiKey> = db.collection("llm_api_keys");
     let active_key = key_col.find_one(doc! { "is_active": true }).await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(AppError::BadRequest("No active LLM API key found. Please activate an API key in API Key Management.".to_string()))?;
 
     // 3. Build the prompt
     let prompt = build_vocab_prompt(&payload);
@@ -297,7 +297,7 @@ pub async fn fulfill_conversation_request(
     // 4. Call LLM
     let key_col: Collection<LlmApiKey> = db.collection("llm_api_keys");
     let active_key = key_col.find_one(doc! { "is_active": true }).await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(AppError::BadRequest("No active LLM API key found. Please activate an API key in API Key Management.".to_string()))?;
     let llm_response = call_llm_for_course(&active_key, &prompt).await?;
 
     // 5. Update request status

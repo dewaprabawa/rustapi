@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   Sparkles, Loader2, Save, RefreshCw, ChevronDown, ChevronRight,
   BookOpen, Layers, MessageSquare, HelpCircle, Gamepad2, Languages,
@@ -105,8 +105,8 @@ export default function AIGenerator() {
         <div className={cn(
           "rounded-xl p-4 border flex items-start gap-3",
           creditUsage.warning_level === "exceeded" ? "bg-red-50 border-red-200 text-red-800" :
-          creditUsage.warning_level === "critical" ? "bg-red-50 border-red-200 text-red-800" :
-          "bg-amber-50 border-amber-200 text-amber-800"
+            creditUsage.warning_level === "critical" ? "bg-red-50 border-red-200 text-red-800" :
+              "bg-amber-50 border-amber-200 text-amber-800"
         )}>
           <AlertTriangle className={cn(
             "h-5 w-5 shrink-0",
@@ -115,8 +115,8 @@ export default function AIGenerator() {
           <div>
             <h4 className="font-semibold text-sm">
               {creditUsage.warning_level === "exceeded" ? "Daily Generation Limit Exceeded" :
-               creditUsage.warning_level === "critical" ? "Critical Limit Approaching" :
-               "Generation Limit Approaching"}
+                creditUsage.warning_level === "critical" ? "Critical Limit Approaching" :
+                  "Generation Limit Approaching"}
             </h4>
             <p className="text-sm mt-1 opacity-90">
               You have {creditUsage.daily_remaining} generations remaining today (out of {creditUsage.daily_limit}).
@@ -585,8 +585,8 @@ function GamesPreview({ modules }: { modules: any[] }) {
                       <span className={cn(
                         "px-2 py-0.5 text-[10px] font-medium rounded capitalize",
                         game.difficulty === "easy" ? "bg-emerald-50 text-emerald-600" :
-                        game.difficulty === "medium" ? "bg-amber-50 text-amber-600" :
-                        "bg-red-50 text-red-600"
+                          game.difficulty === "medium" ? "bg-amber-50 text-amber-600" :
+                            "bg-red-50 text-red-600"
                       )}>
                         {game.difficulty}
                       </span>

@@ -12,6 +12,8 @@ use utoipa::OpenApi;
         (name = "Admin Auth", description = "Admin login & profile"),
         (name = "Admin Users", description = "Admin user management"),
         (name = "Admin Content", description = "CMS for courses, modules, lessons, vocabulary, dialogues & quizzes"),
+        (name = "Admin AI", description = "AI content generation & tools"),
+        (name = "Admin API Keys", description = "LLM API key management"),
         (name = "Admin Interviews", description = "Interview scenario & question management"),
         (name = "Admin AI Config", description = "AI prompt & evaluation weight configuration"),
         (name = "Admin Gamification", description = "Gamification & XP configuration"),
@@ -21,8 +23,11 @@ use utoipa::OpenApi;
         (name = "Public Content", description = "Public course/lesson browsing for mobile app"),
         (name = "Public Interviews", description = "AI interview sessions"),
         (name = "Progress", description = "User XP, quiz & game progress tracking"),
+        (name = "Game Sessions", description = "Interactive game engine sessions"),
+        (name = "Student Vocab", description = "Student vocabulary lists & progress"),
         (name = "Ratings", description = "User lesson ratings"),
         (name = "Notifications", description = "User & system notifications"),
+        (name = "Voice", description = "Speech-to-text & Text-to-speech services"),
     ),
     paths(
         // Auth
@@ -56,10 +61,39 @@ use utoipa::OpenApi;
         crate::swagger::admin_delete_lesson,
         crate::swagger::admin_list_vocabulary,
         crate::swagger::admin_create_vocabulary,
+        crate::swagger::admin_get_vocabulary,
+        crate::swagger::admin_update_vocabulary,
+        crate::swagger::admin_delete_vocabulary,
         crate::swagger::admin_list_dialogues,
         crate::swagger::admin_create_dialogue,
+        crate::swagger::admin_get_dialogue,
+        crate::swagger::admin_update_dialogue,
+        crate::swagger::admin_delete_dialogue,
         crate::swagger::admin_list_quizzes,
         crate::swagger::admin_create_quiz,
+        crate::swagger::admin_get_quiz,
+        crate::swagger::admin_update_quiz,
+        crate::swagger::admin_delete_quiz,
+        crate::swagger::admin_upload_asset,
+        crate::swagger::admin_list_content_versions,
+        crate::swagger::admin_rollback_content_version,
+        crate::swagger::admin_clone_content,
+        // Admin AI
+        crate::swagger::admin_generate_course,
+        crate::swagger::admin_save_course,
+        crate::swagger::admin_generate_vocab,
+        crate::swagger::admin_save_vocab,
+        crate::swagger::admin_get_credit_usage,
+        crate::swagger::admin_translate,
+        crate::swagger::admin_ai_generate_content,
+        crate::swagger::admin_list_conversation_requests,
+        crate::swagger::admin_fulfill_conversation_request,
+        crate::swagger::admin_list_speaking_sessions,
+        // Admin API Keys
+        crate::swagger::admin_list_api_keys,
+        crate::swagger::admin_create_api_key,
+        crate::swagger::admin_delete_api_key,
+        crate::swagger::admin_activate_api_key,
         // Admin Interviews
         crate::swagger::admin_list_scenarios,
         crate::swagger::admin_create_scenario,
@@ -73,6 +107,8 @@ use utoipa::OpenApi;
         crate::swagger::admin_update_ai_config,
         crate::swagger::admin_get_eval_weights,
         crate::swagger::admin_update_eval_weights,
+        crate::swagger::admin_get_ai_prompts,
+        crate::swagger::admin_update_ai_prompt,
         // Admin Gamification
         crate::swagger::admin_get_gamification,
         crate::swagger::admin_update_gamification,
@@ -107,22 +143,61 @@ use utoipa::OpenApi;
         crate::swagger::submit_quiz,
         crate::swagger::submit_game_result,
         crate::swagger::submit_speaking_result,
+        // Game Sessions
+        crate::swagger::start_game_session,
+        crate::swagger::submit_game_answer,
+        crate::swagger::sync_offline_sessions,
+        crate::swagger::score_pronunciation,
+        // Speaking Practice
+        crate::swagger::speaking_start_session,
+        crate::swagger::speaking_session_turn,
+        crate::swagger::speaking_end_session,
+        // Student Vocab
+        crate::swagger::student_list_vocab_sets,
+        crate::swagger::student_get_vocab_words,
+        crate::swagger::student_submit_vocab_progress,
+        crate::swagger::student_toggle_bookmark,
+        crate::swagger::student_get_bookmarks,
+        crate::swagger::student_list_conversation_requests,
+        crate::swagger::student_create_conversation_request,
         // Ratings
         crate::swagger::submit_lesson_rating,
         // Notifications
         crate::swagger::admin_send_notification,
         crate::swagger::list_notifications,
         crate::swagger::mark_notification_read,
+        // Voice
+        crate::swagger::admin_get_voice_config,
+        crate::swagger::admin_update_voice_config,
+        crate::swagger::voice_stt,
+        crate::swagger::voice_tts,
+        // Auth Additional
+        crate::swagger::auth_update_profile,
+        crate::swagger::admin_ping,
+        // Admin Vocab Sets
+        crate::swagger::admin_list_vocab_sets,
+        crate::swagger::admin_get_vocab_words,
     ),
     components(schemas(
         // Generic
-        ErrorResponse,
+        ErrorResponse, PaginationParams,
         // Auth schemas
-        RegisterRequest, LoginRequest, FirebaseLoginRequest, OnboardingRequest, UpdateFcmTokenRequestPublic, AuthResponse, UserPublic, Persona, Progress, NotificationRequestPublic, NotificationPublic,
+        RegisterRequest, LoginRequest, FirebaseLoginRequest, OnboardingRequest, UpdateFcmTokenRequestPublic, UpdateProfileRequest, AuthResponse, UserPublic, Persona, Progress,
         // Admin
-        AdminLoginRequest, AdminAuthResponse, AdminPublic,
-        // Pagination
-        PaginationParams,
+        AdminLoginRequest, AdminAuthResponse, AdminPublic, Role,
+        // AI & API Keys
+        GenerateCourseRequest, SaveCourseRequest, GenerateVocabRequest, AiGenerationLog, CreditUsageSummary, LlmApiKey, CreateLlmApiKeyRequest,
+        TranslateRequest, AiGenerateRequest, AIPromptConfig, UpdatePromptRequest,
+        // Content CMS
+        DialogueLine, SkillType, ContentLevel, ContentCategory, CourseStatus, TargetAge, Visibility,
+        // Voice
+        VoiceConfig, SpeechToTextResponse, TextToSpeechResponse,
+        // Student Vocab
+        VocabSet, VocabWord, ConversationRequest, StudentVocabProgressRequest,
+        // Game Sessions
+        GameSessionStartRequest, GameAnswerRequest, OfflineSyncRequest, VoiceScoreRequest, VoiceScoreResponse,
+        // Notifications
+        NotificationRequestPublic, NotificationPublic,
     )),
     security(
         ("bearer_auth" = [])
@@ -288,6 +363,11 @@ pub async fn auth_upload_profile_image() {}
     responses((status = 200, description = "FCM token updated successfully")))]
 pub async fn auth_update_fcm_token() {}
 
+#[utoipa::path(put, path = "/auth/profile", tag = "Auth", security(("bearer_auth" = [])),
+    request_body = UpdateProfileRequest,
+    responses((status = 200, body = UserPublic)))]
+pub async fn auth_update_profile() {}
+
 // ── Admin Auth ──
 
 #[utoipa::path(post, path = "/admin/login", tag = "Admin Auth",
@@ -298,6 +378,10 @@ pub async fn admin_login() {}
 #[utoipa::path(get, path = "/admin/me", tag = "Admin Auth", security(("bearer_auth" = [])),
     responses((status = 200, body = AdminPublic)))]
 pub async fn admin_me() {}
+
+#[utoipa::path(get, path = "/admin/ping", tag = "Admin Auth",
+    responses((status = 200, description = "Admin API is reachable")))]
+pub async fn admin_ping() {}
 
 // ── Admin Users ──
 
@@ -401,6 +485,70 @@ pub async fn admin_list_quizzes() {}
     responses((status = 201, description = "Quiz created")))]
 pub async fn admin_create_quiz() {}
 
+#[utoipa::path(get, path = "/admin/vocabulary/{id}", tag = "Admin Content", security(("bearer_auth" = [])),
+    params(("id" = String, Path, description = "Vocabulary ID")),
+    responses((status = 200, description = "Vocabulary details")))]
+pub async fn admin_get_vocabulary() {}
+
+#[utoipa::path(put, path = "/admin/vocabulary/{id}", tag = "Admin Content", security(("bearer_auth" = [])),
+    params(("id" = String, Path, description = "Vocabulary ID")),
+    responses((status = 200, description = "Vocabulary updated")))]
+pub async fn admin_update_vocabulary() {}
+
+#[utoipa::path(delete, path = "/admin/vocabulary/{id}", tag = "Admin Content", security(("bearer_auth" = [])),
+    params(("id" = String, Path, description = "Vocabulary ID")),
+    responses((status = 200, description = "Vocabulary deleted")))]
+pub async fn admin_delete_vocabulary() {}
+
+#[utoipa::path(get, path = "/admin/dialogues/{id}", tag = "Admin Content", security(("bearer_auth" = [])),
+    params(("id" = String, Path, description = "Dialogue ID")),
+    responses((status = 200, description = "Dialogue details")))]
+pub async fn admin_get_dialogue() {}
+
+#[utoipa::path(put, path = "/admin/dialogues/{id}", tag = "Admin Content", security(("bearer_auth" = [])),
+    params(("id" = String, Path, description = "Dialogue ID")),
+    responses((status = 200, description = "Dialogue updated")))]
+pub async fn admin_update_dialogue() {}
+
+#[utoipa::path(delete, path = "/admin/dialogues/{id}", tag = "Admin Content", security(("bearer_auth" = [])),
+    params(("id" = String, Path, description = "Dialogue ID")),
+    responses((status = 200, description = "Dialogue deleted")))]
+pub async fn admin_delete_dialogue() {}
+
+#[utoipa::path(get, path = "/admin/quizzes/{id}", tag = "Admin Content", security(("bearer_auth" = [])),
+    params(("id" = String, Path, description = "Quiz ID")),
+    responses((status = 200, description = "Quiz details")))]
+pub async fn admin_get_quiz() {}
+
+#[utoipa::path(put, path = "/admin/quizzes/{id}", tag = "Admin Content", security(("bearer_auth" = [])),
+    params(("id" = String, Path, description = "Quiz ID")),
+    responses((status = 200, description = "Quiz updated")))]
+pub async fn admin_update_quiz() {}
+
+#[utoipa::path(delete, path = "/admin/quizzes/{id}", tag = "Admin Content", security(("bearer_auth" = [])),
+    params(("id" = String, Path, description = "Quiz ID")),
+    responses((status = 200, description = "Quiz deleted")))]
+pub async fn admin_delete_quiz() {}
+
+#[utoipa::path(post, path = "/admin/assets/upload", tag = "Admin Content", security(("bearer_auth" = [])),
+    responses((status = 200, description = "Asset uploaded")))]
+pub async fn admin_upload_asset() {}
+
+#[utoipa::path(get, path = "/admin/versions/{entity_type}/{entity_id}", tag = "Admin Content", security(("bearer_auth" = [])),
+    params(("entity_type" = String, Path), ("entity_id" = String, Path)),
+    responses((status = 200, description = "Version history")))]
+pub async fn admin_list_content_versions() {}
+
+#[utoipa::path(post, path = "/admin/versions/{entity_type}/{entity_id}/rollback/{version}", tag = "Admin Content", security(("bearer_auth" = [])),
+    params(("entity_type" = String, Path), ("entity_id" = String, Path), ("version" = i32, Path)),
+    responses((status = 200, description = "Rolled back")))]
+pub async fn admin_rollback_content_version() {}
+
+#[utoipa::path(post, path = "/admin/clone/{entity_type}/{entity_id}", tag = "Admin Content", security(("bearer_auth" = [])),
+    params(("entity_type" = String, Path), ("entity_id" = String, Path)),
+    responses((status = 201, description = "Cloned successfully")))]
+pub async fn admin_clone_content() {}
+
 // ── Admin Interviews ──
 
 #[utoipa::path(get, path = "/admin/scenarios", tag = "Admin Interviews", security(("bearer_auth" = [])),
@@ -430,10 +578,75 @@ pub async fn admin_delete_scenario() {}
     responses((status = 201, description = "Question added")))]
 pub async fn admin_add_question() {}
 
-#[utoipa::path(delete, path = "/admin/questions/{id}", tag = "Admin Interviews", security(("bearer_auth" = [])),
+#[utoipa::path(put, path = "/admin/questions/{id}", tag = "Admin Interviews", security(("bearer_auth" = [])),
     params(("id" = String, Path, description = "Question ID")),
     responses((status = 200, description = "Question deleted")))]
 pub async fn admin_delete_question() {}
+
+// ── Admin AI ──
+
+#[utoipa::path(post, path = "/admin/ai/generate-course", tag = "Admin AI", security(("bearer_auth" = [])),
+    request_body = GenerateCourseRequest,
+    responses((status = 200, description = "Course preview generated")))]
+pub async fn admin_generate_course() {}
+
+#[utoipa::path(post, path = "/admin/ai/save-course", tag = "Admin AI", security(("bearer_auth" = [])),
+    request_body = SaveCourseRequest,
+    responses((status = 201, description = "Course saved successfully")))]
+pub async fn admin_save_course() {}
+
+#[utoipa::path(post, path = "/admin/ai/generate-vocab", tag = "Admin AI", security(("bearer_auth" = [])),
+    request_body = GenerateVocabRequest,
+    responses((status = 200, description = "Vocabulary set generated")))]
+pub async fn admin_generate_vocab() {}
+
+#[utoipa::path(post, path = "/admin/ai/save-vocab", tag = "Admin AI", security(("bearer_auth" = [])),
+    responses((status = 201, description = "Vocabulary set saved")))]
+pub async fn admin_save_vocab() {}
+
+#[utoipa::path(get, path = "/admin/ai/credit-usage", tag = "Admin AI", security(("bearer_auth" = [])),
+    responses((status = 200, body = CreditUsageSummary)))]
+pub async fn admin_get_credit_usage() {}
+
+#[utoipa::path(post, path = "/admin/translate", tag = "Admin AI", security(("bearer_auth" = [])),
+    request_body = TranslateRequest,
+    responses((status = 200, description = "Translated text")))]
+pub async fn admin_translate() {}
+
+#[utoipa::path(post, path = "/admin/ai-generate", tag = "Admin AI", security(("bearer_auth" = [])),
+    request_body = AiGenerateRequest,
+    responses((status = 200, description = "Generated content")))]
+pub async fn admin_ai_generate_content() {}
+
+#[utoipa::path(get, path = "/admin/conversation-requests", tag = "Admin AI", security(("bearer_auth" = [])),
+    responses((status = 200, body = Vec<ConversationRequest>)))]
+pub async fn admin_list_conversation_requests() {}
+
+#[utoipa::path(post, path = "/admin/conversation-requests/{id}/generate", tag = "Admin AI", security(("bearer_auth" = [])),
+    params(("id" = String, Path)),
+    responses((status = 200, description = "Scenario generated")))]
+pub async fn admin_fulfill_conversation_request() {}
+
+// ── Admin API Keys ──
+
+#[utoipa::path(get, path = "/admin/api-keys", tag = "Admin API Keys", security(("bearer_auth" = [])),
+    responses((status = 200, body = Vec<LlmApiKey>)))]
+pub async fn admin_list_api_keys() {}
+
+#[utoipa::path(post, path = "/admin/api-keys", tag = "Admin API Keys", security(("bearer_auth" = [])),
+    request_body = CreateLlmApiKeyRequest,
+    responses((status = 201, body = LlmApiKey)))]
+pub async fn admin_create_api_key() {}
+
+#[utoipa::path(delete, path = "/admin/api-keys/{id}", tag = "Admin API Keys", security(("bearer_auth" = [])),
+    params(("id" = String, Path)),
+    responses((status = 200, description = "API key deleted")))]
+pub async fn admin_delete_api_key() {}
+
+#[utoipa::path(put, path = "/admin/api-keys/{id}/activate", tag = "Admin API Keys", security(("bearer_auth" = [])),
+    params(("id" = String, Path)),
+    responses((status = 200, description = "API key activated")))]
+pub async fn admin_activate_api_key() {}
 
 // ── Admin AI Config ──
 
@@ -454,6 +667,16 @@ pub async fn admin_get_eval_weights() {}
     responses((status = 200, description = "Weights updated")))]
 pub async fn admin_update_eval_weights() {}
 
+#[utoipa::path(get, path = "/admin/ai-prompts", tag = "Admin AI Config", security(("bearer_auth" = [])),
+    responses((status = 200, body = Vec<AIPromptConfig>)))]
+pub async fn admin_get_ai_prompts() {}
+
+#[utoipa::path(put, path = "/admin/ai-prompts/{entity_type}", tag = "Admin AI Config", security(("bearer_auth" = [])),
+    params(("entity_type" = String, Path)),
+    request_body = UpdatePromptRequest,
+    responses((status = 200, description = "Prompt updated")))]
+pub async fn admin_update_ai_prompt() {}
+
 // ── Admin Gamification ──
 
 #[utoipa::path(get, path = "/admin/gamification", tag = "Admin Gamification", security(("bearer_auth" = [])),
@@ -463,6 +686,10 @@ pub async fn admin_get_gamification() {}
 #[utoipa::path(put, path = "/admin/gamification", tag = "Admin Gamification", security(("bearer_auth" = [])),
     responses((status = 200, description = "Config updated")))]
 pub async fn admin_update_gamification() {}
+
+#[utoipa::path(get, path = "/admin/speaking/sessions", tag = "Admin AI", security(("bearer_auth" = [])),
+    responses((status = 200, description = "List all speaking sessions")))]
+pub async fn admin_list_speaking_sessions() {}
 
 // ── Admin Games ──
 
@@ -587,6 +814,86 @@ pub async fn submit_game_result() {}
     responses((status = 200, description = "Speaking result submitted")))]
 pub async fn submit_speaking_result() {}
 
+// ── Game Sessions ──
+
+#[utoipa::path(post, path = "/progress/session/start", tag = "Game Sessions", security(("bearer_auth" = [])),
+    request_body = GameSessionStartRequest,
+    responses((status = 201, description = "Session started")))]
+pub async fn start_game_session() {}
+
+#[utoipa::path(post, path = "/progress/session/answer", tag = "Game Sessions", security(("bearer_auth" = [])),
+    request_body = GameAnswerRequest,
+    responses((status = 200, description = "Answer processed")))]
+pub async fn submit_game_answer() {}
+
+#[utoipa::path(post, path = "/progress/session/sync", tag = "Game Sessions", security(("bearer_auth" = [])),
+    request_body = OfflineSyncRequest,
+    responses((status = 200, description = "Offline sessions synced")))]
+pub async fn sync_offline_sessions() {}
+
+#[utoipa::path(post, path = "/progress/voice/score", tag = "Game Sessions", security(("bearer_auth" = [])),
+    request_body = VoiceScoreRequest,
+    responses((status = 200, body = VoiceScoreResponse)))]
+pub async fn score_pronunciation() {}
+
+// ── Student Vocab ──
+
+#[utoipa::path(get, path = "/api/student/vocab-sets", tag = "Student Vocab", security(("bearer_auth" = [])),
+    responses((status = 200, body = Vec<VocabSet>)))]
+pub async fn student_list_vocab_sets() {}
+
+#[utoipa::path(get, path = "/api/student/vocab-sets/{id}/words", tag = "Student Vocab", security(("bearer_auth" = [])),
+    params(("id" = String, Path)),
+    responses((status = 200, body = Vec<VocabWord>)))]
+pub async fn student_get_vocab_words() {}
+
+#[utoipa::path(post, path = "/api/student/vocab-progress", tag = "Student Vocab", security(("bearer_auth" = [])),
+    request_body = StudentVocabProgressRequest,
+    responses((status = 200, description = "Progress submitted")))]
+pub async fn student_submit_vocab_progress() {}
+
+#[utoipa::path(put, path = "/api/student/vocab/{word_id}/bookmark", tag = "Student Vocab", security(("bearer_auth" = [])),
+    params(("word_id" = String, Path)),
+    responses((status = 200, description = "Bookmark toggled")))]
+pub async fn student_toggle_bookmark() {}
+
+#[utoipa::path(get, path = "/api/student/bookmarks", tag = "Student Vocab", security(("bearer_auth" = [])),
+    responses((status = 200, body = Vec<VocabWord>)))]
+pub async fn student_get_bookmarks() {}
+
+#[utoipa::path(get, path = "/api/student/conversation-requests", tag = "Student Vocab", security(("bearer_auth" = [])),
+    responses((status = 200, body = Vec<ConversationRequest>)))]
+pub async fn student_list_conversation_requests() {}
+
+#[utoipa::path(post, path = "/api/student/conversation-requests", tag = "Student Vocab", security(("bearer_auth" = [])),
+    responses((status = 201, description = "Request created")))]
+pub async fn student_create_conversation_request() {}
+
+// ── Speaking Practice ──
+
+#[utoipa::path(post, path = "/progress/speaking/sessions/start", tag = "Game Sessions", security(("bearer_auth" = [])),
+    responses((status = 201, description = "Session started")))]
+pub async fn speaking_start_session() {}
+
+#[utoipa::path(post, path = "/progress/speaking/sessions/{id}/turn", tag = "Game Sessions", security(("bearer_auth" = [])),
+    params(("id" = String, Path)),
+    responses((status = 200, description = "Turn processed")))]
+pub async fn speaking_session_turn() {}
+
+#[utoipa::path(post, path = "/progress/speaking/sessions/{id}/end", tag = "Game Sessions", security(("bearer_auth" = [])),
+    params(("id" = String, Path)),
+    responses((status = 200, description = "Session ended")))]
+pub async fn speaking_end_session() {}
+
+#[utoipa::path(get, path = "/admin/vocab-sets", tag = "Admin Content", security(("bearer_auth" = [])),
+    responses((status = 200, body = Vec<VocabSet>)))]
+pub async fn admin_list_vocab_sets() {}
+
+#[utoipa::path(get, path = "/admin/vocab-sets/{id}/words", tag = "Admin Content", security(("bearer_auth" = [])),
+    params(("id" = String, Path)),
+    responses((status = 200, body = Vec<VocabWord>)))]
+pub async fn admin_get_vocab_words() {}
+
 // ── Ratings ──
 
 #[utoipa::path(post, path = "/ratings/lessons", tag = "Ratings", security(("bearer_auth" = [])),
@@ -626,3 +933,217 @@ pub async fn list_notifications() {}
     params(("id" = String, Path, description = "Notification ID")),
     responses((status = 200, description = "Notification marked as read")))]
 pub async fn mark_notification_read() {}
+
+// ── Voice ──
+
+#[utoipa::path(get, path = "/admin/voice/config", tag = "Voice", security(("bearer_auth" = [])),
+    responses((status = 200, body = VoiceConfig)))]
+pub async fn admin_get_voice_config() {}
+
+#[utoipa::path(put, path = "/admin/voice/config", tag = "Voice", security(("bearer_auth" = [])),
+    request_body = VoiceConfig,
+    responses((status = 200, description = "Voice config updated")))]
+pub async fn admin_update_voice_config() {}
+
+#[utoipa::path(post, path = "/voice/stt", tag = "Voice", security(("bearer_auth" = [])),
+    responses((status = 200, body = SpeechToTextResponse)))]
+pub async fn voice_stt() {}
+
+#[utoipa::path(post, path = "/voice/tts", tag = "Voice", security(("bearer_auth" = [])),
+    responses((status = 200, body = TextToSpeechResponse)))]
+pub async fn voice_tts() {}
+
+#[derive(utoipa::ToSchema, serde::Deserialize)]
+pub struct UpdateProfileRequest {
+    pub name: Option<String>,
+}
+
+#[derive(utoipa::ToSchema, serde::Serialize)]
+pub enum Role { Admin, SuperAdmin }
+
+#[derive(utoipa::ToSchema, serde::Deserialize)]
+pub struct GenerateCourseRequest {
+    pub topic: String,
+    pub level: String,
+    pub category: String,
+    pub skill_focus: Option<Vec<String>>,
+    pub target_age: Option<String>,
+    pub num_modules: Option<i32>,
+    pub lessons_per_module: Option<i32>,
+    pub vocab_per_lesson: Option<i32>,
+}
+
+#[derive(utoipa::ToSchema, serde::Deserialize)]
+pub struct SaveCourseRequest {
+    pub preview_json: serde_json::Value,
+}
+
+#[derive(utoipa::ToSchema, serde::Deserialize)]
+pub struct GenerateVocabRequest {
+    pub topic: String,
+    pub level: String,
+    pub target_language: Option<String>,
+    pub word_count: Option<i32>,
+}
+
+#[derive(utoipa::ToSchema, serde::Serialize)]
+pub struct AiGenerationLog {
+    pub id: String,
+    pub admin_id: String,
+    pub action: String,
+    pub provider: String,
+    pub total_tokens: i64,
+    pub estimated_cost_usd: f64,
+    pub status: String,
+    pub created_at: String,
+}
+
+#[derive(utoipa::ToSchema, serde::Serialize)]
+pub struct CreditUsageSummary {
+    pub today_count: i64,
+    pub month_count: i64,
+    pub today_cost_usd: f64,
+    pub month_cost_usd: f64,
+    pub daily_limit: i64,
+    pub daily_remaining: i64,
+}
+
+#[derive(utoipa::ToSchema, serde::Serialize)]
+pub struct LlmApiKey {
+    pub id: String,
+    pub provider: String,
+    pub name: String,
+    pub is_active: bool,
+    pub created_at: String,
+}
+
+#[derive(utoipa::ToSchema, serde::Deserialize)]
+pub struct CreateLlmApiKeyRequest {
+    pub provider: String,
+    pub name: String,
+    pub api_key: String,
+}
+
+#[derive(utoipa::ToSchema, serde::Deserialize)]
+pub struct TranslateRequest {
+    pub text: String,
+    pub to: String,
+}
+
+#[derive(utoipa::ToSchema, serde::Deserialize)]
+pub struct AiGenerateRequest {
+    pub entity_type: String,
+    pub context: Option<String>,
+}
+
+#[derive(utoipa::ToSchema, serde::Serialize)]
+pub struct AIPromptConfig {
+    pub entity_type: String,
+    pub prompt_template: String,
+    pub updated_at: String,
+}
+
+#[derive(utoipa::ToSchema, serde::Deserialize)]
+pub struct UpdatePromptRequest {
+    pub prompt_template: String,
+}
+
+#[derive(utoipa::ToSchema, serde::Serialize, serde::Deserialize)]
+pub struct DialogueLine {
+    pub speaker: String,
+    pub text_en: String,
+    pub text_id: Option<String>,
+}
+
+#[derive(utoipa::ToSchema, serde::Serialize)]
+pub enum SkillType { Speaking, Listening, Reading, Writing, Grammar, Vocabulary, Pronunciation }
+#[derive(utoipa::ToSchema, serde::Serialize)]
+pub enum ContentLevel { A1, A2, B1, B2, C1, C2 }
+#[derive(utoipa::ToSchema, serde::Serialize)]
+pub enum ContentCategory { Restaurant, Hotel, Cruise, Interview, General, Business, Travel }
+#[derive(utoipa::ToSchema, serde::Serialize)]
+pub enum CourseStatus { Draft, Published, InReview, Archived }
+#[derive(utoipa::ToSchema, serde::Serialize)]
+pub enum TargetAge { Kids, Teens, Adults, All }
+#[derive(utoipa::ToSchema, serde::Serialize)]
+pub enum Visibility { Public, Private, Unlisted }
+
+#[derive(utoipa::ToSchema, serde::Serialize)]
+pub struct VoiceConfig {
+    pub provider: String,
+    pub voice_id: String,
+    pub speed: f32,
+    pub pitch: f32,
+}
+
+#[derive(utoipa::ToSchema, serde::Serialize)]
+pub struct SpeechToTextResponse {
+    pub text: String,
+    pub confidence: f32,
+}
+
+#[derive(utoipa::ToSchema, serde::Serialize)]
+pub struct TextToSpeechResponse {
+    pub audio_url: String,
+}
+
+#[derive(utoipa::ToSchema, serde::Serialize)]
+pub struct VocabSet {
+    pub id: String,
+    pub title: String,
+    pub topic: String,
+    pub level: String,
+    pub word_count: i32,
+}
+
+#[derive(utoipa::ToSchema, serde::Serialize)]
+pub struct VocabWord {
+    pub id: String,
+    pub word: String,
+    pub translation: String,
+    pub definition: String,
+    pub example_sentence: String,
+}
+
+#[derive(utoipa::ToSchema, serde::Serialize)]
+pub struct ConversationRequest {
+    pub id: String,
+    pub user_id: String,
+    pub status: String,
+    pub context_note: String,
+    pub created_at: String,
+}
+
+#[derive(utoipa::ToSchema, serde::Deserialize)]
+pub struct StudentVocabProgressRequest {
+    pub word_id: String,
+    pub status: String,
+}
+
+#[derive(utoipa::ToSchema, serde::Deserialize)]
+pub struct GameSessionStartRequest {
+    pub game_id: String,
+}
+
+#[derive(utoipa::ToSchema, serde::Deserialize)]
+pub struct GameAnswerRequest {
+    pub session_id: String,
+    pub answer: serde_json::Value,
+}
+
+#[derive(utoipa::ToSchema, serde::Deserialize)]
+pub struct VoiceScoreRequest {
+    pub audio_base64: String,
+    pub reference_text: String,
+}
+
+#[derive(utoipa::ToSchema, serde::Serialize)]
+pub struct VoiceScoreResponse {
+    pub score: f32,
+    pub feedback: String,
+}
+
+#[derive(utoipa::ToSchema, serde::Deserialize)]
+pub struct OfflineSyncRequest {
+    pub answers: serde_json::Value,
+}

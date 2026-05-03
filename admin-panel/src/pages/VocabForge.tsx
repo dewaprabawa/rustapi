@@ -92,7 +92,7 @@ export default function VocabForge() {
     },
     onError: (err: any) => {
       setIsGenerating(false)
-      const msg = err?.response?.data?.message || "Failed to generate vocabulary. Please try again."
+      const msg = err?.response?.data?.error || err?.response?.data?.message || "Failed to generate vocabulary. Please try again."
       alert(msg)
     }
   })
