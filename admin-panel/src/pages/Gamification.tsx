@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
 import { Gamepad2, Trophy, Star, Zap, Save, Loader2, Trash2, Pencil, Sparkles } from "lucide-react"
-import { getGamificationConfig, updateGamificationConfig, getGames, createGame, deleteGame, getLessons, getModules, uploadAsset, updateGame, aiGenerateContent } from "../services/api"
+import { getGamificationConfig, updateGamificationConfig, getGames, createGame, deleteGame, getLessons, uploadAsset, updateGame, aiGenerateContent } from "../services/api"
 import { cn } from "../lib/utils"
 
 export default function Gamification() {
