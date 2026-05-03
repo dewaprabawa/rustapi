@@ -154,3 +154,59 @@ Return ONLY a JSON object:
 
     Ok(summary)
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GeneratedScenario {
+    pub title: String,
+    pub description: String,
+    pub role_ai: String,
+    pub role_user: String,
+    pub initial_message: String,
+    pub context: String,
+    pub target_vocabulary: Vec<String>,
+}
+
+pub async fn generate_speaking_scenario(
+    state: &Arc<AppState>,
+    topic: &str,
+    level: &str,
+) -> Result<GeneratedScenario, AppError> {
+    let key_col: Collection<LlmApiKey> = state.db.database("rustapi").collection("llm_api_keys");
+    let key = key_col.find_one(doc! { "provider": "gemini", "is_active": true }).await?
+        .ok_or(AppError::InternalServerError)?;
+
+    let prompt = format!(
+        r#"You are an expert curriculum designer for hospitality English training.
+Generate a realistic, high-quality speaking practice scenario based on this topic: "{}"
+The target student level is: {}
+
+## Format Requirement
+Return ONLY a JSON object with this exact structure:
+{{
+  "title": "Clear scenario title",
+  "description": "Short 1-sentence description of the learning goal",
+  "role_ai": "The persona for the AI coach (e.g. Grumpy Guest)",
+  "role_user": "The persona for the student (e.g. Front Desk Receptionist)",
+  "initial_message": "The very first line the AI says to start the roleplay",
+  "context": "Hidden instructions for the AI: details about the situation, the AI's mood, and what it wants from the student. Keep it professional but engaging.",
+  "target_vocabulary": ["word1", "word2", "word3", "word4", "word5"]
+}}
+"#,
+        topic, level
+    );
+
+    let response_text = call_gemini_pub(&key.api_key, &prompt).await?;
+    let cleaned = response_text.trim();
+    let cleaned = if cleaned.starts_with("```") {
+        let start = cleaned.find('\n').map(|i| i + 1).unwrap_or(0);
+        let end = cleaned.rfind("```").unwrap_or(cleaned.len());
+        &cleaned[start..end]
+    } else {
+        cleaned
+    };
+
+    let scenario: GeneratedScenario = serde_json::from_str(cleaned)
+        .map_err(|e| AppError::BadRequest(format!("AI scenario generation failed: {}", e)))?;
+
+    Ok(scenario)
+}

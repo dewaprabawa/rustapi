@@ -77,6 +77,7 @@ pub async fn create_app() -> Router {
 
     // Seed default learning content
     crate::seed::seed_content(&client).await;
+    crate::seed::seed_speaking_scenarios(&client).await;
 
     let state = Arc::new(AppState {
         db: client,
@@ -210,11 +211,6 @@ pub async fn create_app() -> Router {
             "/voice/config",
             get(get_voice_config).put(update_voice_config),
         )
-        // Speaking Monitor
-        .route(
-            "/speaking/sessions",
-            get(speaking_handlers::list_all_sessions),
-        )
         // Voice Proxy (Admin-protected access)
         .route("/voice/stt", post(speech_to_text))
         .route("/voice/tts", post(text_to_speech));
@@ -260,6 +256,7 @@ pub async fn create_app() -> Router {
         .route("/quiz", post(submit_quiz))
         .route("/game", post(submit_game_result))
         .route("/speaking", post(submit_speaking_result))
+        .route("/speaking/scenarios", get(speaking_handlers::list_all_scenarios))
         // Game Engine Session Routes
         .route("/session/start", post(crate::game::session_handlers::start_session))
         .route("/session/answer", post(submit_answer))
@@ -325,6 +322,17 @@ pub async fn create_app() -> Router {
         .route("/auth/fcm-token", put(update_fcm_token))
         // Admin panel
         .nest("/admin", admin_routes)
+        .route("/admin/hello", get(|| async { "Hello from Speaking API!" }))
+        // Explicit Speaking routes to bypass any potential shadowing
+        .route("/admin/speaking/scenarios", get(speaking_handlers::admin_list_all_scenarios).post(speaking_handlers::create_speaking_scenario))
+        .route(
+            "/admin/speaking/scenarios/:id",
+            get(speaking_handlers::get_speaking_scenario)
+                .put(speaking_handlers::update_speaking_scenario)
+                .delete(speaking_handlers::delete_speaking_scenario),
+        )
+        .route("/admin/speaking/scenarios/ai-generate", post(speaking_handlers::ai_generate_speaking_scenario))
+        .route("/admin/speaking/sessions", get(speaking_handlers::list_all_sessions))
         // Public content
         .nest("/api", public_content_routes)
         // Student vocab

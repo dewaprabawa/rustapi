@@ -5,6 +5,7 @@ use crate::content::models::{
 };
 use crate::game::models::{GameContent, GameType};
 use crate::models::{Admin, Role};
+use crate::speaking::models::SpeakingScenario;
 use chrono::Utc;
 use mongodb::{Client, Collection, bson::doc};
 
@@ -514,5 +515,65 @@ pub async fn seed_content(client: &Client) {
                 .expect("Failed to seed games");
             println!("🎮 Successfully seeded Gamification Engine games!");
         }
+    }
+}
+
+pub async fn seed_speaking_scenarios(client: &Client) {
+    let db = client.database("rustapi");
+    let scenario_col: Collection<SpeakingScenario> = db.collection("speaking_scenarios");
+
+    let count = scenario_col.count_documents(doc! {}).await.unwrap_or(0);
+
+    if count == 0 {
+        println!("🗣️ Seeding Speaking Practice Scenarios...");
+
+        let lesson_col: Collection<Lesson> = db.collection("lessons");
+        let lesson = lesson_col.find_one(doc! { "title": "Greeting & Welcoming" }).await.unwrap();
+        let lesson_id = lesson.map(|l| l.id.unwrap());
+
+        let scenarios = vec![
+            SpeakingScenario {
+                id: None,
+                lesson_id,
+                title: "Front Desk Check-in".to_string(),
+                description: "Practice welcoming a guest and handling their reservation.".to_string(),
+                role_ai: "Guest".to_string(),
+                role_user: "Receptionist".to_string(),
+                context: "A tired guest arrives at the Grand Hotel after a long flight. They have a reservation but are a bit impatient.".to_string(),
+                initial_message: "Hello, I'm here to check in. My name is Mark Thompson. It was a very long flight and I'd really like to get to my room as soon as possible.".to_string(),
+                target_vocabulary: vec![
+                    "reservation".to_string(),
+                    "welcome".to_string(),
+                    "registration".to_string(),
+                    "key card".to_string(),
+                    "amenities".to_string(),
+                ],
+                level: ContentLevel::A1,
+                created_at: Utc::now(),
+                updated_at: Utc::now(),
+            },
+            SpeakingScenario {
+                id: None,
+                lesson_id,
+                title: "Restaurant Reservation".to_string(),
+                description: "Handle a walk-in guest at the hotel restaurant.".to_string(),
+                role_ai: "Guest".to_string(),
+                role_user: "Host/Hostess".to_string(),
+                context: "A couple wants a table for two for dinner, but they don't have a reservation on a busy Friday night.".to_string(),
+                initial_message: "Good evening. We don't have a reservation, but do you happen to have a table for two available right now?".to_string(),
+                target_vocabulary: vec![
+                    "availability".to_string(),
+                    "waiting list".to_string(),
+                    "table".to_string(),
+                    "pleasure".to_string(),
+                ],
+                level: ContentLevel::A1,
+                created_at: Utc::now(),
+                updated_at: Utc::now(),
+            }
+        ];
+
+        scenario_col.insert_many(scenarios).await.expect("Failed to seed scenarios");
+        println!("✅ Successfully seeded Speaking Practice Scenarios!");
     }
 }

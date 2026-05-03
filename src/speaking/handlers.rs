@@ -8,13 +8,15 @@ use futures::TryStreamExt;
 use std::sync::Arc;
 use bson::oid::ObjectId;
 use chrono::Utc;
+use serde::Deserialize;
 
 use crate::handlers::{AppState, AppError};
 use crate::models::{User, Admin};
 use crate::speaking::models::*;
 use crate::ai::evaluation::evaluate_speaking_turn;
-use crate::voice::traits::TextToSpeech;
+use crate::voice::traits::{TextToSpeech, SpeechToText};
 use crate::voice::elevenlabs::ElevenLabsTTS;
+use crate::voice::deepgram::DeepgramSTT;
 use crate::voice::models::VoiceConfig;
 
 /// POST /progress/speaking/sessions/start
@@ -96,8 +98,8 @@ pub async fn session_turn(
     let config_col: Collection<VoiceConfig> = state.db.database("rustapi").collection("voice_configs");
     let config = config_col.find_one(doc! {}).await?.ok_or(AppError::InternalServerError)?;
     
-    let stt = crate::voice::deepgram::DeepgramSTT::new(config.deepgram_api_key);
-    let transcript = stt.transcribe(audio_data, &mime_type).await?;
+    let stt = DeepgramSTT::new(config.deepgram_api_key);
+    let transcript: String = stt.transcribe(audio_data, &mime_type).await?;
 
     // 4. Build Conversation History
     let history = session.turns.iter()
@@ -117,7 +119,7 @@ pub async fn session_turn(
     // 6. Add User Turn & AI Next Turn to Session
     let user_turn = SpeakingTurn {
         role: "user".to_string(),
-        content: transcript.to_string(),
+        content: transcript,
         audio_url: None, 
         evaluation: Some(TurnEvaluation {
             score: eval_result.score,
@@ -138,7 +140,7 @@ pub async fn session_turn(
         timestamp: Utc::now(),
     };
 
-    session.turns.push(user_turn);
+    session.turns.push(user_turn.clone());
     session.turns.push(ai_turn.clone());
     
     if eval_result.is_final {
@@ -159,7 +161,7 @@ pub async fn session_turn(
     Ok(Json(serde_json::json!({
         "session_status": session.status,
         "transcript": user_turn.content,
-        "evaluation": session.turns[session.turns.len() - 2].evaluation,
+        "evaluation": user_turn.evaluation,
         "next_ai_line": ai_turn.content,
         "audio_base64": audio_b64
     })))
@@ -222,4 +224,106 @@ pub async fn list_all_sessions(
     let cursor = col.find(doc! {}).sort(doc! { "created_at": -1 }).limit(100).await?;
     let sessions: Vec<SpeakingSession> = cursor.try_collect().await?;
     Ok(Json(sessions))
+}
+
+/// GET /progress/speaking/scenarios
+pub async fn list_all_scenarios(
+    State(state): State<Arc<AppState>>,
+    _user: User,
+) -> Result<impl IntoResponse, AppError> {
+    let col: Collection<SpeakingScenario> = state.db.database("rustapi").collection("speaking_scenarios");
+    let cursor = col.find(doc! {}).sort(doc! { "title": 1 }).await?;
+    let scenarios: Vec<SpeakingScenario> = cursor.try_collect().await?;
+    Ok(Json(scenarios))
+}
+
+pub async fn admin_list_all_scenarios(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+) -> Result<impl IntoResponse, AppError> {
+    let col: Collection<SpeakingScenario> = state.db.database("rustapi").collection("speaking_scenarios");
+    let cursor = col.find(doc! {}).sort(doc! { "title": 1 }).await?;
+    let scenarios: Vec<SpeakingScenario> = cursor.try_collect().await?;
+    Ok(Json(scenarios))
+}
+
+/// POST /admin/speaking/scenarios
+pub async fn create_speaking_scenario(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+    Json(mut scenario): Json<SpeakingScenario>,
+) -> Result<impl IntoResponse, AppError> {
+    let col: Collection<SpeakingScenario> = state.db.database("rustapi").collection("speaking_scenarios");
+    
+    scenario.created_at = Utc::now();
+    scenario.updated_at = Utc::now();
+    
+    let result = col.insert_one(scenario.clone()).await?;
+    let mut created = scenario;
+    created.id = result.inserted_id.as_object_id();
+    
+    Ok((StatusCode::CREATED, Json(created)))
+}
+
+/// GET /admin/speaking/scenarios/:id
+pub async fn get_speaking_scenario(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, AppError> {
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::BadRequest("Invalid ID".to_string()))?;
+    let col: Collection<SpeakingScenario> = state.db.database("rustapi").collection("speaking_scenarios");
+    let scenario = col.find_one(doc! { "_id": oid }).await?.ok_or(AppError::NotFound)?;
+    Ok(Json(scenario))
+}
+
+/// PUT /admin/speaking/scenarios/:id
+pub async fn update_speaking_scenario(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+    Path(id): Path<String>,
+    Json(mut scenario): Json<SpeakingScenario>,
+) -> Result<impl IntoResponse, AppError> {
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::BadRequest("Invalid ID".to_string()))?;
+    let col: Collection<SpeakingScenario> = state.db.database("rustapi").collection("speaking_scenarios");
+    
+    scenario.updated_at = Utc::now();
+    // Ensure the ID from path is set in the document
+    scenario.id = Some(oid);
+    
+    col.replace_one(doc! { "_id": oid }, scenario.clone()).await?;
+    Ok(Json(scenario))
+}
+
+/// DELETE /admin/speaking/scenarios/:id
+pub async fn delete_speaking_scenario(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, AppError> {
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::BadRequest("Invalid ID".to_string()))?;
+    let col: Collection<SpeakingScenario> = state.db.database("rustapi").collection("speaking_scenarios");
+    col.delete_one(doc! { "_id": oid }).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GenerateScenarioRequest {
+    pub topic: String,
+    pub level: String,
+}
+
+/// POST /admin/speaking/scenarios/ai-generate
+pub async fn ai_generate_speaking_scenario(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+    Json(payload): Json<GenerateScenarioRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    let result = crate::ai::evaluation::generate_speaking_scenario(
+        &state,
+        &payload.topic,
+        &payload.level
+    ).await?;
+    
+    Ok(Json(result))
 }

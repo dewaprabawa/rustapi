@@ -311,3 +311,18 @@ export const testTts = (data: { text: string, voice_id: string }) =>
 // ============ Speaking Monitor ============
 export const getSpeakingSessions = () =>
   api.get("/speaking/sessions").then(r => r.data)
+
+export const getSpeakingScenarios = () =>
+  api.get("/speaking/scenarios").then(r => r.data)
+
+export const createSpeakingScenario = (data: any) =>
+  api.post("/speaking/scenarios", data).then(r => r.data)
+
+export const updateSpeakingScenario = (id: string, data: any) =>
+  api.put(`/speaking/scenarios/${id}`, data).then(r => r.data)
+
+export const deleteSpeakingScenario = (id: string) =>
+  api.delete(`/speaking/scenarios/${id}`).then(r => r.data)
+
+export const aiGenerateSpeakingScenario = (data: { topic: string; level: string }) =>
+  api.post("/speaking/scenarios/ai-generate", data).then(r => r.data)
