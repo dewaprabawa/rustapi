@@ -2006,6 +2006,7 @@ name = "rustapi"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "base64",
  "bcrypt",
  "bson",
  "chrono",

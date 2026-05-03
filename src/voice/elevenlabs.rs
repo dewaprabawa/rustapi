@@ -20,7 +20,7 @@ impl TextToSpeech for ElevenLabsTTS {
             .header("xi-api-key", &self.api_key)
             .json(&serde_json::json!({
                 "text": text,
-                "model_id": "eleven_monolingual_v1",
+                "model_id": "eleven_multilingual_v2",
                 "voice_settings": {
                     "stability": 0.5,
                     "similarity_boost": 0.75
@@ -28,12 +28,20 @@ impl TextToSpeech for ElevenLabsTTS {
             }))
             .send()
             .await
-            .map_err(|_| AppError::InternalServerError)?;
+            .map_err(|e| {
+                eprintln!("ElevenLabs request failed: {}", e);
+                AppError::InternalServerError
+            })?;
 
         if !res.status().is_success() {
             let status = res.status();
             let body = res.text().await.unwrap_or_default();
             eprintln!("ElevenLabs API error {}: {}", status, body);
+            
+            if status == 401 {
+                return Err(AppError::BadRequest("Invalid ElevenLabs API Key".to_string()));
+            }
+            
             return Err(AppError::InternalServerError);
         }
 

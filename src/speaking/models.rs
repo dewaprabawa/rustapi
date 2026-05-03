@@ -1,15 +1,23 @@
 use serde::{Deserialize, Serialize};
 use bson::oid::ObjectId;
 use chrono::{DateTime, Utc};
-use crate::content::models::{ContentLevel, ContentCategory};
+use crate::content::models::ContentLevel;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct SpeakingTurn {
-    pub role: String, // "user" or "ai"
-    pub transcript: String,
-    pub audio_url: Option<String>,
-    #[serde(with = "mongodb::bson::serde_helpers::chrono_datetime_as_bson_datetime")]
-    pub timestamp: DateTime<Utc>,
+pub struct SpeakingScenario {
+    #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
+    pub id: Option<ObjectId>,
+    pub lesson_id: Option<ObjectId>, // Linked to a specific lesson
+    pub title: String,
+    pub description: String,
+    pub role_ai: String,         // e.g. "Front Desk Agent"
+    pub role_user: String,       // e.g. "Guest"
+    pub context: String,         // "Checking into a hotel at night"
+    pub level: ContentLevel,
+    pub initial_message: String, // AI's first line
+    pub target_vocabulary: Vec<String>, // Words user should try to use
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -17,54 +25,51 @@ pub struct SpeakingSession {
     #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
     pub id: Option<ObjectId>,
     pub user_id: ObjectId,
-    pub lesson_id: Option<ObjectId>,
-    pub scenario_id: Option<ObjectId>,
-    pub topic: String,
-    pub level: ContentLevel,
-    pub category: ContentCategory,
+    pub scenario_id: ObjectId,
+    pub status: String,          // "active", "completed"
     pub turns: Vec<SpeakingTurn>,
-    pub status: String, // "active", "completed", "aborted"
-    pub xp_awarded: Option<i32>,
-    pub scores: Option<SessionScores>,
-    #[serde(with = "mongodb::bson::serde_helpers::chrono_datetime_as_bson_datetime")]
+    pub overall_score: Option<f64>,
+    pub detailed_scores: Option<DetailedScores>,
+    pub feedback: Option<String>,
     pub created_at: DateTime<Utc>,
-    #[serde(with = "mongodb::bson::serde_helpers::chrono_datetime_as_bson_datetime")]
     pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct SessionScores {
-    pub fluency: i32,
-    pub grammar: i32,
-    pub vocabulary: i32,
-    pub politeness: i32,
-    pub task_completion: i32,
-    pub overall_score: i32,
-    pub feedback_notes: String,
-    pub grammar_corrections: Vec<GrammarCorrection>,
+pub struct DetailedScores {
+    pub pronunciation: f64,
+    pub grammar: f64,
+    pub vocabulary: f64,
+    pub fluency: f64,
+    pub task_completion: f64,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct GrammarCorrection {
-    pub original_text: String,
-    pub corrected_text: String,
-    pub explanation: String,
+pub struct SpeakingTurn {
+    pub role: String,            // "ai" or "user"
+    pub content: String,         // transcribed text or AI question
+    pub audio_url: Option<String>,
+    pub evaluation: Option<TurnEvaluation>,
+    pub timestamp: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct TurnEvaluation {
+    pub score: f64,              // 0-100
+    pub pronunciation_score: Option<f64>,
+    pub grammar_score: Option<f64>,
+    pub vocabulary_score: Option<f64>,
+    pub better_answer: Option<String>, // Rephrased/Improved version of user's input
+    pub feedback: Option<String>,      // Specific feedback for this turn
 }
 
 #[derive(Debug, Deserialize)]
 pub struct StartSessionRequest {
-    pub lesson_id: Option<String>,
-    pub scenario_id: Option<String>,
+    pub scenario_id: String,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct SessionTurnRequest {
-    pub transcript: String,
-}
-
-#[derive(Debug, Serialize)]
-pub struct SessionTurnResponse {
-    pub ai_reply: String,
-    pub audio_bytes: Option<Vec<u8>>,
-    pub is_complete: bool,
+pub struct ProcessTurnRequest {
+    pub text: Option<String>,    // If client already did STT
+    pub voice_id: Option<String>, // Optional ElevenLabs voice
 }

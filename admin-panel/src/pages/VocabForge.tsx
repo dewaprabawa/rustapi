@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Sparkles, Loader2, Plus, Search, BookOpen, Trash2, ChevronRight, Globe, Volume2, Save, X, Edit3, MessageSquare } from 'lucide-react'
 import { cn } from '../lib/utils'
-import { generateVocabSet, saveVocabSet, getVocabSets, getVocabSetWords, getConversationRequests, generateConversationScenario } from '../services/api'
+import { generateVocabSet, saveVocabSet, getVocabSets, getVocabSetWords, getConversationRequests, generateConversationScenario, testTts } from '../services/api'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 interface GeneratedWord {
@@ -60,11 +60,20 @@ export default function VocabForge() {
   const [selectedSet, setSelectedSet] = useState<VocabSet | null>(null)
   const [selectedWords, setSelectedWords] = useState<GeneratedWord[]>([])
   
-  const playAudio = (text: string, lang: string = 'id-ID') => {
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = lang;
-    window.speechSynthesis.cancel(); // Cancel any ongoing speech
-    window.speechSynthesis.speak(utterance);
+  const playAudio = async (text: string, voiceId?: string) => {
+    try {
+      // Try ElevenLabs proxy first
+      const blob = await testTts({ text, voice_id: voiceId || "" });
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audio.play();
+    } catch (error) {
+      console.error("ElevenLabs TTS failed, falling back to browser synthesis", error);
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'en-US';
+      window.speechSynthesis.cancel(); 
+      window.speechSynthesis.speak(utterance);
+    }
   }
   
   const [builderForm, setBuilderForm] = useState({
@@ -313,7 +322,7 @@ export default function VocabForge() {
                             <p className="text-blue-600 font-medium">{word.translation}</p>
                           </div>
                           <button 
-                            onClick={(e) => { e.stopPropagation(); playAudio(word.word, 'en-US'); }}
+                            onClick={(e) => { e.stopPropagation(); playAudio(word.word); }}
                             className="p-2 text-slate-300 hover:text-blue-600 transition-colors"
                             title="Listen to English pronunciation"
                           >
@@ -349,7 +358,7 @@ export default function VocabForge() {
                             <div className="flex justify-between items-center mb-1">
                               <span className="text-xs font-bold text-slate-500 uppercase">{line.speaker}</span>
                               <button 
-                                onClick={() => playAudio(line.text_en, 'en-US')}
+                                onClick={() => playAudio(line.text_en)}
                                 className="p-1 text-slate-300 hover:text-blue-600 transition-colors"
                                 title="Listen to English pronunciation"
                               >
@@ -641,7 +650,7 @@ export default function VocabForge() {
                       </div>
                       <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button 
-                          onClick={() => playAudio(word.word, 'en-US')}
+                          onClick={() => playAudio(word.word)}
                           className="p-1.5 text-slate-300 hover:text-blue-600 transition-colors"
                           title="Listen to English pronunciation"
                         >
@@ -719,7 +728,7 @@ export default function VocabForge() {
                         <div className="flex justify-between items-center">
                           <span className="text-xs font-bold text-slate-500 uppercase">{line.speaker}</span>
                           <button 
-                            onClick={() => playAudio(line.text_en, 'en-US')}
+                            onClick={() => playAudio(line.text_en)}
                             className="p-1 text-slate-300 hover:text-blue-600 transition-colors"
                             title="Listen to English pronunciation"
                           >

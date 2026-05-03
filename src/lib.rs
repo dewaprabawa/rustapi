@@ -46,6 +46,7 @@ use crate::swagger::ApiDoc;
 use crate::voice::handlers::{
     get_voice_config, speech_to_text, text_to_speech, update_voice_config,
 };
+// Removed duplicate/glob speaking import to resolve ambiguity
 use axum::{
     Router,
     routing::{delete, get, post, put},
@@ -213,7 +214,10 @@ pub async fn create_app() -> Router {
         .route(
             "/speaking/sessions",
             get(speaking_handlers::list_all_sessions),
-        );
+        )
+        // Voice Proxy (Admin-protected access)
+        .route("/voice/stt", post(speech_to_text))
+        .route("/voice/tts", post(text_to_speech));
 
     // ============ Voice Abstraction Routes (auth recommended) ============
     let voice_routes = Router::new()
@@ -257,7 +261,7 @@ pub async fn create_app() -> Router {
         .route("/game", post(submit_game_result))
         .route("/speaking", post(submit_speaking_result))
         // Game Engine Session Routes
-        .route("/session/start", post(start_session))
+        .route("/session/start", post(crate::game::session_handlers::start_session))
         .route("/session/answer", post(submit_answer))
         .route("/session/sync", post(sync_offline_sessions))
         // Speaking Practice Session API

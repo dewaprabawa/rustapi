@@ -1,40 +1,21 @@
 use axum::{
-    extract::{State, Json, Path},
+    extract::{State, Json, Path, Multipart},
     http::StatusCode,
     response::IntoResponse,
 };
-use mongodb::Collection;
-use bson::doc;
+use mongodb::{Collection, bson::doc};
+use futures::TryStreamExt;
 use std::sync::Arc;
 use bson::oid::ObjectId;
 use chrono::Utc;
 
 use crate::handlers::{AppState, AppError};
-use crate::models::User;
-use crate::content::models::{ContentLevel, ContentCategory, Lesson};
-use crate::interview::models::InterviewScenario;
-use super::models::{SpeakingSession, StartSessionRequest, SessionTurnRequest, SpeakingTurn, SessionTurnResponse};
-use super::agent::ClaudeAgent;
-use super::feedback::FeedbackEngine;
-use futures::stream::TryStreamExt;
-use crate::models::Admin;
-
-// ==================== Phase 12: Admin API ====================
-
-pub async fn list_all_sessions(
-    State(state): State<Arc<AppState>>,
-    _admin: Admin,
-) -> Result<impl IntoResponse, AppError> {
-    let col: Collection<SpeakingSession> = state.db.database("rustapi").collection("speaking_sessions");
-    let mut cursor = col.find(doc! {}).sort(doc! { "created_at": -1 }).limit(100).await?;
-    let mut sessions = Vec::new();
-    while let Some(session) = cursor.try_next().await? {
-        sessions.push(session);
-    }
-    Ok(Json(sessions))
-}
-
-// ==================== Phase 7: Session API ====================
+use crate::models::{User, Admin};
+use crate::speaking::models::*;
+use crate::ai::evaluation::evaluate_speaking_turn;
+use crate::voice::traits::TextToSpeech;
+use crate::voice::elevenlabs::ElevenLabsTTS;
+use crate::voice::models::VoiceConfig;
 
 /// POST /progress/speaking/sessions/start
 pub async fn start_session(
@@ -42,141 +23,203 @@ pub async fn start_session(
     user: User,
     Json(payload): Json<StartSessionRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let db = state.db.database("rustapi");
-    let col: Collection<SpeakingSession> = db.collection("speaking_sessions");
+    let scenario_oid = ObjectId::parse_str(&payload.scenario_id).map_err(|_| AppError::BadRequest("Invalid scenario_id".to_string()))?;
+    
+    // 1. Fetch Scenario
+    let scenario_col: Collection<SpeakingScenario> = state.db.database("rustapi").collection("speaking_scenarios");
+    let scenario = scenario_col.find_one(doc! { "_id": scenario_oid }).await?
+        .ok_or(AppError::NotFound)?;
 
-    let mut topic = "General Conversation".to_string();
-    let mut level = ContentLevel::A1;
-    let mut category = ContentCategory::General;
-
-    let lesson_id = if let Some(id_str) = &payload.lesson_id {
-        let oid = ObjectId::parse_str(id_str).map_err(|_| AppError::BadRequest("Invalid lesson_id".to_string()))?;
-        if let Some(lesson) = db.collection::<Lesson>("lessons").find_one(doc! { "_id": oid }).await? {
-            topic = lesson.title;
-        }
-        Some(oid)
-    } else { None };
-
-    let scenario_id = if let Some(id_str) = &payload.scenario_id {
-        let oid = ObjectId::parse_str(id_str).map_err(|_| AppError::BadRequest("Invalid scenario_id".to_string()))?;
-        if let Some(scenario) = db.collection::<InterviewScenario>("scenarios").find_one(doc! { "_id": oid }).await? {
-            topic = scenario.title;
-            level = ContentLevel::A1; // InterviewScenario doesn't have a level field, wait... Let's look at InterviewScenario. It doesn't have 'level' but 'difficulty'. So I'll hardcode A1 for now or map it. Let's map it.
-            category = scenario.category;
-        }
-        Some(oid)
-    } else { None };
-
+    // 2. Initialize Session
+    let session_col: Collection<SpeakingSession> = state.db.database("rustapi").collection("speaking_sessions");
     let session = SpeakingSession {
         id: None,
         user_id: user.id.unwrap(),
-        lesson_id,
-        scenario_id,
-        topic,
-        level,
-        category,
-        turns: vec![],
+        scenario_id: scenario_oid,
         status: "active".to_string(),
-        xp_awarded: None,
-        scores: None,
+        turns: vec![SpeakingTurn {
+            role: "ai".to_string(),
+            content: scenario.initial_message.clone(),
+            audio_url: None, 
+            evaluation: None,
+            timestamp: Utc::now(),
+        }],
+        overall_score: None,
+        detailed_scores: None,
+        feedback: None,
         created_at: Utc::now(),
         updated_at: Utc::now(),
     };
 
-    let result = col.insert_one(session.clone()).await?;
+    let result = session_col.insert_one(session.clone()).await?;
     let mut created = session;
     created.id = result.inserted_id.as_object_id();
-    
+
     Ok((StatusCode::CREATED, Json(created)))
 }
 
 /// POST /progress/speaking/sessions/:id/turn
 pub async fn session_turn(
     State(state): State<Arc<AppState>>,
-    user: User,
-    Path(id): Path<String>,
-    Json(payload): Json<SessionTurnRequest>,
+    _user: User,
+    Path(session_id): Path<String>,
+    mut multipart: Multipart,
 ) -> Result<impl IntoResponse, AppError> {
-    let session_oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
-    let db = state.db.database("rustapi");
-    let col: Collection<SpeakingSession> = db.collection("speaking_sessions");
+    let session_oid = ObjectId::parse_str(&session_id).map_err(|_| AppError::BadRequest("Invalid session_id".to_string()))?;
+    
+    // 1. Get audio data from multipart
+    let mut audio_data = Vec::new();
+    let mut mime_type = String::from("audio/mpeg");
 
-    let mut session = col.find_one(doc! { "_id": session_oid, "user_id": user.id.unwrap() }).await?.ok_or(AppError::NotFound)?;
-
-    if session.status != "active" {
-        return Err(AppError::BadRequest("Session is not active".to_string()));
+    while let Some(field) = multipart.next_field().await.unwrap_or(None) {
+        if field.name() == Some("file") {
+            mime_type = field.content_type().map(|s| s.to_string()).unwrap_or(mime_type);
+            audio_data = field.bytes().await.unwrap_or_default().to_vec();
+            break;
+        }
     }
 
-    // 1. Save user turn
+    if audio_data.is_empty() {
+        return Err(AppError::BadRequest("No audio file provided".to_string()));
+    }
+
+    // 2. Fetch Session & Scenario
+    let session_col: Collection<SpeakingSession> = state.db.database("rustapi").collection("speaking_sessions");
+    let mut session = session_col.find_one(doc! { "_id": session_oid }).await?
+        .ok_or(AppError::NotFound)?;
+
+    let scenario_col: Collection<SpeakingScenario> = state.db.database("rustapi").collection("speaking_scenarios");
+    let scenario = scenario_col.find_one(doc! { "_id": session.scenario_id }).await?
+        .ok_or(AppError::NotFound)?;
+
+    // 3. Transcribe with Deepgram
+    let config_col: Collection<VoiceConfig> = state.db.database("rustapi").collection("voice_configs");
+    let config = config_col.find_one(doc! {}).await?.ok_or(AppError::InternalServerError)?;
+    
+    let stt = crate::voice::deepgram::DeepgramSTT::new(config.deepgram_api_key);
+    let transcript = stt.transcribe(audio_data, &mime_type).await?;
+
+    // 4. Build Conversation History
+    let history = session.turns.iter()
+        .map(|t| format!("{}: {}", t.role, t.content))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    // 5. Evaluate with AI
+    let eval_result = evaluate_speaking_turn(
+        &state,
+        &scenario.context,
+        &scenario.target_vocabulary,
+        &history,
+        &transcript
+    ).await?;
+
+    // 6. Add User Turn & AI Next Turn to Session
     let user_turn = SpeakingTurn {
         role: "user".to_string(),
-        transcript: payload.transcript.clone(),
-        audio_url: None,
+        content: transcript.to_string(),
+        audio_url: None, 
+        evaluation: Some(TurnEvaluation {
+            score: eval_result.score,
+            pronunciation_score: Some(eval_result.pronunciation_score),
+            grammar_score: Some(eval_result.grammar_score),
+            vocabulary_score: Some(eval_result.vocabulary_score),
+            better_answer: Some(eval_result.better_answer),
+            feedback: Some(eval_result.feedback),
+        }),
         timestamp: Utc::now(),
     };
-    session.turns.push(user_turn.clone());
 
-    // 2. Call Claude Agent
-    let agent = ClaudeAgent::new(state.clone());
-    let (ai_reply, is_complete) = agent.generate_reply(&session).await?;
-
-    // 3. Save AI turn
     let ai_turn = SpeakingTurn {
         role: "ai".to_string(),
-        transcript: ai_reply.clone(),
+        content: eval_result.next_ai_response,
         audio_url: None,
+        evaluation: None,
         timestamp: Utc::now(),
     };
-    session.turns.push(ai_turn);
 
-    if is_complete {
+    session.turns.push(user_turn);
+    session.turns.push(ai_turn.clone());
+    
+    if eval_result.is_final {
         session.status = "completed".to_string();
     }
-    
-    session.updated_at = Utc::now();
-    col.update_one(doc! { "_id": session_oid }, doc! { "$set": bson::to_document(&session).unwrap() }).await?;
 
-    Ok(Json(SessionTurnResponse {
-        ai_reply,
-        audio_bytes: None,
-        is_complete,
-    }))
+    session.updated_at = Utc::now();
+    session_col.replace_one(doc! { "_id": session_oid }, session.clone()).await?;
+
+    // 7. Optional: Generate AI Turn Audio with ElevenLabs
+    let tts = ElevenLabsTTS::new(config.elevenlabs_api_key);
+    let audio_bytes = tts.synthesize(&ai_turn.content, &config.elevenlabs_voice_id).await.unwrap_or_default();
+
+    // 8. Return turn results + audio
+    use base64::{Engine as _, engine::general_purpose};
+    let audio_b64 = general_purpose::STANDARD.encode(audio_bytes);
+    
+    Ok(Json(serde_json::json!({
+        "session_status": session.status,
+        "transcript": user_turn.content,
+        "evaluation": session.turns[session.turns.len() - 2].evaluation,
+        "next_ai_line": ai_turn.content,
+        "audio_base64": audio_b64
+    })))
 }
 
 /// POST /progress/speaking/sessions/:id/end
 pub async fn end_session(
     State(state): State<Arc<AppState>>,
-    user: User,
+    _user: User,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
-    let session_oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
-    let db = state.db.database("rustapi");
-    let col: Collection<SpeakingSession> = db.collection("speaking_sessions");
-
-    let mut session = col.find_one(doc! { "_id": session_oid, "user_id": user.id.unwrap() }).await?.ok_or(AppError::NotFound)?;
-
-    if session.scores.is_none() {
-        let feedback_engine = FeedbackEngine::new(state.clone());
-        match feedback_engine.generate_feedback(&session).await {
-            Ok(scores) => {
-                let xp = FeedbackEngine::calculate_xp(&scores);
-                session.scores = Some(scores);
-                session.xp_awarded = Some(xp);
-                // In a real app we'd also call a progress handler here to give user the XP
-            },
-            Err(e) => {
-                eprintln!("Failed to generate feedback: {:?}", e);
-            }
-        }
-    }
-
-    session.status = "completed".to_string();
-    session.updated_at = Utc::now();
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
+    let col: Collection<SpeakingSession> = state.db.database("rustapi").collection("speaking_sessions");
     
-    col.update_one(
-        doc! { "_id": session_oid }, 
-        doc! { "$set": bson::to_document(&session).unwrap() }
+    let mut session = col.find_one(doc! { "_id": oid }).await?
+        .ok_or(AppError::NotFound)?;
+
+    // 1. Fetch Scenario for context
+    let scenario_col: Collection<SpeakingScenario> = state.db.database("rustapi").collection("speaking_scenarios");
+    let scenario = scenario_col.find_one(doc! { "_id": session.scenario_id }).await?
+        .ok_or(AppError::NotFound)?;
+
+    // 2. Build Full Transcript
+    let full_transcript = session.turns.iter()
+        .map(|t| format!("{}: {}", t.role, t.content))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    // 3. Generate Summary with AI
+    let summary = crate::ai::evaluation::generate_session_summary(
+        &state,
+        &scenario.context,
+        &full_transcript
     ).await?;
 
+    // 4. Update Session
+    session.status = "completed".to_string();
+    session.overall_score = Some(summary.overall_score);
+    session.feedback = Some(summary.feedback);
+    session.detailed_scores = Some(DetailedScores {
+        pronunciation: summary.pronunciation,
+        grammar: summary.grammar,
+        vocabulary: summary.vocabulary,
+        fluency: summary.fluency,
+        task_completion: summary.task_completion,
+    });
+    session.updated_at = Utc::now();
+
+    col.replace_one(doc! { "_id": oid }, session.clone()).await?;
+    
     Ok(Json(session))
+}
+
+/// GET /admin/speaking/sessions
+pub async fn list_all_sessions(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+) -> Result<impl IntoResponse, AppError> {
+    let col: Collection<SpeakingSession> = state.db.database("rustapi").collection("speaking_sessions");
+    let cursor = col.find(doc! {}).sort(doc! { "created_at": -1 }).limit(100).await?;
+    let sessions: Vec<SpeakingSession> = cursor.try_collect().await?;
+    Ok(Json(sessions))
 }
