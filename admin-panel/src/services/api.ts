@@ -326,3 +326,9 @@ export const deleteSpeakingScenario = (id: string) =>
 
 export const aiGenerateSpeakingScenario = (data: { topic: string; level: string }) =>
   api.post("/speaking/scenarios/ai-generate", data).then(r => r.data)
+
+export const startSpeakingTest = (scenarioId: string) =>
+  api.post(`/speaking/test/start/${scenarioId}`).then(r => r.data)
+
+export const sendSpeakingTestTurn = (sessionId: string, text: string) =>
+  api.post(`/speaking/test/turn/${sessionId}`, { text }).then(r => r.data)

@@ -78,6 +78,7 @@ pub async fn create_app() -> Router {
     // Seed default learning content
     crate::seed::seed_content(&client).await;
     crate::seed::seed_speaking_scenarios(&client).await;
+    crate::seed::seed_api_keys(&client).await;
 
     let state = Arc::new(AppState {
         db: client,
@@ -332,6 +333,8 @@ pub async fn create_app() -> Router {
                 .delete(speaking_handlers::delete_speaking_scenario),
         )
         .route("/admin/speaking/scenarios/ai-generate", post(speaking_handlers::ai_generate_speaking_scenario))
+        .route("/admin/speaking/test/start/:id", post(speaking_handlers::start_test_session))
+        .route("/admin/speaking/test/turn/:id", post(speaking_handlers::test_session_turn))
         .route("/admin/speaking/sessions", get(speaking_handlers::list_all_sessions))
         // Public content
         .nest("/api", public_content_routes)

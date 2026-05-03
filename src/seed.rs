@@ -1,6 +1,6 @@
 use crate::auth::hash_password;
 use crate::content::models::{
-    ContentCategory, ContentLevel, Course, CourseStatus, Dialogue, DialogueLine, Lesson, Module,
+    ContentCategory, ContentLevel, Course, CourseStatus, Dialogue, DialogueLine, LlmApiKey, Lesson, Module,
     Quiz, QuizQuestion, SkillType, TargetAge, Visibility, Vocabulary,
 };
 use crate::game::models::{GameContent, GameType};
@@ -575,5 +575,37 @@ pub async fn seed_speaking_scenarios(client: &Client) {
 
         scenario_col.insert_many(scenarios).await.expect("Failed to seed scenarios");
         println!("✅ Successfully seeded Speaking Practice Scenarios!");
+    }
+}
+
+pub async fn seed_api_keys(client: &Client) {
+    let db = client.database("rustapi");
+    let key_col: Collection<LlmApiKey> = db.collection("llm_api_keys");
+
+    let existing = key_col.find_one(doc! { "provider": "gemini" }).await.unwrap_or(None);
+
+    if let Some(mut key) = existing {
+        if !key.is_active {
+            println!("🔑 Activating existing Gemini API key...");
+            key.is_active = true;
+            key_col.replace_one(doc! { "_id": key.id.unwrap() }, key).await.expect("Failed to activate key");
+        } else {
+            println!("✅ Gemini API key is already active.");
+        }
+    } else {
+        if let Ok(api_key) = std::env::var("GEMINI_API_KEY") {
+            println!("🔑 Seeding Gemini API key from environment...");
+            let key = LlmApiKey {
+                id: None,
+                provider: "gemini".to_string(),
+                name: "Primary Gemini Key".to_string(),
+                api_key,
+                is_active: true,
+                created_at: Utc::now(),
+            };
+            key_col.insert_one(key).await.expect("Failed to seed API key");
+        } else {
+            println!("⚠️ GEMINI_API_KEY not found in environment. AI features will require manual configuration.");
+        }
     }
 }

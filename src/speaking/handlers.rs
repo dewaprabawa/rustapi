@@ -9,6 +9,7 @@ use std::sync::Arc;
 use bson::oid::ObjectId;
 use chrono::Utc;
 use serde::Deserialize;
+use serde_json::json;
 
 use crate::handlers::{AppState, AppError};
 use crate::models::{User, Admin};
@@ -213,6 +214,128 @@ pub async fn end_session(
     col.replace_one(doc! { "_id": oid }, session.clone()).await?;
     
     Ok(Json(session))
+}
+
+/// POST /admin/speaking/test/start/:scenario_id
+pub async fn start_test_session(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+    Path(scenario_id): Path<String>,
+) -> Result<impl IntoResponse, AppError> {
+    println!("🏁 Starting test session for scenario: {}", scenario_id);
+    let scenario_oid = ObjectId::parse_str(&scenario_id).map_err(|_| AppError::BadRequest("Invalid scenario_id".to_string()))?;
+    let col_scenarios: Collection<SpeakingScenario> = state.db.database("rustapi").collection("speaking_scenarios");
+    let scenario = col_scenarios.find_one(doc! { "_id": scenario_oid }).await?.ok_or(AppError::NotFound)?;
+
+    let session = SpeakingSession {
+        id: None,
+        user_id: ObjectId::new(), // Placeholder for test
+        scenario_id: scenario_oid,
+        status: "active".to_string(),
+        turns: vec![SpeakingTurn {
+            role: "ai".to_string(),
+            content: scenario.initial_message.clone(),
+            audio_url: None,
+            evaluation: None,
+            timestamp: Utc::now(),
+        }],
+        overall_score: None,
+        feedback: None,
+        detailed_scores: None,
+        created_at: Utc::now(),
+        updated_at: Utc::now(),
+    };
+
+    let col_sessions: Collection<SpeakingSession> = state.db.database("rustapi").collection("speaking_sessions");
+    let result = col_sessions.insert_one(session.clone()).await?;
+    let mut created_session = session;
+    created_session.id = result.inserted_id.as_object_id();
+
+    Ok(Json(created_session))
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct TestTurnRequest {
+    pub text: String,
+}
+
+/// POST /admin/speaking/test/turn/:session_id
+pub async fn test_session_turn(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+    Path(session_id): Path<String>,
+    Json(payload): Json<TestTurnRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    println!("🧪 Test Turn: session_id={}, text='{}'", session_id, payload.text);
+    
+    let session_oid = ObjectId::parse_str(&session_id).map_err(|e| {
+        println!("❌ Invalid session_id: {}", e);
+        AppError::BadRequest("Invalid session_id".to_string())
+    })?;
+    let col_sessions: Collection<SpeakingSession> = state.db.database("rustapi").collection("speaking_sessions");
+    let mut session = col_sessions.find_one(doc! { "_id": session_oid }).await?.ok_or(AppError::NotFound)?;
+
+    let col_scenarios: Collection<SpeakingScenario> = state.db.database("rustapi").collection("speaking_scenarios");
+    let scenario = col_scenarios.find_one(doc! { "_id": session.scenario_id }).await?.ok_or(AppError::NotFound)?;
+
+    // 1. Evaluate with AI
+    let history_str = session.turns.iter()
+        .map(|t| format!("{}: {}", t.role, t.content))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    println!("🤖 Evaluating with AI...");
+    let eval_result = evaluate_speaking_turn(
+        &state,
+        &scenario.context,
+        &scenario.target_vocabulary,
+        &history_str,
+        &payload.text
+    ).await.map_err(|e| {
+        println!("❌ AI Evaluation failed: {:?}", e);
+        e
+    })?;
+    println!("✅ AI Evaluation success: score={}", eval_result.score);
+
+    // 2. Add Turns
+    let user_turn = SpeakingTurn {
+        role: "user".to_string(),
+        content: payload.text,
+        audio_url: None,
+        evaluation: Some(TurnEvaluation {
+            score: eval_result.score,
+            pronunciation_score: Some(eval_result.pronunciation_score),
+            grammar_score: Some(eval_result.grammar_score),
+            vocabulary_score: Some(eval_result.vocabulary_score),
+            better_answer: Some(eval_result.better_answer),
+            feedback: Some(eval_result.feedback),
+        }),
+        timestamp: Utc::now(),
+    };
+
+    let ai_turn = SpeakingTurn {
+        role: "ai".to_string(),
+        content: eval_result.next_ai_response,
+        audio_url: None,
+        evaluation: None,
+        timestamp: Utc::now(),
+    };
+
+    session.turns.push(user_turn.clone());
+    session.turns.push(ai_turn.clone());
+    
+    if eval_result.is_final {
+        session.status = "completed".to_string();
+    }
+
+    session.updated_at = Utc::now();
+    col_sessions.replace_one(doc! { "_id": session_oid }, session.clone()).await?;
+
+    Ok(Json(json!({
+        "response_text": ai_turn.content,
+        "is_final": eval_result.is_final,
+        "evaluation": user_turn.evaluation
+    })))
 }
 
 /// GET /admin/speaking/sessions

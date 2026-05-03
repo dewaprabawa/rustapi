@@ -1,12 +1,16 @@
 import { useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { Plus, BrainCircuit, Play, Settings2, X, Send, Target, MessageSquare, Info, Users, Sparkles, Loader2, Trash2 } from "lucide-react"
-import { getSpeakingScenarios, createSpeakingScenario, updateSpeakingScenario, deleteSpeakingScenario, aiGenerateSpeakingScenario } from "../services/api"
+import { Plus, BrainCircuit, Play, Settings2, X, Send, Target, MessageSquare, Info, Users, Sparkles, Loader2, Trash2, Bot, User as UserIcon } from "lucide-react"
+import { getSpeakingScenarios, createSpeakingScenario, updateSpeakingScenario, deleteSpeakingScenario, aiGenerateSpeakingScenario, startSpeakingTest, sendSpeakingTestTurn } from "../services/api"
 
 export default function Scenarios() {
   const queryClient = useQueryClient()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingScenario, setEditingScenario] = useState<any>(null)
+  const [isTestModalOpen, setIsTestModalOpen] = useState(false)
+  const [testSession, setTestSession] = useState<any>(null)
+  const [testMessages, setTestMessages] = useState<any[]>([])
+  const [inputText, setInputText] = useState("")
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -22,6 +26,12 @@ export default function Scenarios() {
     queryKey: ['speaking-scenarios'],
     queryFn: getSpeakingScenarios,
   })
+
+  // Helper to handle MongoDB _id which might be an object {$oid: "..."} or a string
+  const getScenarioId = (scenario: any) => {
+    if (!scenario?._id) return ""
+    return typeof scenario._id === 'object' ? scenario._id.$oid : scenario._id
+  }
 
   const createMutation = useMutation({
     mutationFn: createSpeakingScenario,
@@ -87,7 +97,7 @@ export default function Scenarios() {
     }
     
     if (editingScenario) {
-      updateMutation.mutate({ id: editingScenario._id, data: payload })
+      updateMutation.mutate({ id: getScenarioId(editingScenario), data: payload })
     } else {
       createMutation.mutate(payload)
     }
@@ -108,6 +118,37 @@ export default function Scenarios() {
       })
     }
   })
+
+  const startTestMutation = useMutation({
+    mutationFn: startSpeakingTest,
+    onSuccess: (session: any) => {
+      setTestSession(session)
+      setTestMessages(session.turns)
+      setIsTestModalOpen(true)
+    }
+  })
+
+  const sendTurnMutation = useMutation({
+    mutationFn: ({ sessionId, text }: { sessionId: string; text: string }) => sendSpeakingTestTurn(sessionId, text),
+    onSuccess: (data: any) => {
+      setTestMessages(prev => [
+        ...prev, 
+        { role: 'user', content: inputText, evaluation: data.evaluation },
+        { role: 'ai', content: data.response_text }
+      ])
+      setInputText("")
+    }
+  })
+
+  const handleStartTest = (scenarioId: string) => {
+    startTestMutation.mutate(scenarioId)
+  }
+
+  const handleSendTestMessage = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!inputText.trim() || sendTurnMutation.isPending) return
+    sendTurnMutation.mutate({ sessionId: getScenarioId(testSession), text: inputText })
+  }
 
   const handleAiGenerate = () => {
     if (!formData.title) {
@@ -141,7 +182,7 @@ export default function Scenarios() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           {scenarios?.map((item: any) => (
-            <div key={item._id} className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 hover:shadow-md transition-all group relative overflow-hidden">
+            <div key={getScenarioId(item)} className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 hover:shadow-md transition-all group relative overflow-hidden">
               <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button 
                   onClick={() => handleEdit(item)}
@@ -179,8 +220,16 @@ export default function Scenarios() {
                   <div className="w-7 h-7 rounded-full bg-indigo-100 border-2 border-white flex items-center justify-center text-[10px] font-bold text-indigo-600" title={item.role_user}>U</div>
                 </div>
                 
-                <button className="flex items-center text-sm font-medium text-indigo-600 hover:text-indigo-700">
-                  <Play className="mr-1 h-3.5 w-3.5" />
+                <button 
+                  onClick={() => handleStartTest(getScenarioId(item))}
+                  disabled={startTestMutation.isPending}
+                  className="flex items-center text-sm font-medium text-indigo-600 hover:text-indigo-700 disabled:opacity-50"
+                >
+                  {startTestMutation.isPending && startTestMutation.variables === getScenarioId(item) ? (
+                    <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Play className="mr-1 h-3.5 w-3.5" />
+                  )}
                   Test Scenario
                 </button>
               </div>
@@ -342,7 +391,7 @@ export default function Scenarios() {
                     type="button"
                     onClick={() => {
                       if (window.confirm("Are you sure you want to delete this scenario?")) {
-                        deleteMutation.mutate(editingScenario._id)
+                        deleteMutation.mutate(getScenarioId(editingScenario))
                       }
                     }}
                     className="px-4 py-3 bg-rose-50 text-rose-600 font-bold rounded-2xl hover:bg-rose-100 transition-colors flex items-center justify-center"
@@ -371,6 +420,100 @@ export default function Scenarios() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Test Modal (Slide-over / Modal for testing the AI) */}
+      {isTestModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-end p-4 sm:p-6 overflow-hidden">
+          <div 
+            onClick={() => setIsTestModalOpen(false)}
+            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity duration-300"
+          />
+          
+          <div className="relative w-full max-w-md h-full bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-right duration-300">
+            {/* Header */}
+            <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-indigo-600 text-white">
+              <div className="flex items-center gap-3">
+                <div className="h-8 w-8 rounded-lg bg-white/20 flex items-center justify-center">
+                  <Play className="h-4 w-4 fill-current" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm">Testing Scenario</h3>
+                  <p className="text-[10px] opacity-80 uppercase tracking-widest font-bold">Live Interaction</p>
+                </div>
+              </div>
+              <button onClick={() => setIsTestModalOpen(false)} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Chat Area */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/50">
+              {testMessages.map((msg, idx) => (
+                <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[85%] flex gap-2 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                    <div className={`h-8 w-8 rounded-full flex-shrink-0 flex items-center justify-center ${
+                      msg.role === 'user' ? 'bg-indigo-100 text-indigo-600' : 'bg-white border border-slate-200 text-slate-600'
+                    }`}>
+                      {msg.role === 'user' ? <UserIcon className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
+                    </div>
+                    <div>
+                      <div className={`p-3 rounded-2xl text-sm shadow-sm ${
+                        msg.role === 'user' 
+                          ? 'bg-indigo-600 text-white rounded-tr-none' 
+                          : 'bg-white border border-slate-100 text-slate-700 rounded-tl-none'
+                      }`}>
+                        {msg.content}
+                      </div>
+                      
+                      {msg.evaluation && (
+                        <div className="mt-2 p-2 bg-emerald-50 border border-emerald-100 rounded-xl text-[10px] text-emerald-700">
+                          <div className="font-bold mb-1 flex justify-between">
+                            <span>AI Feedback:</span>
+                            <span>Score: {msg.evaluation.score}/100</span>
+                          </div>
+                          <p className="italic">"{msg.evaluation.feedback}"</p>
+                          <div className="mt-1 font-bold">Try: <span className="text-emerald-800">"{msg.evaluation.better_answer}"</span></div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {sendTurnMutation.isPending && (
+                <div className="flex justify-start">
+                  <div className="bg-white border border-slate-100 p-3 rounded-2xl rounded-tl-none shadow-sm flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+                    <span className="text-xs text-slate-400 font-medium">AI is typing...</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Input Area */}
+            <div className="p-4 border-t border-slate-100 bg-white">
+              <form onSubmit={handleSendTestMessage} className="relative">
+                <input 
+                  type="text"
+                  value={inputText}
+                  onChange={e => setInputText(e.target.value)}
+                  placeholder="Type your response as a staff member..."
+                  className="w-full pl-4 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all text-sm"
+                />
+                <button 
+                  type="submit"
+                  disabled={!inputText.trim() || sendTurnMutation.isPending}
+                  className="absolute right-2 top-1.5 p-1.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-lg shadow-indigo-600/20"
+                >
+                  <Send className="h-4 w-4" />
+                </button>
+              </form>
+              <p className="text-[10px] text-slate-400 mt-2 text-center">
+                This is a test environment. Interactions are not saved to analytics.
+              </p>
+            </div>
           </div>
         </div>
       )}
