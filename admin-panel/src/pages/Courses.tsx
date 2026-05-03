@@ -1,13 +1,13 @@
 import { useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { Plus, MoreVertical, Edit, Trash, Eye, X, Loader2, Sparkles, Globe, History, RotateCcw, Copy, BrainCircuit, Check } from "lucide-react"
+import { Plus, Loader2, BrainCircuit, Check, Globe } from "lucide-react"
 import {
   getCourses, createCourse, updateCourse, deleteCourse,
   getModules, createModule, updateModule, deleteModule,
   getLessons, createLesson, updateLesson, deleteLesson,
   translateText, aiGenerateContent, getContentVersions, rollbackContentVersion, cloneContent
 } from "../services/api"
-import { cn, normalizeDate } from "../lib/utils"
+import { cn } from "../lib/utils"
 
 import CourseGrid from "../components/courses/CourseGrid"
 import ContentTable from "../components/courses/ContentTable"
@@ -85,17 +85,17 @@ export default function Courses() {
   const queryClient = useQueryClient()
 
   // Queries
-  const { data: coursesData, isLoading: coursesLoading } = useQuery({
+  const { data: coursesData } = useQuery({
     queryKey: ['courses'],
     queryFn: getCourses,
   })
 
-  const { data: modulesData, isLoading: modulesLoading } = useQuery({
+  const { data: modulesData } = useQuery({
     queryKey: ['modules'],
     queryFn: getModules,
   })
 
-  const { data: lessonsData, isLoading: lessonsLoading } = useQuery({
+  const { data: lessonsData } = useQuery({
     queryKey: ['lessons'],
     queryFn: getLessons,
   })

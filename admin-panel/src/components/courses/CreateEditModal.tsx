@@ -27,7 +27,7 @@ export default function CreateEditModal({
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-5xl max-h-[95vh] flex flex-col animate-in zoom-in-95 duration-200">
         <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 flex-shrink-0">
           <h3 className="text-lg font-bold text-slate-800">
-            {editingId ? 'Edit' : 'Create'} {activeTab.slice(0, -1).replace(/^\w/, c => c.toUpperCase())}
+            {editingId ? 'Edit' : 'Create'} {activeTab.slice(0, -1).replace(/^\w/, (c: string) => c.toUpperCase())}
           </h3>
           <div className="flex items-center gap-2">
             {editingId && (

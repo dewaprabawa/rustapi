@@ -1,4 +1,4 @@
-import { Sparkles, Eye, Copy, Edit, Trash, Check, X } from "lucide-react"
+import { Sparkles, Eye, Copy, Edit, Trash, X } from "lucide-react"
 import { cn } from "../../lib/utils"
 
 interface ContentTableProps {
