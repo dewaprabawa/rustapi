@@ -19,11 +19,12 @@ interface VocabPreview {
   title: string
   title_id: string
   words: GeneratedWord[]
+  dialogue?: { speaker: string, text_en: string, text_id: string }[]
   related_topics: string[]
 }
 
 interface VocabSet {
-  _id: string
+  _id: any
   title: string
   topic: string
   level: string
@@ -31,16 +32,17 @@ interface VocabSet {
   word_count: number
   status: string
   created_at: string
+  example_dialogue?: { speaker: string, text_en: string, text_id: string }[]
 }
 
 interface TargetWord {
-  _id: string
+  _id: any
   word: string
   translation: string
 }
 
 interface ConversationRequest {
-  _id: string
+  _id: any
   user_id: string
   context_note: string
   status: string
@@ -58,10 +60,18 @@ export default function VocabForge() {
   const [selectedSet, setSelectedSet] = useState<VocabSet | null>(null)
   const [selectedWords, setSelectedWords] = useState<GeneratedWord[]>([])
   
+  const playAudio = (text: string, lang: string = 'id-ID') => {
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = lang;
+    window.speechSynthesis.cancel(); // Cancel any ongoing speech
+    window.speechSynthesis.speak(utterance);
+  }
+  
   const [builderForm, setBuilderForm] = useState({
     topic: '',
     level: 'B1',
     word_count: 10,
+    dialogue_sentence_count: 10,
     language: 'Indonesian'
   })
 
@@ -137,10 +147,11 @@ export default function VocabForge() {
     })
   }
 
-  const openSetDetails = async (set: VocabSet) => {
+  const openSetDetails = async (set: VocabSet | any) => {
     setSelectedSet(set)
     try {
-      const words = await getVocabSetWords(set._id)
+      const id = set._id?.$oid || set._id;
+      const words = await getVocabSetWords(id)
       setSelectedWords(words)
     } catch (error) {
       console.error("Failed to fetch words", error)
@@ -221,13 +232,16 @@ export default function VocabForge() {
                   <p className="text-sm">No vocabulary sets found. Click "Generate New Set" to begin.</p>
                 </div>
               ) : (
-                vocabSets.map((set: VocabSet) => (
+                vocabSets.map((set: VocabSet | any) => {
+                  const id = set._id?.$oid || set._id;
+                  const selectedId = selectedSet?._id?.$oid || selectedSet?._id;
+                  return (
                   <button
-                    key={set._id}
+                    key={id}
                     onClick={() => openSetDetails(set)}
                     className={cn(
                       "w-full text-left p-4 rounded-2xl border transition-all duration-200 group",
-                      selectedSet?._id === set._id 
+                      selectedId === id 
                         ? "bg-blue-50 border-blue-200 shadow-sm ring-1 ring-blue-100" 
                         : "bg-white border-slate-100 hover:border-slate-200 hover:shadow-md"
                     )}
@@ -251,7 +265,8 @@ export default function VocabForge() {
                       <Globe className="h-3 w-3" /> {set.topic} • {set.word_count} words
                     </p>
                   </button>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
@@ -297,7 +312,11 @@ export default function VocabForge() {
                             </h5>
                             <p className="text-blue-600 font-medium">{word.translation}</p>
                           </div>
-                          <button className="p-2 text-slate-300 hover:text-blue-600 transition-colors">
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); playAudio(word.word, 'en-US'); }}
+                            className="p-2 text-slate-300 hover:text-blue-600 transition-colors"
+                            title="Listen to English pronunciation"
+                          >
                             <Volume2 className="h-5 w-5" />
                           </button>
                         </div>
@@ -317,6 +336,36 @@ export default function VocabForge() {
                         </div>
                       </div>
                     ))}
+                  </div>
+
+                  <div className="mt-8 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+                    <h4 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                      <MessageSquare className="h-5 w-5 text-indigo-500" /> Example Conversation
+                    </h4>
+                    {selectedSet.example_dialogue && selectedSet.example_dialogue.length > 0 ? (
+                      <div className="space-y-4">
+                        {selectedSet.example_dialogue.map((line: any, idx: number) => (
+                          <div key={idx} className="flex flex-col gap-1 p-3 bg-slate-50 rounded-2xl">
+                            <div className="flex justify-between items-center mb-1">
+                              <span className="text-xs font-bold text-slate-500 uppercase">{line.speaker}</span>
+                              <button 
+                                onClick={() => playAudio(line.text_en, 'en-US')}
+                                className="p-1 text-slate-300 hover:text-blue-600 transition-colors"
+                                title="Listen to English pronunciation"
+                              >
+                                <Volume2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                            <p className="font-medium text-slate-800 text-sm">{line.text_en}</p>
+                            <p className="text-blue-600 font-medium text-sm">{line.text_id}</p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-sm text-slate-400 py-4 text-center bg-slate-50 rounded-xl border border-slate-100">
+                        No conversation generated for this set.
+                      </div>
+                    )}
                   </div>
                 </div>
               </>
@@ -353,8 +402,10 @@ export default function VocabForge() {
                 <p className="text-sm">No student practice requests found.</p>
               </div>
             ) : (
-              conversationRequests.map((req: ConversationRequest) => (
-                <div key={req._id} className="p-6 rounded-2xl border border-slate-200 bg-white shadow-sm flex flex-col gap-4 relative overflow-hidden">
+              conversationRequests.map((req: ConversationRequest | any) => {
+                const reqId = req._id?.$oid || req._id;
+                return (
+                <div key={reqId} className="p-6 rounded-2xl border border-slate-200 bg-white shadow-sm flex flex-col gap-4 relative overflow-hidden">
                   <div className="flex justify-between items-start">
                     <div>
                       <div className="flex items-center gap-2 mb-2">
@@ -372,7 +423,7 @@ export default function VocabForge() {
                     </div>
                     {req.status === 'pending' && (
                       <button 
-                        onClick={() => generateScenarioMutation.mutate(req._id)}
+                        onClick={() => generateScenarioMutation.mutate(reqId)}
                         disabled={generateScenarioMutation.isPending}
                         className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl shadow-md shadow-indigo-600/20 transition-all disabled:opacity-50"
                       >
@@ -387,17 +438,21 @@ export default function VocabForge() {
                       <BookOpen className="h-3 w-3" /> Target Vocabulary ({req.target_words.length} words)
                     </p>
                     <div className="flex flex-wrap gap-2">
-                      {req.target_words.map((tw: TargetWord) => (
-                        <div key={tw._id} className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm flex gap-2 items-center shadow-sm">
+                      {req.target_words.map((tw: TargetWord | any, idx: number) => {
+                        const twId = tw._id?.$oid || tw._id || String(idx);
+                        return (
+                        <div key={twId} className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm flex gap-2 items-center shadow-sm">
                           <span className="font-bold text-slate-700">{tw.word}</span>
                           <span className="text-slate-300">|</span>
                           <span className="text-blue-600 font-medium text-xs">{tw.translation}</span>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
@@ -423,14 +478,29 @@ export default function VocabForge() {
                   <label className="block text-sm font-bold text-slate-700 mb-2">Target Topic</label>
                   <input 
                     type="text"
+                    list="hospitality-topics"
                     className="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all text-slate-800 outline-none placeholder:text-slate-400"
                     placeholder="e.g. Front Desk Check-in, Housekeeping Tools..."
                     value={builderForm.topic}
                     onChange={e => setBuilderForm({...builderForm, topic: e.target.value})}
                   />
+                  <datalist id="hospitality-topics">
+                    <option value="Front Desk Check-in" />
+                    <option value="Housekeeping Tools & Supplies" />
+                    <option value="Restaurant Orders & Menu" />
+                    <option value="Handling Guest Complaints" />
+                    <option value="Hotel Directions & Facilities" />
+                    <option value="Concierge Recommendations" />
+                    <option value="Room Service Orders" />
+                    <option value="Spa & Wellness Services" />
+                    <option value="Event Catering & Banquets" />
+                    <option value="Airport Transfer & Valet" />
+                    <option value="Bartending & Drinks" />
+                    <option value="Emergency & Security" />
+                  </datalist>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                   <div>
                     <label className="block text-sm font-bold text-slate-700 mb-2">CEFR Level</label>
                     <select 
@@ -450,6 +520,15 @@ export default function VocabForge() {
                       className="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all text-slate-800 outline-none"
                       value={builderForm.word_count}
                       onChange={e => setBuilderForm({...builderForm, word_count: parseInt(e.target.value)})}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-2">Sentences</label>
+                    <input 
+                      type="number"
+                      className="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all text-slate-800 outline-none"
+                      value={builderForm.dialogue_sentence_count}
+                      onChange={e => setBuilderForm({...builderForm, dialogue_sentence_count: parseInt(e.target.value)})}
                     />
                   </div>
                 </div>
@@ -561,7 +640,13 @@ export default function VocabForge() {
                         />
                       </div>
                       <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button className="p-1.5 text-slate-300 hover:text-slate-600"><Edit3 className="h-4 w-4" /></button>
+                        <button 
+                          onClick={() => playAudio(word.word, 'en-US')}
+                          className="p-1.5 text-slate-300 hover:text-blue-600 transition-colors"
+                          title="Listen to English pronunciation"
+                        >
+                          <Volume2 className="h-4 w-4" />
+                        </button>
                         <button className="p-1.5 text-slate-300 hover:text-red-500"><Trash2 className="h-4 w-4" /></button>
                       </div>
                     </div>
@@ -622,6 +707,48 @@ export default function VocabForge() {
                   </div>
                 ))}
               </div>
+              
+              {previewData.dialogue && previewData.dialogue.length > 0 && (
+                <div className="mt-8 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+                  <h4 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                    <MessageSquare className="h-5 w-5 text-indigo-500" /> Example Conversation
+                  </h4>
+                  <div className="space-y-4">
+                    {previewData.dialogue.map((line: any, idx: number) => (
+                      <div key={idx} className="flex flex-col gap-1 p-3 bg-slate-50 rounded-2xl">
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs font-bold text-slate-500 uppercase">{line.speaker}</span>
+                          <button 
+                            onClick={() => playAudio(line.text_en, 'en-US')}
+                            className="p-1 text-slate-300 hover:text-blue-600 transition-colors"
+                            title="Listen to English pronunciation"
+                          >
+                            <Volume2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                        <input 
+                          className="font-medium text-slate-800 bg-transparent border-none focus:ring-0 p-0 text-sm w-full"
+                          value={line.text_en}
+                          onChange={e => {
+                            const newDialogue = [...previewData.dialogue!]
+                            newDialogue[idx].text_en = e.target.value
+                            setPreviewData({...previewData, dialogue: newDialogue})
+                          }}
+                        />
+                        <input 
+                          className="text-blue-600 font-medium bg-transparent border-none focus:ring-0 p-0 text-sm w-full"
+                          value={line.text_id}
+                          onChange={e => {
+                            const newDialogue = [...previewData.dialogue!]
+                            newDialogue[idx].text_id = e.target.value
+                            setPreviewData({...previewData, dialogue: newDialogue})
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

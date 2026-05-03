@@ -289,6 +289,7 @@ pub struct GenerateVocabRequest {
     pub level: String,
     pub target_language: Option<String>,
     pub word_count: Option<i32>,
+    pub dialogue_sentence_count: Option<i32>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -304,10 +305,18 @@ pub struct GeneratedVocabWord {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct GeneratedVocabDialogueLine {
+    pub speaker: String,
+    pub text_en: String,
+    pub text_id: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct GeneratedVocabPreview {
     pub title: String,
     pub title_id: String,
     pub words: Vec<GeneratedVocabWord>,
+    pub dialogue: Vec<GeneratedVocabDialogueLine>,
     pub related_topics: Vec<String>,
 }
 

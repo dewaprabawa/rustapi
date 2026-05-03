@@ -46,6 +46,11 @@ pub async fn save_vocab_set(
         published_at: Some(now),
         created_at: Some(now),
         updated_at: Some(now),
+        example_dialogue: Some(payload.preview.dialogue.into_iter().map(|d| crate::vocab::models::VocabDialogueLine {
+            speaker: d.speaker,
+            text_en: d.text_en,
+            text_id: d.text_id,
+        }).collect()),
     };
 
     let set_result = sets_col.insert_one(new_set).await?;

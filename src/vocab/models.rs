@@ -21,6 +21,15 @@ pub struct VocabSet {
     pub created_at: Option<DateTime>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub updated_at: Option<DateTime>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub example_dialogue: Option<Vec<VocabDialogueLine>>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct VocabDialogueLine {
+    pub speaker: String,
+    pub text_en: String,
+    pub text_id: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

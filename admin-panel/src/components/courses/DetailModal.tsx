@@ -1,5 +1,7 @@
-import { X } from "lucide-react"
+import { X, Volume2 } from "lucide-react"
 import { cn, normalizeDate } from "../../lib/utils"
+import { useQuery } from "@tanstack/react-query"
+import { getVocabulary } from "../../services/api"
 
 interface DetailModalProps {
   isDetailModalOpen: boolean
@@ -14,6 +16,14 @@ export default function DetailModal({
   activeTab,
   closeDetailModal
 }: DetailModalProps) {
+  const lessonId = detailItem?._id?.$oid || detailItem?.id;
+
+  const { data: vocabData, isLoading: isLoadingVocab } = useQuery({
+    queryKey: ['lessonVocab', lessonId],
+    queryFn: () => getVocabulary(lessonId),
+    enabled: isDetailModalOpen && activeTab === 'lessons' && !!lessonId,
+  })
+
   if (!isDetailModalOpen || !detailItem) return null
 
   return (
@@ -110,6 +120,55 @@ export default function DetailModal({
                 </span>
               </div>
             </div>
+
+            {activeTab === 'lessons' && (
+              <div className="pt-6 border-t border-slate-100">
+                <span className="block text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+                  Lesson Vocabulary
+                  {vocabData?.length > 0 && (
+                    <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded-full">
+                      {vocabData.length} Words
+                    </span>
+                  )}
+                </span>
+                
+                {isLoadingVocab ? (
+                  <div className="text-sm text-slate-400 py-4 text-center">Loading vocabulary...</div>
+                ) : !vocabData || vocabData.length === 0 ? (
+                  <div className="text-sm text-slate-400 py-4 text-center bg-slate-50 rounded-xl border border-slate-100">
+                    No vocabulary found for this lesson.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {vocabData.map((word: any, idx: number) => (
+                      <div key={idx} className="p-4 rounded-xl border border-slate-100 bg-white hover:shadow-md transition-all">
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <h5 className="font-bold text-slate-800 text-base">{word.word}</h5>
+                            <p className="text-blue-600 font-medium text-sm">{word.translation}</p>
+                          </div>
+                          {word.audio_url && (
+                            <button className="p-1.5 text-slate-300 hover:text-blue-600 transition-colors">
+                              <Volume2 className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
+                        
+                        <div className="space-y-2 pt-2 border-t border-slate-50">
+                          {word.pronunciation && (
+                            <p className="text-xs text-slate-500 italic">[{word.pronunciation}]</p>
+                          )}
+                          <div className="p-2 bg-slate-50 rounded-lg">
+                            <p className="text-xs text-slate-600 italic">"{word.example_en}"</p>
+                            <p className="text-xs text-slate-500 mt-1">{word.example_id}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
         <div className="px-6 py-4 border-t border-slate-100 flex justify-end bg-slate-50/50 flex-shrink-0">

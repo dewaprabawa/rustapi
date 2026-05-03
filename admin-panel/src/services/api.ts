@@ -90,8 +90,8 @@ export const deleteLesson = (id: string) =>
   api.delete(`/lessons/${id}`).then(r => r.data)
 
 // ============ Vocabulary ============
-export const getVocabulary = () =>
-  api.get("/vocabulary").then(r => r.data)
+export const getVocabulary = (lessonId?: string) =>
+  api.get(lessonId ? `/vocabulary?lesson_id=${lessonId}` : "/vocabulary").then(r => r.data)
 
 export const getVocabularyById = (id: string) =>
   api.get(`/vocabulary/${id}`).then(r => r.data)
@@ -106,11 +106,12 @@ export const deleteVocabularyItem = (id: string) =>
   api.delete(`/vocabulary/${id}`).then(r => r.data)
 
 // ============ VocabForge AI ============
-export const generateVocabSet = (data: { topic: string; level: string; word_count?: number; language?: string }) =>
+export const generateVocabSet = (data: { topic: string; level: string; word_count?: number; language?: string; dialogue_sentence_count?: number }) =>
   api.post("/ai/generate-vocab", {
     topic: data.topic,
     level: data.level,
     word_count: data.word_count,
+    dialogue_sentence_count: data.dialogue_sentence_count,
     target_language: data.language
   }).then(r => r.data)
 

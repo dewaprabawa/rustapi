@@ -302,19 +302,22 @@ pub fn estimate_cost(provider: &str, input_tokens: i64, output_tokens: i64) -> f
 pub fn build_vocab_prompt(req: &GenerateVocabRequest) -> String {
     let word_count = req.word_count.unwrap_or(10);
     let target_language = req.target_language.as_deref().unwrap_or("Indonesian");
+    let dialogue_sentence_count = req.dialogue_sentence_count.unwrap_or(5);
 
     let mut prompt = String::new();
-    prompt.push_str("You are an expert language teacher generating a custom vocabulary set.\n\n");
+    prompt.push_str("You are an expert language teacher generating a custom vocabulary set and an example conversation.\n\n");
     prompt.push_str("Generate a vocabulary set in JSON format. Follow this structure EXACTLY.\n\n");
+    prompt.push_str("CRUCIAL: Prioritize the MOST COMMON vocabulary and the MOST COMMON PHRASES naturally used in this topic (e.g., if the topic is 'Housekeeping', include everyday tools, cleaning actions, and common phrases used when speaking with hotel guests).\n\n");
 
     prompt.push_str(&format!("## Parameters\n"));
     prompt.push_str(&format!("- Topic: {}\n", req.topic));
     prompt.push_str(&format!("- Level: {} (CEFR scale)\n", req.level));
     prompt.push_str(&format!("- Target Language: {}\n", target_language));
-    prompt.push_str(&format!("- Word Count: {}\n\n", word_count));
+    prompt.push_str(&format!("- Word Count: {}\n", word_count));
+    prompt.push_str(&format!("- Conversation Sentences: at least {}\n\n", dialogue_sentence_count));
 
     prompt.push_str("## Required JSON Structure\n");
-    prompt.push_str("Return a single JSON object with a `title`, `title_id`, `words` array, and `related_topics` array. For each word, include:\n");
+    prompt.push_str("Return a single JSON object with a `title`, `title_id`, `words` array, `dialogue` array, and `related_topics` array.\n\nFor each word, include:\n");
     prompt.push_str("- `word`: The English word/phrase.\n");
     prompt.push_str("- `translation`: Translation in the target language.\n");
     prompt.push_str("- `part_of_speech`: noun, verb, adj, etc.\n");
@@ -323,6 +326,10 @@ pub fn build_vocab_prompt(req: &GenerateVocabRequest) -> String {
     prompt.push_str("- `colloquial_usage`: How it is most commonly used in natural, daily speaking, or a natural spoken synonym.\n");
     prompt.push_str("- `example_sentence`: A highly natural, conversational sentence featuring the word.\n");
     prompt.push_str("- `distractors`: An array of 3 incorrect translation options in the target language for a multiple-choice quiz.\n\n");
+    prompt.push_str(&format!("For the `dialogue`, create a highly natural, realistic example conversation between two people (e.g., Guest and Staff) using the target vocabulary. CRITICAL: The `dialogue` array MUST contain EXACTLY {} items/sentences. Do not stop at 1 sentence! Include:\n", dialogue_sentence_count));
+    prompt.push_str("- `speaker`: Name of the speaker.\n");
+    prompt.push_str("- `text_en`: English text.\n");
+    prompt.push_str("- `text_id`: Target language translation.\n\n");
 
     let schema = serde_json::json!({
         "title": "Vocab set title",
@@ -337,6 +344,13 @@ pub fn build_vocab_prompt(req: &GenerateVocabRequest) -> String {
                 "colloquial_usage": "Colloquial speaking usage",
                 "example_sentence": "Conversational example sentence.",
                 "distractors": ["wrong1", "wrong2", "wrong3"]
+            }
+        ],
+        "dialogue": [
+            {
+                "speaker": "Guest",
+                "text_en": "Excuse me, I need some fresh towels.",
+                "text_id": "Permisi, saya butuh handuk bersih."
             }
         ],
         "related_topics": ["Topic A", "Topic B", "Topic C"]
