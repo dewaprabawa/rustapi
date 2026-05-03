@@ -343,10 +343,39 @@ pub async fn list_all_sessions(
     State(state): State<Arc<AppState>>,
     _admin: Admin,
 ) -> Result<impl IntoResponse, AppError> {
-    let col: Collection<SpeakingSession> = state.db.database("rustapi").collection("speaking_sessions");
-    let cursor = col.find(doc! {}).sort(doc! { "created_at": -1 }).limit(100).await?;
+    let col_sessions: Collection<SpeakingSession> = state.db.database("rustapi").collection("speaking_sessions");
+    let col_scenarios: Collection<SpeakingScenario> = state.db.database("rustapi").collection("speaking_scenarios");
+
+    let cursor = col_sessions.find(doc! {}).sort(doc! { "created_at": -1 }).limit(100).await?;
     let sessions: Vec<SpeakingSession> = cursor.try_collect().await?;
-    Ok(Json(sessions))
+
+    // Enrich with scenario data
+    let mut enriched = Vec::new();
+    for s in sessions {
+        let scenario = col_scenarios.find_one(doc! { "_id": s.scenario_id }).await?.ok_or(AppError::NotFound)?;
+        enriched.push(json!({
+            "_id": s.id,
+            "user_id": s.user_id,
+            "scenario_id": s.scenario_id,
+            "topic": scenario.title,
+            "level": scenario.level,
+            "status": s.status,
+            "turns": s.turns,
+            "scores": {
+                "overall_score": s.overall_score,
+                "pronunciation": s.detailed_scores.as_ref().map(|d| d.pronunciation),
+                "grammar": s.detailed_scores.as_ref().map(|d| d.grammar),
+                "vocabulary": s.detailed_scores.as_ref().map(|d| d.vocabulary),
+                "fluency": s.detailed_scores.as_ref().map(|d| d.fluency),
+                "task_completion": s.detailed_scores.as_ref().map(|d| d.task_completion),
+                "feedback_notes": s.feedback
+            },
+            "created_at": s.created_at,
+            "updated_at": s.updated_at,
+        }));
+    }
+
+    Ok(Json(enriched))
 }
 
 /// GET /progress/speaking/scenarios

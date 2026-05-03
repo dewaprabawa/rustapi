@@ -15,8 +15,8 @@ export default function SpeakingMonitor() {
   const [selectedSession, setSelectedSession] = useState<any>(null)
 
   const filteredSessions = sessions?.filter((s: any) => 
-    s.topic.toLowerCase().includes(search.toLowerCase()) ||
-    s.level.toLowerCase().includes(search.toLowerCase())
+    (s.topic?.toLowerCase() || "").includes(search.toLowerCase()) ||
+    (s.level?.toLowerCase() || "").includes(search.toLowerCase())
   ) || []
 
   // Stats
@@ -170,7 +170,7 @@ export default function SpeakingMonitor() {
                           <div className={cn("p-3 rounded-2xl max-w-[80%] text-sm",
                             turn.role === 'user' ? "bg-indigo-50 text-indigo-900 rounded-tr-sm" : "bg-white border border-slate-200 text-slate-700 rounded-tl-sm"
                           )}>
-                            {turn.transcript}
+                            {turn.content || turn.transcript}
                           </div>
                         </div>
                       ))}
