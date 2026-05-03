@@ -196,9 +196,7 @@ function GamesPanel({ games, isLoading }: { games: any[]; isLoading: boolean }) 
   })
 
   const { data: lessonsData } = useQuery({ queryKey: ['lessons'], queryFn: getLessons })
-  const { data: modulesData } = useQuery({ queryKey: ['modules'], queryFn: getModules })
   const lessons = lessonsData?.data || lessonsData || []
-  const modules = modulesData?.data || modulesData || []
 
   const createMutation = useMutation({
     mutationFn: (data: any) => createGame(data),

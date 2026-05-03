@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Sparkles, Loader2, Plus, Search, BookOpen, Trash2, ChevronRight, Globe, Volume2, Save, X, Edit3, MessageSquare } from 'lucide-react'
 import { cn } from '../lib/utils'
 import { generateVocabSet, saveVocabSet, getVocabSets, getVocabSetWords, getConversationRequests, generateConversationScenario } from '../services/api'

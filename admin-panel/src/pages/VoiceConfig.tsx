@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { Mic, Volume2, Save, Loader2, Sparkles, Check, Play, Pause } from "lucide-react"
-import { cn } from "../lib/utils"
+import { Mic, Volume2, Save, Loader2, Play } from "lucide-react"
 import { getVoiceConfig, updateVoiceConfig, testTts } from "../services/api"
 
 export default function VoiceConfig() {
@@ -16,7 +15,6 @@ export default function VoiceConfig() {
   })
   const [testText, setTestText] = useState("Hello, welcome to the Hospitality English learning platform. I will be your AI coach today.")
   const [isPlaying, setIsPlaying] = useState(false)
-  const [audioUrl, setAudioUrl] = useState<string | null>(null)
 
   const { data: config, isLoading } = useQuery({
     queryKey: ['voice-config'],
@@ -51,7 +49,6 @@ export default function VoiceConfig() {
     mutationFn: (data: any) => testTts(data),
     onSuccess: (blob) => {
       const url = URL.createObjectURL(blob)
-      setAudioUrl(url)
       const audio = new Audio(url)
       setIsPlaying(true)
       audio.play()

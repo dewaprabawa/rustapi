@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { Mic, Search, ChevronDown, CheckCircle, AlertCircle, Clock, Star, Users } from "lucide-react"
+import { Mic, Search, CheckCircle, AlertCircle, Star, Users } from "lucide-react"
 import { getSpeakingSessions } from "../services/api"
 import { cn } from "../lib/utils"
 import { format } from "date-fns"
