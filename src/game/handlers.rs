@@ -21,15 +21,15 @@ pub async fn create_game(
     _admin: Admin,
     Json(payload): Json<CreateGameRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let lesson_id = ObjectId::parse_str(&payload.lesson_id).map_err(|_| AppError::NotFound)?;
+    let lesson_id = ObjectId::parse_str(&payload.lesson_id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
     
     let ai_scenario_id = match payload.ai_scenario_id.as_deref() {
-        Some(ai_id) if !ai_id.trim().is_empty() => Some(ObjectId::parse_str(ai_id).map_err(|_| AppError::NotFound)?),
+        Some(ai_id) if !ai_id.trim().is_empty() => Some(ObjectId::parse_str(ai_id).map_err(|_| AppError::NotFound("Not found".to_string()))?),
         _ => None,
     };
 
     let module_id = match payload.module_id.as_deref() {
-        Some(mid) if !mid.trim().is_empty() => Some(ObjectId::parse_str(mid).map_err(|_| AppError::NotFound)?),
+        Some(mid) if !mid.trim().is_empty() => Some(ObjectId::parse_str(mid).map_err(|_| AppError::NotFound("Not found".to_string()))?),
         _ => None,
     };
 
@@ -89,7 +89,7 @@ pub async fn update_game(
     Path(id): Path<String>,
     Json(payload): Json<UpdateGameRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
     let collection: Collection<GameContent> = state.db.database("rustapi").collection("games");
 
     let mut update = doc! { "updated_at": bson::DateTime::now() };
@@ -102,7 +102,7 @@ pub async fn update_game(
     }
     if let Some(v) = payload.ai_scenario_id { 
         if !v.trim().is_empty() {
-            let ai_id = ObjectId::parse_str(&v).map_err(|_| AppError::NotFound)?;
+            let ai_id = ObjectId::parse_str(&v).map_err(|_| AppError::NotFound("Not found".to_string()))?;
             update.insert("ai_scenario_id", ai_id); 
         }
     }
@@ -111,9 +111,9 @@ pub async fn update_game(
     if let Some(v) = payload.order { update.insert("order", v); }
 
     let result = collection.update_one(doc! { "_id": oid }, doc! { "$set": update }).await?;
-    if result.matched_count == 0 { return Err(AppError::NotFound); }
+    if result.matched_count == 0 { return Err(AppError::NotFound("Not found".to_string())); }
 
-    let updated = collection.find_one(doc! { "_id": oid }).await?.ok_or(AppError::NotFound)?;
+    let updated = collection.find_one(doc! { "_id": oid }).await?.ok_or(AppError::NotFound("Not found".to_string()))?;
     Ok(Json(updated))
 }
 
@@ -123,10 +123,10 @@ pub async fn delete_game(
     _admin: Admin,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
-    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
     let collection: Collection<GameContent> = state.db.database("rustapi").collection("games");
     let result = collection.delete_one(doc! { "_id": oid }).await?;
-    if result.deleted_count == 0 { return Err(AppError::NotFound); }
+    if result.deleted_count == 0 { return Err(AppError::NotFound("Not found".to_string())); }
     Ok(Json(serde_json::json!({ "message": "Game deleted" })))
 }
 
@@ -137,7 +137,7 @@ pub async fn public_list_lesson_games(
     State(state): State<Arc<AppState>>,
     Path(lesson_id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
-    let l_id = ObjectId::parse_str(&lesson_id).map_err(|_| AppError::NotFound)?;
+    let l_id = ObjectId::parse_str(&lesson_id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
     let collection: Collection<GameContent> = state.db.database("rustapi").collection("games");
 
     let cursor = collection.find(doc! { "lesson_id": l_id, "is_active": true })
@@ -153,7 +153,7 @@ pub async fn submit_game_result(
     user: User,
     Json(payload): Json<SubmitGameResultRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let game_id = ObjectId::parse_str(&payload.game_id).map_err(|_| AppError::NotFound)?;
+    let game_id = ObjectId::parse_str(&payload.game_id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
     let user_id = user.id.unwrap();
 
     let collection: Collection<GameResult> = state.db.database("rustapi").collection("game_results");
@@ -196,7 +196,7 @@ pub async fn submit_speaking_result(
     Json(payload): Json<SubmitSpeakingRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     let game_id = if let Some(gid) = payload.game_id {
-        Some(ObjectId::parse_str(&gid).map_err(|_| AppError::NotFound)?)
+        Some(ObjectId::parse_str(&gid).map_err(|_| AppError::NotFound("Not found".to_string()))?)
     } else {
         None
     };

@@ -140,11 +140,11 @@ pub async fn update_onboarding(
     ).await?;
 
     if result.matched_count == 0 {
-        return Err(AppError::NotFound);
+        return Err(AppError::NotFound("Not found".to_string()));
     }
 
     let updated_user = collection.find_one(doc! { "_id": user.id.unwrap() }).await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(AppError::NotFound("Not found".to_string()))?;
 
     Ok(Json(updated_user))
 }
@@ -358,7 +358,7 @@ pub async fn upload_profile_image(
     ).await?;
 
     let updated_user = collection.find_one(doc! { "_id": user.id.unwrap() }).await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(AppError::NotFound("Not found".to_string()))?;
 
     Ok(Json(updated_user))
 }
@@ -404,7 +404,7 @@ pub async fn update_profile(
     ).await?;
 
     let updated_user = collection.find_one(doc! { "_id": user.id.unwrap() }).await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(AppError::NotFound("Not found".to_string()))?;
 
     Ok(Json(updated_user))
 }
@@ -415,7 +415,7 @@ pub enum AppError {
     InvalidCredentials,
     UserAlreadyExists,
     Forbidden,
-    NotFound,
+    NotFound(String),
     BadRequest(String),
     InternalServerError,
     TooManyRequests(String),
@@ -434,7 +434,7 @@ impl IntoResponse for AppError {
             AppError::InvalidCredentials => (StatusCode::UNAUTHORIZED, "Invalid email or password"),
             AppError::UserAlreadyExists => (StatusCode::CONFLICT, "User already exists"),
             AppError::Forbidden => (StatusCode::FORBIDDEN, "Forbidden: Session not active or access denied"),
-            AppError::NotFound => (StatusCode::NOT_FOUND, "Resource not found"),
+            AppError::NotFound(ref msg) => (StatusCode::NOT_FOUND, Box::leak(msg.clone().into_boxed_str()) as &'static str),
             AppError::BadRequest(ref msg) => (StatusCode::BAD_REQUEST, Box::leak(msg.clone().into_boxed_str()) as &'static str),
             AppError::InternalServerError => (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error"),
             AppError::TooManyRequests(ref msg) => (StatusCode::TOO_MANY_REQUESTS, Box::leak(msg.clone().into_boxed_str()) as &'static str),

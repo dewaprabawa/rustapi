@@ -20,7 +20,7 @@ pub async fn submit_lesson_rating(
     user: User,
     Json(payload): Json<SubmitRatingRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let lesson_id = ObjectId::parse_str(&payload.lesson_id).map_err(|_| AppError::NotFound)?;
+    let lesson_id = ObjectId::parse_str(&payload.lesson_id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
     let user_id = user.id.unwrap();
 
     let collection: Collection<LessonRating> = state.db.database("rustapi").collection("lesson_ratings");

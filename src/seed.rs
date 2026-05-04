@@ -6,6 +6,8 @@ use crate::content::models::{
 use crate::game::models::{GameContent, GameType};
 use crate::models::{Admin, Role};
 use crate::speaking::models::SpeakingScenario;
+use crate::vocab::models::{VocabSet, VocabWord, VocabDialogueLine};
+use crate::speakup::models::{SpeakUpContent, SpeakUpType};
 use chrono::Utc;
 use mongodb::{Client, Collection, bson::doc};
 
@@ -607,5 +609,158 @@ pub async fn seed_api_keys(client: &Client) {
         } else {
             println!("⚠️ GEMINI_API_KEY not found in environment. AI features will require manual configuration.");
         }
+    }
+}
+
+pub async fn seed_phrasal_verbs(client: &Client) {
+    let db = client.database("rustapi");
+    let set_col: Collection<VocabSet> = db.collection("vocab_sets");
+    let word_col: Collection<VocabWord> = db.collection("vocab_words");
+
+    let count = set_col.count_documents(doc! { "set_type": "phrasal_verbs" }).await.unwrap_or(0);
+
+    if count == 0 {
+        println!("📚 Seeding Phrasal Verbs & Collocations library...");
+
+        let now = mongodb::bson::DateTime::now();
+
+        // 1. Phrasal Verb Set
+        let set = VocabSet {
+            id: None,
+            title: "Essential Workplace Phrasal Verbs".to_string(),
+            topic: "Workplace".to_string(),
+            level: "B1".to_string(),
+            language: "Indonesian".to_string(),
+            word_count: 2,
+            game_types: vec!["flashcard".to_string(), "mcq".to_string(), "matching".to_string(), "fill".to_string()],
+            related_topics: vec!["Office Life".to_string(), "Professionalism".to_string()],
+            status: "published".to_string(),
+            created_by: "admin".to_string(),
+            set_type: "phrasal_verbs".to_string(),
+            published_at: Some(now),
+            created_at: Some(now),
+            updated_at: Some(now),
+            example_dialogue: Some(vec![
+                VocabDialogueLine {
+                    speaker: "Manager".to_string(),
+                    text_en: "Can we team up to finish this report?".to_string(),
+                    text_id: "Bisakah kita bekerja sama untuk menyelesaikan laporan ini?".to_string(),
+                },
+                VocabDialogueLine {
+                    speaker: "Employee".to_string(),
+                    text_en: "Sure, let's pick up where we left off yesterday.".to_string(),
+                    text_id: "Tentu, mari kita lanjutkan dari bagian terakhir kemarin.".to_string(),
+                },
+            ]),
+        };
+
+        let s_res = set_col.insert_one(set).await.expect("Failed to seed vocab set");
+        let set_id = s_res.inserted_id.as_object_id().unwrap();
+
+        // 2. Phrasal Words
+        let words = vec![
+            VocabWord {
+                id: None,
+                set_id,
+                word: "team up".to_string(),
+                translation: "bekerja sama".to_string(),
+                part_of_speech: "phrasal verb".to_string(),
+                definition: "to join with someone to work together".to_string(),
+                pronunciation_guide: "/tiːm ʌp/".to_string(),
+                colloquial_usage: "Common in business and projects".to_string(),
+                example_sentence: "We should team up on this presentation.".to_string(),
+                distractors: vec!["fight".to_string(), "leave".to_string(), "ignore".to_string()],
+                item_dialogue: Some(vec![
+                    VocabDialogueLine {
+                        speaker: "A".to_string(),
+                        text_en: "I think we should team up for the marketing pitch.".to_string(),
+                        text_id: "Saya rasa kita harus bekerja sama untuk presentasi pemasaran.".to_string(),
+                    },
+                    VocabDialogueLine {
+                        speaker: "B".to_string(),
+                        text_en: "Great idea, we'll be stronger together.".to_string(),
+                        text_id: "Ide bagus, kita akan lebih kuat bersama.".to_string(),
+                    },
+                ]),
+                audio_url: None,
+                position: 0,
+            },
+            VocabWord {
+                id: None,
+                set_id,
+                word: "pick up".to_string(),
+                translation: "melanjutkan / menjemput".to_string(),
+                part_of_speech: "phrasal verb".to_string(),
+                definition: "to continue from a previous point".to_string(),
+                pronunciation_guide: "/pɪk ʌp/".to_string(),
+                colloquial_usage: "Used when returning to a task".to_string(),
+                example_sentence: "Let's pick up the discussion tomorrow.".to_string(),
+                distractors: vec!["drop off".to_string(), "cancel".to_string(), "stop".to_string()],
+                item_dialogue: Some(vec![
+                    VocabDialogueLine {
+                        speaker: "A".to_string(),
+                        text_en: "Shall we pick up where we left off?".to_string(),
+                        text_id: "Haruskah kita melanjutkan dari bagian terakhir?".to_string(),
+                    },
+                    VocabDialogueLine {
+                        speaker: "B".to_string(),
+                        text_en: "Yes, let's start from page five.".to_string(),
+                        text_id: "Ya, mari kita mulai dari halaman lima.".to_string(),
+                    },
+                ]),
+                audio_url: None,
+                position: 1,
+            },
+        ];
+
+        word_col.insert_many(words).await.expect("Failed to seed vocab words");
+        println!("✅ Successfully seeded Phrasal Verbs example set!");
+    }
+}
+
+pub async fn seed_speakup_content(client: &Client) {
+    let db = client.database("rustapi");
+    let content_col: Collection<SpeakUpContent> = db.collection("speakup_content");
+
+    let count = content_col.count_documents(doc! {}).await.unwrap_or(0);
+
+    if count == 0 {
+        println!("🎙️ Seeding SpeakUp content library...");
+
+        let now = Utc::now();
+
+        let content = vec![
+            SpeakUpContent {
+                id: None,
+                content_type: SpeakUpType::Shadowing,
+                difficulty: "A1".to_string(),
+                title: "Checking In".to_string(),
+                transcript: "I would like to check in, please.".to_string(),
+                audio_url: Some("https://storage.googleapis.com/audio-samples/check-in.mp3".to_string()),
+                steps: None,
+                target_wpm: 120,
+                created_at: now,
+                updated_at: now,
+            },
+            SpeakUpContent {
+                id: None,
+                content_type: SpeakUpType::Expansion,
+                difficulty: "A1".to_string(),
+                title: "Coffee Order".to_string(),
+                transcript: "I would like a large latte with extra sugar, please.".to_string(),
+                audio_url: None,
+                steps: Some(vec![
+                    "I would like".to_string(),
+                    "I would like a large latte".to_string(),
+                    "I would like a large latte with extra sugar, please.".to_string(),
+                ]),
+                target_wpm: 140,
+                created_at: now,
+                updated_at: now,
+            },
+        ];
+
+        content_col.insert_many(content).await.expect("Failed to seed SpeakUp content");
+        println!("✅ Successfully seeded SpeakUp content examples!");
     }
 }

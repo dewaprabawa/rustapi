@@ -85,9 +85,9 @@ pub async fn get_course(
     _admin: Admin,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
-    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
     let collection: Collection<Course> = state.db.database("rustapi").collection("courses");
-    let course = collection.find_one(doc! { "_id": oid }).await?.ok_or(AppError::NotFound)?;
+    let course = collection.find_one(doc! { "_id": oid }).await?.ok_or(AppError::NotFound("Not found".to_string()))?;
     Ok(Json(course))
 }
 
@@ -98,7 +98,7 @@ pub async fn update_course(
     Path(id): Path<String>,
     Json(payload): Json<UpdateCourseRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
     let collection: Collection<Course> = state.db.database("rustapi").collection("courses");
 
     // Snapshot before edit
@@ -134,9 +134,9 @@ pub async fn update_course(
     }
 
     let result = collection.update_one(doc! { "_id": oid }, doc! { "$set": update }).await?;
-    if result.matched_count == 0 { return Err(AppError::NotFound); }
+    if result.matched_count == 0 { return Err(AppError::NotFound("Not found".to_string())); }
 
-    let updated = collection.find_one(doc! { "_id": oid }).await?.ok_or(AppError::NotFound)?;
+    let updated = collection.find_one(doc! { "_id": oid }).await?.ok_or(AppError::NotFound("Not found".to_string()))?;
     Ok(Json(updated))
 }
 
@@ -146,10 +146,10 @@ pub async fn delete_course(
     _admin: Admin,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
-    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
     let collection: Collection<Course> = state.db.database("rustapi").collection("courses");
     let result = collection.delete_one(doc! { "_id": oid }).await?;
-    if result.deleted_count == 0 { return Err(AppError::NotFound); }
+    if result.deleted_count == 0 { return Err(AppError::NotFound("Not found".to_string())); }
     Ok(Json(serde_json::json!({ "message": "Course deleted" })))
 }
 
@@ -209,7 +209,7 @@ pub async fn list_modules(
 
     let mut filter = doc! {};
     if let Some(cid) = &params.course_id {
-        let oid = ObjectId::parse_str(cid).map_err(|_| AppError::NotFound)?;
+        let oid = ObjectId::parse_str(cid).map_err(|_| AppError::NotFound("Not found".to_string()))?;
         filter.insert("course_id", oid);
     }
 
@@ -234,7 +234,7 @@ pub async fn update_module(
     Path(id): Path<String>,
     Json(payload): Json<UpdateModuleRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
     let collection: Collection<Module> = state.db.database("rustapi").collection("modules");
 
     // Snapshot before edit
@@ -262,9 +262,9 @@ pub async fn update_module(
     }
 
     let result = collection.update_one(doc! { "_id": oid }, doc! { "$set": update }).await?;
-    if result.matched_count == 0 { return Err(AppError::NotFound); }
+    if result.matched_count == 0 { return Err(AppError::NotFound("Not found".to_string())); }
 
-    let updated = collection.find_one(doc! { "_id": oid }).await?.ok_or(AppError::NotFound)?;
+    let updated = collection.find_one(doc! { "_id": oid }).await?.ok_or(AppError::NotFound("Not found".to_string()))?;
     Ok(Json(updated))
 }
 
@@ -274,10 +274,10 @@ pub async fn delete_module(
     _admin: Admin,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
-    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
     let collection: Collection<Module> = state.db.database("rustapi").collection("modules");
     let result = collection.delete_one(doc! { "_id": oid }).await?;
-    if result.deleted_count == 0 { return Err(AppError::NotFound); }
+    if result.deleted_count == 0 { return Err(AppError::NotFound("Not found".to_string())); }
     Ok(Json(serde_json::json!({ "message": "Module deleted" })))
 }
 
@@ -337,7 +337,7 @@ pub async fn list_lessons(
 
     let mut filter = doc! {};
     if let Some(mid) = &params.module_id {
-        let oid = ObjectId::parse_str(mid).map_err(|_| AppError::NotFound)?;
+        let oid = ObjectId::parse_str(mid).map_err(|_| AppError::NotFound("Not found".to_string()))?;
         filter.insert("module_id", oid);
     }
 
@@ -362,7 +362,7 @@ pub async fn update_lesson(
     Path(id): Path<String>,
     Json(payload): Json<UpdateLessonRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
     let collection: Collection<Lesson> = state.db.database("rustapi").collection("lessons");
 
     // Snapshot before edit
@@ -389,9 +389,9 @@ pub async fn update_lesson(
     if let Some(ref v) = payload.tags { update.insert("tags", mongodb::bson::to_bson(v).unwrap()); }
 
     let result = collection.update_one(doc! { "_id": oid }, doc! { "$set": update }).await?;
-    if result.matched_count == 0 { return Err(AppError::NotFound); }
+    if result.matched_count == 0 { return Err(AppError::NotFound("Not found".to_string())); }
 
-    let updated = collection.find_one(doc! { "_id": oid }).await?.ok_or(AppError::NotFound)?;
+    let updated = collection.find_one(doc! { "_id": oid }).await?.ok_or(AppError::NotFound("Not found".to_string()))?;
     Ok(Json(updated))
 }
 
@@ -401,10 +401,10 @@ pub async fn delete_lesson(
     _admin: Admin,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
-    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
     let collection: Collection<Lesson> = state.db.database("rustapi").collection("lessons");
     let result = collection.delete_one(doc! { "_id": oid }).await?;
-    if result.deleted_count == 0 { return Err(AppError::NotFound); }
+    if result.deleted_count == 0 { return Err(AppError::NotFound("Not found".to_string())); }
     Ok(Json(serde_json::json!({ "message": "Lesson deleted" })))
 }
 
@@ -416,7 +416,7 @@ pub async fn create_vocabulary(
     _admin: Admin,
     Json(payload): Json<CreateVocabularyRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let lesson_id = ObjectId::parse_str(&payload.lesson_id).map_err(|_| AppError::NotFound)?;
+    let lesson_id = ObjectId::parse_str(&payload.lesson_id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
     let collection: Collection<Vocabulary> = state.db.database("rustapi").collection("vocabulary");
 
     let vocab = Vocabulary {
@@ -449,7 +449,7 @@ pub async fn list_vocabulary(
     _admin: Admin,
     Query(params): Query<VocabQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    let lesson_id = ObjectId::parse_str(&params.lesson_id).map_err(|_| AppError::NotFound)?;
+    let lesson_id = ObjectId::parse_str(&params.lesson_id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
     let collection: Collection<Vocabulary> = state.db.database("rustapi").collection("vocabulary");
 
     let cursor = collection.find(doc! { "lesson_id": lesson_id }).await?;
@@ -466,9 +466,9 @@ pub async fn get_vocabulary(
     _admin: Admin,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
-    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
     let collection: Collection<Vocabulary> = state.db.database("rustapi").collection("vocabulary");
-    let vocab = collection.find_one(doc! { "_id": oid }).await?.ok_or(AppError::NotFound)?;
+    let vocab = collection.find_one(doc! { "_id": oid }).await?.ok_or(AppError::NotFound("Not found".to_string()))?;
     Ok(Json(vocab))
 }
 
@@ -479,7 +479,7 @@ pub async fn update_vocabulary(
     Path(id): Path<String>,
     Json(payload): Json<UpdateVocabularyRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
     let collection: Collection<Vocabulary> = state.db.database("rustapi").collection("vocabulary");
 
     let mut update = doc! {};
@@ -493,9 +493,9 @@ pub async fn update_vocabulary(
     if update.is_empty() { return Ok(Json(serde_json::json!({ "message": "No changes" }))); }
 
     let result = collection.update_one(doc! { "_id": oid }, doc! { "$set": update }).await?;
-    if result.matched_count == 0 { return Err(AppError::NotFound); }
+    if result.matched_count == 0 { return Err(AppError::NotFound("Not found".to_string())); }
 
-    let updated = collection.find_one(doc! { "_id": oid }).await?.ok_or(AppError::NotFound)?;
+    let updated = collection.find_one(doc! { "_id": oid }).await?.ok_or(AppError::NotFound("Not found".to_string()))?;
     Ok(Json(serde_json::to_value(updated).map_err(|_| AppError::InternalServerError)?))
 }
 
@@ -505,10 +505,10 @@ pub async fn delete_vocabulary(
     _admin: Admin,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
-    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
     let collection: Collection<Vocabulary> = state.db.database("rustapi").collection("vocabulary");
     let result = collection.delete_one(doc! { "_id": oid }).await?;
-    if result.deleted_count == 0 { return Err(AppError::NotFound); }
+    if result.deleted_count == 0 { return Err(AppError::NotFound("Not found".to_string())); }
     Ok(Json(serde_json::json!({ "message": "Vocabulary deleted" })))
 }
 
@@ -520,7 +520,7 @@ pub async fn create_dialogue(
     _admin: Admin,
     Json(payload): Json<CreateDialogueRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let lesson_id = ObjectId::parse_str(&payload.lesson_id).map_err(|_| AppError::NotFound)?;
+    let lesson_id = ObjectId::parse_str(&payload.lesson_id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
     let collection: Collection<Dialogue> = state.db.database("rustapi").collection("dialogues");
 
     let dialogue = Dialogue {
@@ -545,7 +545,7 @@ pub async fn list_dialogues(
     _admin: Admin,
     Query(params): Query<VocabQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    let lesson_id = ObjectId::parse_str(&params.lesson_id).map_err(|_| AppError::NotFound)?;
+    let lesson_id = ObjectId::parse_str(&params.lesson_id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
     let collection: Collection<Dialogue> = state.db.database("rustapi").collection("dialogues");
 
     let cursor = collection.find(doc! { "lesson_id": lesson_id }).await?;
@@ -562,9 +562,9 @@ pub async fn get_dialogue(
     _admin: Admin,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
-    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
     let collection: Collection<Dialogue> = state.db.database("rustapi").collection("dialogues");
-    let dialogue = collection.find_one(doc! { "_id": oid }).await?.ok_or(AppError::NotFound)?;
+    let dialogue = collection.find_one(doc! { "_id": oid }).await?.ok_or(AppError::NotFound("Not found".to_string()))?;
     Ok(Json(dialogue))
 }
 
@@ -575,7 +575,7 @@ pub async fn update_dialogue(
     Path(id): Path<String>,
     Json(payload): Json<UpdateDialogueRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
     let collection: Collection<Dialogue> = state.db.database("rustapi").collection("dialogues");
 
     let mut update = doc! {};
@@ -590,9 +590,9 @@ pub async fn update_dialogue(
     if update.is_empty() { return Ok(Json(serde_json::json!({ "message": "No changes" }))); }
 
     let result = collection.update_one(doc! { "_id": oid }, doc! { "$set": update }).await?;
-    if result.matched_count == 0 { return Err(AppError::NotFound); }
+    if result.matched_count == 0 { return Err(AppError::NotFound("Not found".to_string())); }
 
-    let updated = collection.find_one(doc! { "_id": oid }).await?.ok_or(AppError::NotFound)?;
+    let updated = collection.find_one(doc! { "_id": oid }).await?.ok_or(AppError::NotFound("Not found".to_string()))?;
     Ok(Json(serde_json::to_value(updated).map_err(|_| AppError::InternalServerError)?))
 }
 
@@ -602,10 +602,10 @@ pub async fn delete_dialogue(
     _admin: Admin,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
-    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
     let collection: Collection<Dialogue> = state.db.database("rustapi").collection("dialogues");
     let result = collection.delete_one(doc! { "_id": oid }).await?;
-    if result.deleted_count == 0 { return Err(AppError::NotFound); }
+    if result.deleted_count == 0 { return Err(AppError::NotFound("Not found".to_string())); }
     Ok(Json(serde_json::json!({ "message": "Dialogue deleted" })))
 }
 
@@ -617,7 +617,7 @@ pub async fn create_quiz(
     _admin: Admin,
     Json(payload): Json<CreateQuizRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let lesson_id = ObjectId::parse_str(&payload.lesson_id).map_err(|_| AppError::NotFound)?;
+    let lesson_id = ObjectId::parse_str(&payload.lesson_id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
     let collection: Collection<Quiz> = state.db.database("rustapi").collection("quizzes");
 
     let quiz = Quiz {
@@ -644,7 +644,7 @@ pub async fn list_quizzes(
     _admin: Admin,
     Query(params): Query<VocabQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    let lesson_id = ObjectId::parse_str(&params.lesson_id).map_err(|_| AppError::NotFound)?;
+    let lesson_id = ObjectId::parse_str(&params.lesson_id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
     let collection: Collection<Quiz> = state.db.database("rustapi").collection("quizzes");
 
     let cursor = collection.find(doc! { "lesson_id": lesson_id }).await?;
@@ -661,9 +661,9 @@ pub async fn get_quiz(
     _admin: Admin,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
-    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
     let collection: Collection<Quiz> = state.db.database("rustapi").collection("quizzes");
-    let quiz = collection.find_one(doc! { "_id": oid }).await?.ok_or(AppError::NotFound)?;
+    let quiz = collection.find_one(doc! { "_id": oid }).await?.ok_or(AppError::NotFound("Not found".to_string()))?;
     Ok(Json(quiz))
 }
 
@@ -674,7 +674,7 @@ pub async fn update_quiz(
     Path(id): Path<String>,
     Json(payload): Json<UpdateQuizRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
     let collection: Collection<Quiz> = state.db.database("rustapi").collection("quizzes");
 
     let mut update = doc! { "updated_at": bson::DateTime::now() };
@@ -687,9 +687,9 @@ pub async fn update_quiz(
     }
 
     let result = collection.update_one(doc! { "_id": oid }, doc! { "$set": update }).await?;
-    if result.matched_count == 0 { return Err(AppError::NotFound); }
+    if result.matched_count == 0 { return Err(AppError::NotFound("Not found".to_string())); }
 
-    let updated = collection.find_one(doc! { "_id": oid }).await?.ok_or(AppError::NotFound)?;
+    let updated = collection.find_one(doc! { "_id": oid }).await?.ok_or(AppError::NotFound("Not found".to_string()))?;
     Ok(Json(serde_json::to_value(updated).map_err(|_| AppError::InternalServerError)?))
 }
 
@@ -699,10 +699,10 @@ pub async fn delete_quiz(
     _admin: Admin,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
-    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
     let collection: Collection<Quiz> = state.db.database("rustapi").collection("quizzes");
     let result = collection.delete_one(doc! { "_id": oid }).await?;
-    if result.deleted_count == 0 { return Err(AppError::NotFound); }
+    if result.deleted_count == 0 { return Err(AppError::NotFound("Not found".to_string())); }
     Ok(Json(serde_json::json!({ "message": "Quiz deleted" })))
 }
 
@@ -727,7 +727,7 @@ pub async fn public_list_modules(
     State(state): State<Arc<AppState>>,
     Path(course_id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
-    let oid = ObjectId::parse_str(&course_id).map_err(|_| AppError::NotFound)?;
+    let oid = ObjectId::parse_str(&course_id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
     let collection: Collection<Module> = state.db.database("rustapi").collection("modules");
 
     let cursor = collection.find(doc! { "course_id": oid, "is_published": true })
@@ -743,7 +743,7 @@ pub async fn public_list_lessons(
     State(state): State<Arc<AppState>>,
     Path(module_id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
-    let oid = ObjectId::parse_str(&module_id).map_err(|_| AppError::NotFound)?;
+    let oid = ObjectId::parse_str(&module_id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
     let collection: Collection<Lesson> = state.db.database("rustapi").collection("lessons");
 
     let cursor = collection.find(doc! { "module_id": oid, "is_published": true })
@@ -759,11 +759,11 @@ pub async fn public_get_lesson(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
-    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
 
     let lesson: Lesson = state.db.database("rustapi").collection::<Lesson>("lessons")
         .find_one(doc! { "_id": oid, "is_published": true }).await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(AppError::NotFound("Not found".to_string()))?;
 
     let vocab: Vec<Vocabulary> = state.db.database("rustapi").collection::<Vocabulary>("vocabulary")
         .find(doc! { "lesson_id": oid }).await?
@@ -937,7 +937,7 @@ pub async fn delete_api_key(
 async fn get_active_key(state: &Arc<AppState>) -> Result<LlmApiKey, AppError> {
     let col: Collection<LlmApiKey> = state.db.database("rustapi").collection("llm_api_keys");
     col.find_one(doc! { "is_active": true }).await?
-        .ok_or(AppError::NotFound)
+        .ok_or(AppError::NotFound("Not found".to_string()))
 }
 
 /// Helper: call Gemini API
@@ -1167,7 +1167,7 @@ pub async fn list_content_versions(
     _admin: Admin,
     Path((entity_type, entity_id)): Path<(String, String)>,
 ) -> Result<impl IntoResponse, AppError> {
-    let oid = ObjectId::parse_str(&entity_id).map_err(|_| AppError::NotFound)?;
+    let oid = ObjectId::parse_str(&entity_id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
     let col: Collection<ContentVersion> = state.db.database("rustapi").collection("content_versions");
     
     let opts = FindOptions::builder().sort(doc! { "version": -1 }).build();
@@ -1183,11 +1183,11 @@ pub async fn rollback_content_version(
     admin: Admin,
     Path((entity_type, entity_id, version)): Path<(String, String, i32)>,
 ) -> Result<impl IntoResponse, AppError> {
-    let oid = ObjectId::parse_str(&entity_id).map_err(|_| AppError::NotFound)?;
+    let oid = ObjectId::parse_str(&entity_id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
     let col: Collection<ContentVersion> = state.db.database("rustapi").collection("content_versions");
     
     let cv = col.find_one(doc! { "entity_type": &entity_type, "entity_id": oid, "version": version }).await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(AppError::NotFound("Not found".to_string()))?;
 
     match entity_type.as_str() {
         "course" => {
@@ -1217,7 +1217,7 @@ pub async fn rollback_content_version(
             snap.remove("_id");
             coll.update_one(doc! { "_id": oid }, doc! { "$set": snap }).await?;
         },
-        _ => return Err(AppError::NotFound),
+        _ => return Err(AppError::NotFound("Not found".to_string())),
     }
 
     Ok(Json(serde_json::json!({ "message": "Rollback successful" })))
@@ -1229,12 +1229,12 @@ pub async fn clone_content(
     _admin: Admin,
     Path((entity_type, id)): Path<(String, String)>,
 ) -> Result<impl IntoResponse, AppError> {
-    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
     
     match entity_type.as_str() {
         "course" => {
             let col: Collection<Course> = state.db.database("rustapi").collection("courses");
-            let mut item = col.find_one(doc! { "_id": oid }).await?.ok_or(AppError::NotFound)?;
+            let mut item = col.find_one(doc! { "_id": oid }).await?.ok_or(AppError::NotFound("Not found".to_string()))?;
             item.id = None;
             item.title = format!("{} (Copy)", item.title);
             item.is_published = false;
@@ -1246,7 +1246,7 @@ pub async fn clone_content(
         },
         "module" => {
             let col: Collection<Module> = state.db.database("rustapi").collection("modules");
-            let mut item = col.find_one(doc! { "_id": oid }).await?.ok_or(AppError::NotFound)?;
+            let mut item = col.find_one(doc! { "_id": oid }).await?.ok_or(AppError::NotFound("Not found".to_string()))?;
             item.id = None;
             item.title = format!("{} (Copy)", item.title);
             item.is_published = false;
@@ -1258,7 +1258,7 @@ pub async fn clone_content(
         },
         "lesson" => {
             let col: Collection<Lesson> = state.db.database("rustapi").collection("lessons");
-            let mut item = col.find_one(doc! { "_id": oid }).await?.ok_or(AppError::NotFound)?;
+            let mut item = col.find_one(doc! { "_id": oid }).await?.ok_or(AppError::NotFound("Not found".to_string()))?;
             item.id = None;
             item.title = format!("{} (Copy)", item.title);
             item.is_published = false;
@@ -1268,7 +1268,7 @@ pub async fn clone_content(
             item.id = result.inserted_id.as_object_id();
             return Ok(Json(serde_json::to_value(item).unwrap()));
         },
-        _ => Err(AppError::NotFound),
+        _ => Err(AppError::NotFound("Not found".to_string())),
     }
 }
 

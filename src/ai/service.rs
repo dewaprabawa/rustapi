@@ -2,6 +2,44 @@ use crate::ai::models::{GenerateCourseRequest, GeneratedCoursePreview, GenerateV
 use crate::content::models::LlmApiKey;
 use crate::handlers::AppError;
 
+pub struct GeminiService {
+    pub api_key: String,
+}
+
+impl GeminiService {
+    pub fn new(api_key: String) -> Self {
+        Self { api_key }
+    }
+
+    pub async fn generate_feedback(&self, _transcript: &str, _target: &str, wpm: f64, score: f64) -> Result<String, AppError> {
+        // Placeholder for real AI feedback
+        if score > 80.0 && wpm > 100.0 {
+            Ok("Excellent! Your pace and accuracy are spot on. Keep it up!".to_string())
+        } else if score > 60.0 {
+            Ok("Good job. Try to speak a bit faster and more naturally next time.".to_string())
+        } else {
+            Ok("Keep practicing. Focus on the rhythmic flow of the sentence.".to_string())
+        }
+    }
+}
+
+pub fn build_speakup_prompt(topic: &str, content_type: &str, difficulty: &str) -> String {
+    let mut prompt = String::new();
+    prompt.push_str("You are an expert English language curriculum designer.\n\n");
+    prompt.push_str(&format!("Generate a SpeakUp drill for the topic: '{}'.\n", topic));
+    prompt.push_str(&format!("Content Type: {}\n", content_type));
+    prompt.push_str(&format!("Difficulty: {}\n", difficulty));
+    prompt.push_str("\nReturn a JSON object with:\n");
+    prompt.push_str("- title: A catchy title\n");
+    prompt.push_str("- transcript: The full target sentence or paragraph (natural and useful for hospitality)\n");
+    if content_type == "expansion" {
+        prompt.push_str("- steps: An array of strings building the sentence clause-by-clause (3-5 steps)\n");
+    }
+    prompt.push_str("- target_wpm: Recommended speed (Beginner: 80-100, Inter: 120-140, Advanced: 160+)\n");
+    prompt.push_str("\nIMPORTANT: Return ONLY the JSON object, no markdown, no explanation.\n");
+    prompt
+}
+
 
 // Vocabulary Generation functions
 
@@ -357,33 +395,50 @@ pub fn build_vocab_prompt(req: &GenerateVocabRequest) -> String {
     let word_count = req.word_count.unwrap_or(10);
     let target_language = req.target_language.as_deref().unwrap_or("Indonesian");
     let dialogue_sentence_count = req.dialogue_sentence_count.unwrap_or(5);
+    let set_type = req.set_type.as_deref().unwrap_or("vocabulary");
 
     let mut prompt = String::new();
     prompt.push_str("You are an expert language teacher generating a custom vocabulary set and an example conversation.\n\n");
     prompt.push_str("Generate a vocabulary set in JSON format. Follow this structure EXACTLY.\n\n");
-    prompt.push_str("CRUCIAL: Prioritize the MOST COMMON vocabulary and the MOST COMMON PHRASES naturally used in this topic (e.g., if the topic is 'Housekeeping', include everyday tools, cleaning actions, and common phrases used when speaking with hotel guests).\n\n");
+    
+    if set_type == "phrasal_verbs" {
+        prompt.push_str("CRUCIAL: Generate ONLY high-frequency American English PHRASAL VERBS and COLLOCATIONS. Focus on natural, modern spoken English used today.\n\n");
+    } else {
+        prompt.push_str("CRUCIAL: Prioritize the MOST COMMON vocabulary and the MOST COMMON PHRASES naturally used in this topic (e.g., if the topic is 'Housekeeping', include everyday tools, cleaning actions, and common phrases used when speaking with hotel guests).\n\n");
+    }
 
     prompt.push_str(&format!("## Parameters\n"));
     prompt.push_str(&format!("- Topic: {}\n", req.topic));
     prompt.push_str(&format!("- Level: {} (CEFR scale)\n", req.level));
     prompt.push_str(&format!("- Target Language: {}\n", target_language));
     prompt.push_str(&format!("- Word Count: {}\n", word_count));
-    prompt.push_str(&format!("- Conversation Sentences: at least {}\n\n", dialogue_sentence_count));
+    prompt.push_str(&format!("- Main Conversation Sentences: at least {}\n\n", dialogue_sentence_count));
 
     prompt.push_str("## Required JSON Structure\n");
-    prompt.push_str("Return a single JSON object with a `title`, `title_id`, `words` array, `dialogue` array, and `related_topics` array.\n\nFor each word, include:\n");
-    prompt.push_str("- `word`: The English word/phrase.\n");
+    prompt.push_str("Return a single JSON object with a `title`, `title_id`, `words` array, `dialogue` array, and `related_topics` array.\n\nFor each item in `words`, include:\n");
+    prompt.push_str("- `word`: The English word or phrasal verb.\n");
     prompt.push_str("- `translation`: Translation in the target language.\n");
-    prompt.push_str("- `part_of_speech`: noun, verb, adj, etc.\n");
+    prompt.push_str("- `part_of_speech`: noun, verb, phrasal verb, etc.\n");
     prompt.push_str("- `definition`: Simple English definition.\n");
-    prompt.push_str("- `pronunciation_guide`: Simple phonetic spelling or IPA (e.g., 'kəm-PYOO-tər').\n");
-    prompt.push_str("- `colloquial_usage`: How it is most commonly used in natural, daily speaking, or a natural spoken synonym.\n");
+    prompt.push_str("- `pronunciation_guide`: Simple phonetic spelling or IPA.\n");
+    prompt.push_str("- `colloquial_usage`: How it is most commonly used in natural, daily speaking.\n");
     prompt.push_str("- `example_sentence`: A highly natural, conversational sentence featuring the word.\n");
-    prompt.push_str("- `distractors`: An array of 3 incorrect translation options in the target language for a multiple-choice quiz.\n\n");
-    prompt.push_str(&format!("For the `dialogue`, create a highly natural, realistic example conversation between two people (e.g., Guest and Staff) using the target vocabulary. CRITICAL: The `dialogue` array MUST contain EXACTLY {} items/sentences. Do not stop at 1 sentence! Include:\n", dialogue_sentence_count));
-    prompt.push_str("- `speaker`: Name of the speaker.\n");
-    prompt.push_str("- `text_en`: English text.\n");
-    prompt.push_str("- `text_id`: Target language translation.\n\n");
+    prompt.push_str("- `distractors`: An array of 3 incorrect translation options in the target language.\n");
+    
+    if set_type == "phrasal_verbs" {
+        prompt.push_str("- `item_dialogue`: A 2-line mini conversation (Person A and Person B) demonstrating this specific phrasal verb/collocation. Return as an array of objects with `speaker`, `text_en`, and `text_id`.\n\n");
+    } else {
+        prompt.push_str("- `item_dialogue`: Optional (null or empty array).\n\n");
+    }
+
+    let item_dialogue_example = if set_type == "phrasal_verbs" {
+        serde_json::json!([
+            { "speaker": "A", "text_en": "I'm feeling a bit tired.", "text_id": "Saya merasa agak lelah." },
+            { "speaker": "B", "text_en": "That's okay, but try to carry on for 10 more minutes!", "text_id": "Tidak apa-apa, tapi cobalah untuk terus lanjut selama 10 menit lagi!" }
+        ])
+    } else {
+        serde_json::json!(null)
+    };
 
     let schema = serde_json::json!({
         "title": "Vocab set title",
@@ -392,12 +447,13 @@ pub fn build_vocab_prompt(req: &GenerateVocabRequest) -> String {
             {
                 "word": "English word",
                 "translation": "Translation",
-                "part_of_speech": "noun",
+                "part_of_speech": if set_type == "phrasal_verbs" { "phrasal verb" } else { "noun" },
                 "definition": "Definition",
                 "pronunciation_guide": "Phonetic",
                 "colloquial_usage": "Colloquial speaking usage",
                 "example_sentence": "Conversational example sentence.",
-                "distractors": ["wrong1", "wrong2", "wrong3"]
+                "distractors": ["wrong1", "wrong2", "wrong3"],
+                "item_dialogue": item_dialogue_example
             }
         ],
         "dialogue": [

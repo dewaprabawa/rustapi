@@ -15,6 +15,8 @@ pub struct VocabSet {
     pub related_topics: Vec<String>,
     pub status: String,
     pub created_by: String,
+    #[serde(default = "default_set_type")]
+    pub set_type: String, // "vocabulary", "phrasal_verbs", "collocations"
     #[serde(skip_serializing_if = "Option::is_none")]
     pub published_at: Option<DateTime>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -23,6 +25,10 @@ pub struct VocabSet {
     pub updated_at: Option<DateTime>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub example_dialogue: Option<Vec<VocabDialogueLine>>,
+}
+
+fn default_set_type() -> String {
+    "vocabulary".to_string()
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -45,6 +51,8 @@ pub struct VocabWord {
     pub colloquial_usage: String,
     pub example_sentence: String,
     pub distractors: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub item_dialogue: Option<Vec<VocabDialogueLine>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub audio_url: Option<String>,
     pub position: i32,

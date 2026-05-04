@@ -19,6 +19,7 @@ pub struct SaveVocabRequest {
     pub level: String,
     pub language: String,
     pub topic: String,
+    pub set_type: Option<String>,
 }
 
 pub async fn save_vocab_set(
@@ -42,7 +43,8 @@ pub async fn save_vocab_set(
         game_types: vec!["flashcard".to_string(), "mcq".to_string(), "matching".to_string(), "fill".to_string()],
         related_topics: payload.preview.related_topics,
         status: "published".to_string(),
-        created_by: "admin".to_string(), // In a real app, get this from auth
+        created_by: "admin".to_string(),
+        set_type: payload.set_type.unwrap_or_else(|| "vocabulary".to_string()),
         published_at: Some(now),
         created_at: Some(now),
         updated_at: Some(now),
@@ -70,7 +72,12 @@ pub async fn save_vocab_set(
             colloquial_usage: w.colloquial_usage,
             example_sentence: w.example_sentence,
             distractors: w.distractors,
-            audio_url: None, // Will be generated in Phase 1 polish
+            item_dialogue: w.item_dialogue.map(|lines| lines.into_iter().map(|l| crate::vocab::models::VocabDialogueLine {
+                speaker: l.speaker,
+                text_en: l.text_en,
+                text_id: l.text_id,
+            }).collect()),
+            audio_url: None,
             position: i as i32,
         });
     }
@@ -80,11 +87,23 @@ pub async fn save_vocab_set(
     Ok(StatusCode::CREATED)
 }
 
+#[derive(Debug, serde::Deserialize)]
+pub struct ListVocabParams {
+    pub set_type: Option<String>,
+}
+
 pub async fn list_vocab_sets(
     State(state): State<Arc<AppState>>,
+    axum::extract::Query(params): axum::extract::Query<ListVocabParams>,
 ) -> Result<impl IntoResponse, AppError> {
     let collection = state.db.database("rustapi").collection::<crate::vocab::models::VocabSet>("vocab_sets");
-    let mut cursor = collection.find(doc! {}).await?;
+    
+    let mut filter = doc! {};
+    if let Some(t) = params.set_type {
+        filter.insert("set_type", t);
+    }
+
+    let mut cursor = collection.find(filter).await?;
     
     let mut sets = Vec::new();
     while let Some(set) = cursor.next().await {
@@ -111,4 +130,52 @@ pub async fn get_vocab_words(
     Ok(Json(words))
 }
 
+pub async fn delete_vocab_set(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> Result<impl IntoResponse, AppError> {
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::BadRequest("Invalid set ID".to_string()))?;
+    let db = state.db.database("rustapi");
+    let sets_col = db.collection::<crate::vocab::models::VocabSet>("vocab_sets");
+    let words_col = db.collection::<crate::vocab::models::VocabWord>("vocab_words");
 
+    // 1. Delete associated words
+    words_col.delete_many(doc! { "set_id": oid }).await?;
+
+    // 2. Delete the set itself
+    let result = sets_col.delete_one(doc! { "_id": oid }).await?;
+
+    if result.deleted_count == 0 {
+        return Err(AppError::NotFound("Not found".to_string()));
+    }
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+pub async fn delete_vocab_word(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path((_set_id, word_id)): axum::extract::Path<(String, String)>,
+) -> Result<impl IntoResponse, AppError> {
+    let word_oid = ObjectId::parse_str(&word_id).map_err(|_| AppError::BadRequest("Invalid word ID".to_string()))?;
+    
+    let db = state.db.database("rustapi");
+    let sets_col = db.collection::<crate::vocab::models::VocabSet>("vocab_sets");
+    let words_col = db.collection::<crate::vocab::models::VocabWord>("vocab_words");
+
+    // 1. Get the word to find its set_id
+    let word = words_col.find_one(doc! { "_id": word_oid }).await?
+        .ok_or(AppError::NotFound("Not found".to_string()))?;
+
+    // 2. Delete the word
+    let result = words_col.delete_one(doc! { "_id": word_oid }).await?;
+
+    if result.deleted_count > 0 {
+        // 3. Decrement word_count in VocabSet
+        sets_col.update_one(
+            doc! { "_id": word.set_id },
+            doc! { "$inc": { "word_count": -1 } }
+        ).await?;
+    }
+
+    Ok(StatusCode::NO_CONTENT)
+}

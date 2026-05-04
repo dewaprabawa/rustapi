@@ -64,7 +64,7 @@ pub async fn update_voice_config(
 
     let result = col.update_one(doc! {}, doc! { "$set": update_doc }).await?;
     if result.matched_count == 0 {
-        return Err(AppError::NotFound);
+        return Err(AppError::NotFound("Not found".to_string()));
     }
 
     let updated = col.find_one(doc! {}).await?.unwrap();

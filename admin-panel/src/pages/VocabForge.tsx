@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Sparkles, Loader2, Plus, Search, BookOpen, Trash2, ChevronRight, Globe, Volume2, Save, X, MessageSquare } from 'lucide-react'
 import { cn } from '../lib/utils'
-import { generateVocabSet, saveVocabSet, getVocabSets, getVocabSetWords, getConversationRequests, generateConversationScenario, testTts } from '../services/api'
+import { generateVocabSet, saveVocabSet, getVocabSets, getVocabSetWords, getConversationRequests, generateConversationScenario, testTts, deleteVocabSet, deleteVocabWord } from '../services/api'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 interface GeneratedWord {
@@ -21,6 +21,7 @@ interface VocabPreview {
   words: GeneratedWord[]
   dialogue?: { speaker: string, text_en: string, text_id: string }[]
   related_topics: string[]
+  set_type?: string
 }
 
 interface VocabSet {
@@ -32,6 +33,7 @@ interface VocabSet {
   word_count: number
   status: string
   created_at: string
+  set_type: string
   example_dialogue?: { speaker: string, text_en: string, text_id: string }[]
 }
 
@@ -57,8 +59,9 @@ export default function VocabForge() {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
   const [isBuilderOpen, setIsBuilderOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<'library' | 'requests'>('library')
+  const [libraryTab, setLibraryTab] = useState<'vocabulary' | 'phrasal_verbs'>('vocabulary')
   const [selectedSet, setSelectedSet] = useState<VocabSet | null>(null)
-  const [selectedWords, setSelectedWords] = useState<GeneratedWord[]>([])
+  const [selectedWords, setSelectedWords] = useState<(GeneratedWord & { _id?: any })[]>([])
   
   const playAudio = async (text: string, voiceId?: string) => {
     try {
@@ -81,7 +84,8 @@ export default function VocabForge() {
     level: 'B1',
     word_count: 10,
     dialogue_sentence_count: 10,
-    language: 'Indonesian'
+    language: 'Indonesian',
+    set_type: 'vocabulary'
   })
 
   const [previewData, setPreviewData] = useState<VocabPreview | null>(null)
@@ -89,8 +93,8 @@ export default function VocabForge() {
 
   // Queries
   const { data: vocabSets = [], isLoading: isLoadingSets } = useQuery({
-    queryKey: ['vocabSets'],
-    queryFn: getVocabSets
+    queryKey: ['vocabSets', libraryTab],
+    queryFn: () => getVocabSets(libraryTab)
   })
 
   const { data: conversationRequests = [], isLoading: isLoadingRequests } = useQuery({
@@ -140,6 +144,29 @@ export default function VocabForge() {
       alert(msg)
     }
   })
+ 
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteVocabSet(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vocabSets'] })
+      setSelectedSet(null)
+      setSelectedWords([])
+    },
+    onError: () => {
+      alert("Failed to delete vocabulary set.")
+    }
+  })
+
+  const deleteWordMutation = useMutation({
+    mutationFn: ({ setId, wordId }: { setId: string, wordId: string }) => deleteVocabWord(setId, wordId),
+    onSuccess: (_, variables) => {
+      setSelectedWords(prev => prev.filter((w: any) => (w._id?.$oid || w._id) !== variables.wordId))
+      queryClient.invalidateQueries({ queryKey: ['vocabSets'] })
+    },
+    onError: () => {
+      alert("Failed to delete word.")
+    }
+  })
 
   const handleGenerate = () => {
     setIsGenerating(true)
@@ -152,7 +179,8 @@ export default function VocabForge() {
       preview: previewData,
       level: builderForm.level,
       language: builderForm.language,
-      topic: builderForm.topic
+      topic: builderForm.topic,
+      set_type: builderForm.set_type
     })
   }
 
@@ -222,11 +250,34 @@ export default function VocabForge() {
         {/* Left Column: Set List */}
         <div className="lg:col-span-1 space-y-4">
           <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-[700px]">
-            <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-              <h3 className="font-bold text-slate-700">Vocabulary Library</h3>
-              <span className="px-2.5 py-1 bg-slate-200 text-slate-600 text-[10px] font-bold rounded-full uppercase tracking-wider">
-                {vocabSets.length} Sets
-              </span>
+            <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex flex-col gap-4">
+              <div className="flex justify-between items-center">
+                <h3 className="font-bold text-slate-700">Vocabulary Library</h3>
+                <span className="px-2.5 py-1 bg-slate-200 text-slate-600 text-[10px] font-bold rounded-full uppercase tracking-wider">
+                  {vocabSets.length} Sets
+                </span>
+              </div>
+              
+              <div className="flex bg-slate-200/50 p-1 rounded-xl">
+                <button
+                  onClick={() => { setLibraryTab('vocabulary'); setSelectedSet(null); }}
+                  className={cn(
+                    "flex-1 py-1.5 rounded-lg text-xs font-bold transition-all",
+                    libraryTab === 'vocabulary' ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  )}
+                >
+                  Standard
+                </button>
+                <button
+                  onClick={() => { setLibraryTab('phrasal_verbs'); setSelectedSet(null); }}
+                  className={cn(
+                    "flex-1 py-1.5 rounded-lg text-xs font-bold transition-all",
+                    libraryTab === 'phrasal_verbs' ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  )}
+                >
+                  Phrasal & Collocations
+                </button>
+              </div>
             </div>
             
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
@@ -302,8 +353,17 @@ export default function VocabForge() {
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      <button className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors">
-                        <Trash2 className="h-5 w-5" />
+                      <button 
+                        onClick={() => {
+                          if (window.confirm("Are you sure you want to delete this vocabulary set? All associated words will also be removed.")) {
+                            const id = selectedSet._id?.$oid || selectedSet._id;
+                            deleteMutation.mutate(id);
+                          }
+                        }}
+                        disabled={deleteMutation.isPending}
+                        className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors disabled:opacity-50"
+                      >
+                        {deleteMutation.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trash2 className="h-5 w-5" />}
                       </button>
                     </div>
                   </div>
@@ -321,13 +381,29 @@ export default function VocabForge() {
                             </h5>
                             <p className="text-blue-600 font-medium">{word.translation}</p>
                           </div>
-                          <button 
-                            onClick={(e) => { e.stopPropagation(); playAudio(word.word); }}
-                            className="p-2 text-slate-300 hover:text-blue-600 transition-colors"
-                            title="Listen to English pronunciation"
-                          >
-                            <Volume2 className="h-5 w-5" />
-                          </button>
+                          <div className="flex gap-1">
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); playAudio(word.word); }}
+                              className="p-2 text-slate-300 hover:text-blue-600 transition-colors"
+                              title="Listen to English pronunciation"
+                            >
+                              <Volume2 className="h-5 w-5" />
+                            </button>
+                            <button 
+                              onClick={(e) => { 
+                                e.stopPropagation(); 
+                                if (window.confirm("Delete this word from the set?")) {
+                                  const setId = selectedSet._id?.$oid || selectedSet._id;
+                                  const wordId = word._id?.$oid || word._id;
+                                  deleteWordMutation.mutate({ setId, wordId });
+                                }
+                              }}
+                              className="p-2 text-slate-300 hover:text-red-500 transition-colors"
+                              title="Delete word"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
                         </div>
                         
                         <div className="space-y-3 pt-3 border-t border-slate-100">
@@ -342,6 +418,31 @@ export default function VocabForge() {
                           <div className="p-3 bg-white rounded-xl border border-slate-100">
                             <p className="text-xs text-slate-500 italic">"{word.example_sentence}"</p>
                           </div>
+                          
+                          {/* Item Dialogue Section */}
+                          {(word as any).item_dialogue && (word as any).item_dialogue.length > 0 && (
+                            <div className="mt-2 pt-3 border-t border-slate-100/50 space-y-2">
+                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                                <MessageSquare className="h-3 w-3" /> Context Dialogue
+                              </p>
+                              {(word as any).item_dialogue.map((line: any, lidx: number) => (
+                                <div key={lidx} className="text-[11px] leading-snug flex justify-between items-start group/line">
+                                  <div>
+                                    <span className="font-bold text-slate-500">{line.speaker}: </span>
+                                    <span className="text-slate-700">{line.text_en}</span>
+                                    <p className="text-blue-600/70 ml-4 italic">{line.text_id}</p>
+                                  </div>
+                                  <button 
+                                    onClick={() => playAudio(line.text_en)}
+                                    className="p-1 text-slate-300 hover:text-blue-600 transition-colors opacity-0 group-hover/line:opacity-100"
+                                    title="Listen"
+                                  >
+                                    <Volume2 className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -483,16 +584,30 @@ export default function VocabForge() {
             
             <div className="p-8 space-y-6">
               <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">Target Topic</label>
-                  <input 
-                    type="text"
-                    list="hospitality-topics"
-                    className="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all text-slate-800 outline-none placeholder:text-slate-400"
-                    placeholder="e.g. Front Desk Check-in, Housekeeping Tools..."
-                    value={builderForm.topic}
-                    onChange={e => setBuilderForm({...builderForm, topic: e.target.value})}
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-2">Content Type</label>
+                    <select 
+                      className="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all text-slate-800 outline-none"
+                      value={builderForm.set_type}
+                      onChange={e => setBuilderForm({...builderForm, set_type: e.target.value})}
+                    >
+                      <option value="vocabulary">Standard Vocabulary</option>
+                      <option value="phrasal_verbs">Phrasal Verbs & Collocations</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-2">Target Topic</label>
+                    <input 
+                      type="text"
+                      list="hospitality-topics"
+                      className="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all text-slate-800 outline-none placeholder:text-slate-400"
+                      placeholder={builderForm.set_type === 'phrasal_verbs' ? "e.g. Workplace, Dating, Travel..." : "e.g. Front Desk, Housekeeping..."}
+                      value={builderForm.topic}
+                      onChange={e => setBuilderForm({...builderForm, topic: e.target.value})}
+                    />
+                  </div>
+                </div>
                   <datalist id="hospitality-topics">
                     <option value="Front Desk Check-in" />
                     <option value="Housekeeping Tools & Supplies" />
@@ -507,8 +622,7 @@ export default function VocabForge() {
                     <option value="Bartending & Drinks" />
                     <option value="Emergency & Security" />
                   </datalist>
-                </div>
-
+                
                 <div className="grid grid-cols-3 gap-4">
                   <div>
                     <label className="block text-sm font-bold text-slate-700 mb-2">CEFR Level</label>
@@ -656,7 +770,15 @@ export default function VocabForge() {
                         >
                           <Volume2 className="h-4 w-4" />
                         </button>
-                        <button className="p-1.5 text-slate-300 hover:text-red-500"><Trash2 className="h-4 w-4" /></button>
+                        <button 
+                          onClick={() => {
+                            const newWords = previewData.words.filter((_, i) => i !== idx);
+                            setPreviewData({...previewData, words: newWords});
+                          }}
+                          className="p-1.5 text-slate-300 hover:text-red-500 transition-colors"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
                       </div>
                     </div>
 
@@ -712,6 +834,45 @@ export default function VocabForge() {
                           }}
                         />
                       </div>
+
+                      {/* Item Dialogue Preview Section */}
+                      {(word as any).item_dialogue && (
+                        <div className="p-4 bg-blue-50/30 rounded-2xl border border-blue-100/50">
+                          <label className="text-[10px] font-bold text-blue-400 uppercase tracking-widest block mb-3">Item Dialogue Snippet</label>
+                          {(word as any).item_dialogue.map((line: any, lidx: number) => (
+                            <div key={lidx} className="mb-3 last:mb-0 space-y-1 group/pline">
+                              <div className="flex justify-between items-center">
+                                <span className="text-[10px] font-bold text-slate-400">{line.speaker}</span>
+                                <button 
+                                  onClick={() => playAudio(line.text_en)}
+                                  className="p-1 text-slate-300 hover:text-blue-600 transition-colors opacity-0 group-hover/pline:opacity-100"
+                                  title="Listen"
+                                >
+                                  <Volume2 className="h-3 w-3" />
+                                </button>
+                              </div>
+                              <input 
+                                className="w-full text-[11px] font-medium text-slate-700 bg-white/50 border-none rounded px-2 py-1"
+                                value={line.text_en}
+                                onChange={e => {
+                                  const newWords = [...previewData.words];
+                                  (newWords[idx] as any).item_dialogue[lidx].text_en = e.target.value;
+                                  setPreviewData({...previewData, words: newWords});
+                                }}
+                              />
+                              <input 
+                                className="w-full text-[11px] text-blue-600 bg-white/50 border-none rounded px-2 py-1"
+                                value={line.text_id}
+                                onChange={e => {
+                                  const newWords = [...previewData.words];
+                                  (newWords[idx] as any).item_dialogue[lidx].text_id = e.target.value;
+                                  setPreviewData({...previewData, words: newWords});
+                                }}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}

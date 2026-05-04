@@ -121,7 +121,7 @@ pub async fn update_admin_me(
     ).await?;
 
     let mut updated_admin = collection.find_one(doc! { "_id": admin.id.unwrap() }).await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(AppError::NotFound("Not found".to_string()))?;
     
     updated_admin.password.clear();
     Ok(Json(updated_admin))
@@ -170,7 +170,7 @@ pub async fn get_user(
     let collection: Collection<User> = state.db.database("rustapi").collection("users");
 
     let user = collection.find_one(doc! { "_id": user_id }).await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(AppError::NotFound("Not found".to_string()))?;
 
     Ok(Json(user))
 }
@@ -189,7 +189,7 @@ pub async fn delete_user(
     let result = collection.delete_one(doc! { "_id": user_id }).await?;
 
     if result.deleted_count == 0 {
-        return Err(AppError::NotFound);
+        return Err(AppError::NotFound("Not found".to_string()));
     }
 
     Ok((StatusCode::OK, Json(serde_json::json!({
@@ -241,7 +241,7 @@ pub async fn update_user(
     ).await?;
 
     if result.matched_count == 0 {
-        return Err(AppError::NotFound);
+        return Err(AppError::NotFound("Not found".to_string()));
     }
 
     Ok(axum::http::StatusCode::OK.into_response())

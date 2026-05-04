@@ -139,7 +139,7 @@ pub async fn send_notification(
     let collection: Collection<Notification> = state.db.database("rustapi").collection("notifications");
 
     let user_id = if let Some(id_str) = payload.user_id {
-        Some(ObjectId::parse_str(&id_str).map_err(|_| AppError::NotFound)?)
+        Some(ObjectId::parse_str(&id_str).map_err(|_| AppError::NotFound("Not found".to_string()))?)
     } else {
         None
     };
@@ -257,7 +257,7 @@ pub async fn mark_notification_read(
     user: User,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
-    let notification_id = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
+    let notification_id = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
     let collection: Collection<Notification> = state.db.database("rustapi").collection("notifications");
 
     // Can only mark own notifications as read
@@ -267,7 +267,7 @@ pub async fn mark_notification_read(
     ).await?;
 
     if result.matched_count == 0 {
-        return Err(AppError::NotFound);
+        return Err(AppError::NotFound("Not found".to_string()));
     }
 
     Ok(Json(serde_json::json!({"message": "Notification marked as read"})))

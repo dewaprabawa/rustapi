@@ -290,6 +290,7 @@ pub struct GenerateVocabRequest {
     pub target_language: Option<String>,
     pub word_count: Option<i32>,
     pub dialogue_sentence_count: Option<i32>,
+    pub set_type: Option<String>, // "vocabulary", "phrasal_verbs"
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -302,6 +303,7 @@ pub struct GeneratedVocabWord {
     pub colloquial_usage: String,
     pub example_sentence: String,
     pub distractors: Vec<String>,
+    pub item_dialogue: Option<Vec<GeneratedVocabDialogueLine>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

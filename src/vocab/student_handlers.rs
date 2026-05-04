@@ -190,7 +190,7 @@ pub async fn toggle_bookmark(
             // No progress yet — create a bookmark-only record
             let word_col = db.collection::<VocabWord>("vocab_words");
             let word = word_col.find_one(doc! { "_id": word_oid }).await?
-                .ok_or(AppError::NotFound)?;
+                .ok_or(AppError::NotFound("Not found".to_string()))?;
 
             let new_prog = UserVocabProgress {
                 id: None,

@@ -16,7 +16,7 @@ pub async fn start_session(
     user: User,
     Json(payload): Json<StartSessionRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let game_id = ObjectId::parse_str(&payload.game_id).map_err(|_| AppError::NotFound)?;
+    let game_id = ObjectId::parse_str(&payload.game_id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
     let user_id = user.id.unwrap();
 
     let collection: Collection<GameSession> = state.db.database("rustapi").collection("game_sessions");
@@ -54,13 +54,13 @@ pub async fn submit_answer(
     user: User,
     Json(payload): Json<AnswerSubmitRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let session_id = ObjectId::parse_str(&payload.session_id).map_err(|_| AppError::NotFound)?;
+    let session_id = ObjectId::parse_str(&payload.session_id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
     let user_id = user.id.unwrap();
 
     let session_coll: Collection<GameSession> = state.db.database("rustapi").collection("game_sessions");
     
     let mut session = session_coll.find_one(doc! { "_id": session_id, "user_id": user_id }).await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(AppError::NotFound("Not found".to_string()))?;
 
     if session.status != "active" {
         eprintln!("DEBUG: Session {} is not active. Status: {}", session_id, session.status);
@@ -69,7 +69,7 @@ pub async fn submit_answer(
 
     let game_coll: Collection<GameContent> = state.db.database("rustapi").collection("games");
     let game = game_coll.find_one(doc! { "_id": session.game_id }).await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(AppError::NotFound("Not found".to_string()))?;
 
     // Basic logic for SceneMatcher: Validate if payload.answer == game.data_json["correct"]
     let is_correct = match game.game_type {

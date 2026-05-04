@@ -133,12 +133,12 @@ pub async fn submit_quiz(
     Json(payload): Json<SubmitQuizRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     let user_id = user.id.unwrap();
-    let quiz_id = ObjectId::parse_str(&payload.quiz_id).map_err(|_| AppError::NotFound)?;
+    let quiz_id = ObjectId::parse_str(&payload.quiz_id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
 
     // Fetch the quiz
     let quiz_collection: Collection<crate::content::models::Quiz> = state.db.database("rustapi").collection("quizzes");
     let quiz = quiz_collection.find_one(doc! { "_id": quiz_id }).await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(AppError::NotFound("Not found".to_string()))?;
 
     // Score the quiz
     let mut correct = 0;
@@ -266,7 +266,7 @@ pub async fn update_gamification_config(
     collection.update_one(doc! {}, doc! { "$set": update })
         .with_options(options).await?;
 
-    let updated = collection.find_one(doc! {}).await?.ok_or(AppError::NotFound)?;
+    let updated = collection.find_one(doc! {}).await?.ok_or(AppError::NotFound("Not found".to_string()))?;
     Ok(Json(updated))
 }
 

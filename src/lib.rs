@@ -13,6 +13,7 @@ pub mod progress;
 pub mod rating;
 pub mod seed;
 pub mod speaking;
+pub mod speakup;
 pub mod swagger;
 pub mod vocab;
 pub mod voice;
@@ -43,6 +44,7 @@ use crate::progress::handlers::*;
 use crate::rating::handlers::*;
 use crate::seed::seed_admin;
 use crate::speaking::handlers as speaking_handlers;
+use crate::speakup::handlers as speakup_handlers;
 use crate::swagger::ApiDoc;
 use crate::voice::handlers::{
     get_voice_config, speech_to_text, text_to_speech, update_voice_config,
@@ -80,6 +82,8 @@ pub async fn create_app() -> Router {
     crate::seed::seed_content(&client).await;
     crate::seed::seed_speaking_scenarios(&client).await;
     crate::seed::seed_api_keys(&client).await;
+    crate::seed::seed_phrasal_verbs(&client).await;
+    crate::seed::seed_speakup_content(&client).await;
 
     let state = Arc::new(AppState {
         db: client,
@@ -91,8 +95,14 @@ pub async fn create_app() -> Router {
         .allow_methods(Any)
         .allow_headers(Any);
 
-    // ============ Admin Routes (protected by Admin extractor) ============
+    // ============ SpeakUp Routes ============
+    let speakup_routes: Router<Arc<AppState>> = Router::new()
+        .route("/content", get(speakup_handlers::speakup_list_content).post(speakup_handlers::speakup_create_content))
+        .route("/content/:id", get(speakup_handlers::speakup_get_content).put(speakup_handlers::speakup_update_content).delete(speakup_handlers::speakup_delete_content))
+        .route("/analyze", post(speakup_handlers::speakup_analyze_attempt))
+        .route("/ai-generate", post(speakup_handlers::speakup_ai_generate_content));
 
+    // ============ Admin Routes (protected by Admin extractor) ============
     let admin_routes = Router::new()
         // Diagnostics
         .route("/ping", get(|| async { "Admin API is reachable" }))
@@ -199,9 +209,14 @@ pub async fn create_app() -> Router {
         .route("/ai-prompts", get(get_ai_prompts))
         .route("/ai-prompts/:entity_type", put(update_ai_prompt))
         .route("/vocab-sets", get(vocab::handlers::list_vocab_sets))
+        .route("/vocab-sets/:id", get(vocab::handlers::get_vocab_words).delete(vocab::handlers::delete_vocab_set))
         .route(
             "/vocab-sets/:id/words",
             get(vocab::handlers::get_vocab_words),
+        )
+        .route(
+            "/vocab-sets/:id/words/:word_id",
+            delete(vocab::handlers::delete_vocab_word),
         )
         // Conversation Requests
         .route("/conversation-requests", get(list_conversation_requests))
@@ -216,7 +231,9 @@ pub async fn create_app() -> Router {
         )
         // Voice Proxy (Admin-protected access)
         .route("/voice/stt", post(speech_to_text))
-        .route("/voice/tts", post(text_to_speech));
+        .route("/voice/tts", post(text_to_speech))
+        // SpeakUp Management
+        .nest("/speakup", speakup_routes.clone());
 
     // ============ Voice Abstraction Routes (auth recommended) ============
     let voice_routes = Router::new()
@@ -348,6 +365,8 @@ pub async fn create_app() -> Router {
         .nest("/ratings", rating_routes)
         // Voice Proxy
         .nest("/voice", voice_routes)
+        // SpeakUp (Public access)
+        .nest("/speakup", speakup_routes)
         .layer(cors)
         .with_state(state)
 }

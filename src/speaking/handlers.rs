@@ -31,7 +31,7 @@ pub async fn start_session(
     // 1. Fetch Scenario
     let scenario_col: Collection<SpeakingScenario> = state.db.database("rustapi").collection("speaking_scenarios");
     let scenario = scenario_col.find_one(doc! { "_id": scenario_oid }).await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(AppError::NotFound("Not found".to_string()))?;
 
     // 2. Initialize Session
     let session_col: Collection<SpeakingSession> = state.db.database("rustapi").collection("speaking_sessions");
@@ -89,11 +89,11 @@ pub async fn session_turn(
     // 2. Fetch Session & Scenario
     let session_col: Collection<SpeakingSession> = state.db.database("rustapi").collection("speaking_sessions");
     let mut session = session_col.find_one(doc! { "_id": session_oid }).await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(AppError::NotFound("Not found".to_string()))?;
 
     let scenario_col: Collection<SpeakingScenario> = state.db.database("rustapi").collection("speaking_scenarios");
     let scenario = scenario_col.find_one(doc! { "_id": session.scenario_id }).await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(AppError::NotFound("Not found".to_string()))?;
 
     // 3. Transcribe with Deepgram
     let config_col: Collection<VoiceConfig> = state.db.database("rustapi").collection("voice_configs");
@@ -174,16 +174,16 @@ pub async fn end_session(
     _user: User,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
-    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
     let col: Collection<SpeakingSession> = state.db.database("rustapi").collection("speaking_sessions");
     
     let mut session = col.find_one(doc! { "_id": oid }).await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(AppError::NotFound("Not found".to_string()))?;
 
     // 1. Fetch Scenario for context
     let scenario_col: Collection<SpeakingScenario> = state.db.database("rustapi").collection("speaking_scenarios");
     let scenario = scenario_col.find_one(doc! { "_id": session.scenario_id }).await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(AppError::NotFound("Not found".to_string()))?;
 
     // 2. Build Full Transcript
     let full_transcript = session.turns.iter()
@@ -225,7 +225,7 @@ pub async fn start_test_session(
     println!("🏁 Starting test session for scenario: {}", scenario_id);
     let scenario_oid = ObjectId::parse_str(&scenario_id).map_err(|_| AppError::BadRequest("Invalid scenario_id".to_string()))?;
     let col_scenarios: Collection<SpeakingScenario> = state.db.database("rustapi").collection("speaking_scenarios");
-    let scenario = col_scenarios.find_one(doc! { "_id": scenario_oid }).await?.ok_or(AppError::NotFound)?;
+    let scenario = col_scenarios.find_one(doc! { "_id": scenario_oid }).await?.ok_or(AppError::NotFound("Not found".to_string()))?;
 
     let session = SpeakingSession {
         id: None,
@@ -273,10 +273,10 @@ pub async fn test_session_turn(
         AppError::BadRequest("Invalid session_id".to_string())
     })?;
     let col_sessions: Collection<SpeakingSession> = state.db.database("rustapi").collection("speaking_sessions");
-    let mut session = col_sessions.find_one(doc! { "_id": session_oid }).await?.ok_or(AppError::NotFound)?;
+    let mut session = col_sessions.find_one(doc! { "_id": session_oid }).await?.ok_or(AppError::NotFound("Not found".to_string()))?;
 
     let col_scenarios: Collection<SpeakingScenario> = state.db.database("rustapi").collection("speaking_scenarios");
-    let scenario = col_scenarios.find_one(doc! { "_id": session.scenario_id }).await?.ok_or(AppError::NotFound)?;
+    let scenario = col_scenarios.find_one(doc! { "_id": session.scenario_id }).await?.ok_or(AppError::NotFound("Not found".to_string()))?;
 
     // 1. Evaluate with AI
     let history_str = session.turns.iter()
@@ -352,7 +352,7 @@ pub async fn list_all_sessions(
     // Enrich with scenario data
     let mut enriched = Vec::new();
     for s in sessions {
-        let scenario = col_scenarios.find_one(doc! { "_id": s.scenario_id }).await?.ok_or(AppError::NotFound)?;
+        let scenario = col_scenarios.find_one(doc! { "_id": s.scenario_id }).await?.ok_or(AppError::NotFound("Not found".to_string()))?;
         enriched.push(json!({
             "_id": s.id,
             "user_id": s.user_id,
@@ -425,7 +425,7 @@ pub async fn get_speaking_scenario(
 ) -> Result<impl IntoResponse, AppError> {
     let oid = ObjectId::parse_str(&id).map_err(|_| AppError::BadRequest("Invalid ID".to_string()))?;
     let col: Collection<SpeakingScenario> = state.db.database("rustapi").collection("speaking_scenarios");
-    let scenario = col.find_one(doc! { "_id": oid }).await?.ok_or(AppError::NotFound)?;
+    let scenario = col.find_one(doc! { "_id": oid }).await?.ok_or(AppError::NotFound("Not found".to_string()))?;
     Ok(Json(scenario))
 }
 

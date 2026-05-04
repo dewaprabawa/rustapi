@@ -116,23 +116,30 @@ export const deleteVocabularyItem = (id: string) =>
   api.delete(`/vocabulary/${id}`).then(r => r.data)
 
 // ============ VocabForge AI ============
-export const generateVocabSet = (data: { topic: string; level: string; word_count?: number; language?: string; dialogue_sentence_count?: number }) =>
+export const generateVocabSet = (data: { topic: string; level: string; word_count?: number; language?: string; dialogue_sentence_count?: number; set_type?: string }) =>
   api.post("/ai/generate-vocab", {
     topic: data.topic,
     level: data.level,
     word_count: data.word_count,
     dialogue_sentence_count: data.dialogue_sentence_count,
-    target_language: data.language
+    target_language: data.language,
+    set_type: data.set_type
   }).then(r => r.data)
 
-export const saveVocabSet = (data: { preview: any; level: string; language: string; topic: string }) =>
+export const saveVocabSet = (data: { preview: any; level: string; language: string; topic: string; set_type?: string }) =>
   api.post("/ai/save-vocab", data).then(r => r.data)
 
-export const getVocabSets = () =>
-  api.get("/vocab-sets").then(r => r.data)
+export const getVocabSets = (type?: string) =>
+  api.get("/vocab-sets", { params: { set_type: type } }).then(r => r.data)
 
 export const getVocabSetWords = (id: string) =>
   api.get(`/vocab-sets/${id}/words`).then(r => r.data)
+
+export const deleteVocabSet = (id: string) =>
+  api.delete(`/vocab-sets/${id}`).then(r => r.data)
+
+export const deleteVocabWord = (setId: string, wordId: string) =>
+  api.delete(`/vocab-sets/${setId}/words/${wordId}`).then(r => r.data)
 
 // ============ Conversation Requests ============
 export const getConversationRequests = () =>
@@ -342,3 +349,22 @@ export const startSpeakingTest = (scenarioId: string) =>
 
 export const sendSpeakingTestTurn = (sessionId: string, text: string) =>
   api.post(`/speaking/test/turn/${sessionId}`, { text }).then(r => r.data)
+
+// ============ SpeakUp Fluency ============
+export const getSpeakUpContent = () =>
+  api.get("/speakup/content").then(r => r.data)
+
+export const getSpeakUpContentById = (id: string) =>
+  api.get(`/speakup/content/${id}`).then(r => r.data)
+
+export const createSpeakUpContent = (data: any) =>
+  api.post("/speakup/content", data).then(r => r.data)
+
+export const updateSpeakUpContent = (id: string, data: any) =>
+  api.put(`/speakup/content/${id}`, data).then(r => r.data)
+
+export const deleteSpeakUpContent = (id: string) =>
+  api.delete(`/speakup/content/${id}`).then(r => r.data)
+
+export const aiGenerateSpeakUp = (data: { topic: string; type: string; difficulty: string }) =>
+  api.post("/speakup/ai-generate", data).then(r => r.data)

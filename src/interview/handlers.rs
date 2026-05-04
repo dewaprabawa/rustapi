@@ -76,9 +76,9 @@ pub async fn get_scenario(
     _admin: Admin,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
-    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
     let collection: Collection<InterviewScenario> = state.db.database("rustapi").collection("interview_scenarios");
-    let scenario = collection.find_one(doc! { "_id": oid }).await?.ok_or(AppError::NotFound)?;
+    let scenario = collection.find_one(doc! { "_id": oid }).await?.ok_or(AppError::NotFound("Not found".to_string()))?;
 
     // Also fetch associated questions
     let q_collection: Collection<InterviewQuestion> = state.db.database("rustapi").collection("interview_questions");
@@ -98,7 +98,7 @@ pub async fn update_scenario(
     Path(id): Path<String>,
     Json(payload): Json<UpdateScenarioRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
     let collection: Collection<InterviewScenario> = state.db.database("rustapi").collection("interview_scenarios");
 
     let mut update = doc! { "updated_at": bson::DateTime::now() };
@@ -116,9 +116,9 @@ pub async fn update_scenario(
     }
 
     let result = collection.update_one(doc! { "_id": oid }, doc! { "$set": update }).await?;
-    if result.matched_count == 0 { return Err(AppError::NotFound); }
+    if result.matched_count == 0 { return Err(AppError::NotFound("Not found".to_string())); }
 
-    let updated = collection.find_one(doc! { "_id": oid }).await?.ok_or(AppError::NotFound)?;
+    let updated = collection.find_one(doc! { "_id": oid }).await?.ok_or(AppError::NotFound("Not found".to_string()))?;
     Ok(Json(updated))
 }
 
@@ -128,7 +128,7 @@ pub async fn delete_scenario(
     _admin: Admin,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
-    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
 
     // Delete scenario and its questions
     state.db.database("rustapi").collection::<InterviewQuestion>("interview_questions")
@@ -136,7 +136,7 @@ pub async fn delete_scenario(
 
     let collection: Collection<InterviewScenario> = state.db.database("rustapi").collection("interview_scenarios");
     let result = collection.delete_one(doc! { "_id": oid }).await?;
-    if result.deleted_count == 0 { return Err(AppError::NotFound); }
+    if result.deleted_count == 0 { return Err(AppError::NotFound("Not found".to_string())); }
 
     Ok(Json(serde_json::json!({ "message": "Scenario and questions deleted" })))
 }
@@ -149,7 +149,7 @@ pub async fn add_question(
     _admin: Admin,
     Json(payload): Json<CreateQuestionRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let scenario_id = ObjectId::parse_str(&payload.scenario_id).map_err(|_| AppError::NotFound)?;
+    let scenario_id = ObjectId::parse_str(&payload.scenario_id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
     let collection: Collection<InterviewQuestion> = state.db.database("rustapi").collection("interview_questions");
 
     let question = InterviewQuestion {
@@ -175,10 +175,10 @@ pub async fn delete_question(
     _admin: Admin,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
-    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
     let collection: Collection<InterviewQuestion> = state.db.database("rustapi").collection("interview_questions");
     let result = collection.delete_one(doc! { "_id": oid }).await?;
-    if result.deleted_count == 0 { return Err(AppError::NotFound); }
+    if result.deleted_count == 0 { return Err(AppError::NotFound("Not found".to_string())); }
     Ok(Json(serde_json::json!({ "message": "Question deleted" })))
 }
 
@@ -216,7 +216,7 @@ pub async fn update_ai_config(
         .await?;
 
     let updated = collection.find_one(doc! { "config_key": &key }).await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(AppError::NotFound("Not found".to_string()))?;
 
     Ok(Json(updated))
 }
@@ -269,7 +269,7 @@ pub async fn update_evaluation_weights(
         .with_options(options)
         .await?;
 
-    let updated = collection.find_one(doc! {}).await?.ok_or(AppError::NotFound)?;
+    let updated = collection.find_one(doc! {}).await?.ok_or(AppError::NotFound("Not found".to_string()))?;
     Ok(Json(updated))
 }
 
@@ -294,12 +294,12 @@ pub async fn public_get_scenario(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
-    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
 
     let scenario: InterviewScenario = state.db.database("rustapi")
         .collection::<InterviewScenario>("interview_scenarios")
         .find_one(doc! { "_id": oid, "is_active": true }).await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(AppError::NotFound("Not found".to_string()))?;
 
     let cursor = state.db.database("rustapi")
         .collection::<InterviewQuestion>("interview_questions")

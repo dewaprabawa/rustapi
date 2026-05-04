@@ -299,7 +299,7 @@ pub async fn fulfill_conversation_request(
 
     // 1. Find the request
     let conv_req = req_col.find_one(doc! { "_id": req_oid }).await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(AppError::NotFound("Not found".to_string()))?;
 
     if conv_req.status != "pending" {
         return Err(AppError::BadRequest("Request already processed".to_string()));
@@ -777,4 +777,44 @@ fn parse_game_type(s: &str) -> Option<GameType> {
         "TRANSLATION" => Some(GameType::Translation),
         _ => None,
     }
+}
+
+pub async fn call_gemini_generic(api_key: &str, prompt: &str) -> Result<serde_json::Value, AppError> {
+    let client = reqwest::Client::new();
+    let url = format!(
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={}",
+        api_key
+    );
+
+    let body = serde_json::json!({
+        "contents": [{
+            "parts": [{
+                "text": prompt
+            }]
+        }],
+        "generationConfig": {
+            "response_mime_type": "application/json"
+        }
+    });
+
+    let resp = client.post(&url)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|_| AppError::InternalServerError)?;
+
+    if !resp.status().is_success() {
+        return Err(AppError::InternalServerError);
+    }
+
+    let json: serde_json::Value = resp.json().await.map_err(|_| AppError::InternalServerError)?;
+    
+    let text = json["candidates"][0]["content"]["parts"][0]["text"]
+        .as_str()
+        .ok_or(AppError::InternalServerError)?;
+
+    let parsed: serde_json::Value = serde_json::from_str(text.trim())
+        .map_err(|_| AppError::InternalServerError)?;
+
+    Ok(parsed)
 }

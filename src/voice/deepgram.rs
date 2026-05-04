@@ -14,7 +14,12 @@ impl DeepgramSTT {
 
 impl SpeechToText for DeepgramSTT {
     async fn transcribe(&self, audio_data: Vec<u8>, mime_type: &str) -> Result<String, AppError> {
-        let url = "https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true";
+        let result = self.transcribe_with_timing(audio_data, mime_type).await?;
+        Ok(result.transcript)
+    }
+
+    async fn transcribe_with_timing(&self, audio_data: Vec<u8>, mime_type: &str) -> Result<super::traits::TranscriptionResult, AppError> {
+        let url = "https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&utterances=true&punctuate=true";
 
         let res = self.client.post(url)
             .header("Authorization", format!("Token {}", self.api_key))
@@ -38,6 +43,21 @@ impl SpeechToText for DeepgramSTT {
             .unwrap_or("")
             .to_string();
 
-        Ok(transcript)
+        let mut words = Vec::new();
+        if let Some(word_list) = data["results"]["channels"][0]["alternatives"][0]["words"].as_array() {
+            for w in word_list {
+                words.push(super::traits::WordTiming {
+                    word: w["word"].as_str().unwrap_or("").to_string(),
+                    start: w["start"].as_f64().unwrap_or(0.0),
+                    end: w["end"].as_f64().unwrap_or(0.0),
+                    confidence: w["confidence"].as_f64().unwrap_or(0.0),
+                });
+            }
+        }
+
+        Ok(super::traits::TranscriptionResult {
+            transcript,
+            words,
+        })
     }
 }

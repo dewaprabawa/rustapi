@@ -28,12 +28,12 @@ pub async fn start_interview_session(
     user: User,
     Path(scenario_id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
-    let s_id = ObjectId::parse_str(&scenario_id).map_err(|_| AppError::NotFound)?;
+    let s_id = ObjectId::parse_str(&scenario_id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
     
     // Verify scenario exists
     let scenario_coll: Collection<InterviewScenario> = state.db.database("rustapi").collection("interview_scenarios");
     let _scenario = scenario_coll.find_one(doc! { "_id": s_id }).await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(AppError::NotFound("Not found".to_string()))?;
 
     let session_coll: Collection<InterviewSession> = state.db.database("rustapi").collection("interview_sessions");
 
@@ -70,11 +70,11 @@ pub async fn send_chat_message(
     Path(session_id): Path<String>,
     Json(payload): Json<ChatRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let sess_id = ObjectId::parse_str(&session_id).map_err(|_| AppError::NotFound)?;
+    let sess_id = ObjectId::parse_str(&session_id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
     let session_coll: Collection<InterviewSession> = state.db.database("rustapi").collection("interview_sessions");
 
     let mut session = session_coll.find_one(doc! { "_id": sess_id, "user_id": user.id.unwrap() }).await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(AppError::NotFound("Not found".to_string()))?;
 
     if session.completed {
         return Err(AppError::Forbidden); // Already completed
@@ -129,11 +129,11 @@ pub async fn complete_interview_session(
     user: User,
     Path(session_id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
-    let sess_id = ObjectId::parse_str(&session_id).map_err(|_| AppError::NotFound)?;
+    let sess_id = ObjectId::parse_str(&session_id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
     let session_coll: Collection<InterviewSession> = state.db.database("rustapi").collection("interview_sessions");
 
     let mut session = session_coll.find_one(doc! { "_id": sess_id, "user_id": user.id.unwrap() }).await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(AppError::NotFound("Not found".to_string()))?;
 
     if session.completed {
         return Ok(Json(session));

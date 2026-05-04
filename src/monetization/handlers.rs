@@ -41,7 +41,7 @@ pub async fn update_feature(
         .with_options(options).await?;
 
     let updated = collection.find_one(doc! { "feature_name": &name }).await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(AppError::NotFound("Not found".to_string()))?;
     Ok(Json(updated))
 }
 
@@ -84,6 +84,6 @@ pub async fn update_monetization_config(
     collection.update_one(doc! {}, doc! { "$set": update })
         .with_options(options).await?;
 
-    let updated = collection.find_one(doc! {}).await?.ok_or(AppError::NotFound)?;
+    let updated = collection.find_one(doc! {}).await?.ok_or(AppError::NotFound("Not found".to_string()))?;
     Ok(Json(updated))
 }
