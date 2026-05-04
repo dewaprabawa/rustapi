@@ -41,6 +41,9 @@ export const adminLogin = (email: string, password: string) =>
 export const getAdminMe = () =>
   api.get("/me")
 
+export const updateAdminMe = (data: { name?: string, profile_image_url?: string }) =>
+  api.put("/me", data).then(r => r.data)
+
 export const getDashboardStats = () =>
   api.get("/dashboard/stats").then(r => r.data)
 

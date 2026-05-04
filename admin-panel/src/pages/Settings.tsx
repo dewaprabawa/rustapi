@@ -1,11 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
-import { BrainCircuit, Scale, Save, Loader2, RefreshCw, Key, Trash, Check, Plus, MessageSquare, Edit, RotateCcw } from "lucide-react"
-import { getAiConfigs, updateAiConfig, getEvaluationWeights, updateEvaluationWeights, getApiKeys, createApiKey, deleteApiKey, activateApiKey, getAiPrompts, updateAiPrompt } from "../services/api"
-import { cn } from "../lib/utils"
+import { BrainCircuit, Scale, Save, Loader2, RefreshCw, Key, Trash, Check, Plus, MessageSquare, Edit, RotateCcw, User, Camera } from "lucide-react"
+import { getAiConfigs, updateAiConfig, getEvaluationWeights, updateEvaluationWeights, getApiKeys, createApiKey, deleteApiKey, activateApiKey, getAiPrompts, updateAiPrompt, updateAdminMe, uploadAsset } from "../services/api"
+import { cn, normalizeDate } from "../lib/utils"
+import { useAuth } from "../contexts/AuthContext"
 
 export default function Settings() {
-  const [activeTab, setActiveTab] = useState<"api_keys" | "ai" | "ai_prompts" | "evaluation">("api_keys")
+  const [activeTab, setActiveTab] = useState<"profile" | "api_keys" | "ai" | "ai_prompts" | "evaluation">("profile")
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -15,7 +16,7 @@ export default function Settings() {
           <p className="text-slate-500 text-sm mt-1">AI engine configuration and evaluation criteria.</p>
         </div>
         <div className="flex bg-slate-100/50 p-1 rounded-xl">
-          {(["api_keys", "ai", "ai_prompts", "evaluation"] as const).map((tab) => (
+          {(["profile", "api_keys", "ai", "ai_prompts", "evaluation"] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -26,13 +27,13 @@ export default function Settings() {
                   : "text-slate-500 hover:text-slate-700"
               )}
             >
-              {tab === "api_keys" ? "API Keys" : tab === "ai" ? "AI Config" : tab === "ai_prompts" ? "AI Prompts" : "Evaluation Weights"}
+              {tab === "profile" ? "My Profile" : tab === "api_keys" ? "API Keys" : tab === "ai" ? "AI Config" : tab === "ai_prompts" ? "AI Prompts" : "Evaluation Weights"}
             </button>
           ))}
         </div>
       </div>
 
-      {activeTab === "api_keys" ? <ApiKeysManagerPanel /> : activeTab === "ai" ? <AiConfigPanel /> : activeTab === "ai_prompts" ? <AiPromptsPanel /> : <EvaluationWeightsPanel />}
+      {activeTab === "profile" ? <ProfilePanel /> : activeTab === "api_keys" ? <ApiKeysManagerPanel /> : activeTab === "ai" ? <AiConfigPanel /> : activeTab === "ai_prompts" ? <AiPromptsPanel /> : <EvaluationWeightsPanel />}
     </div>
   )
 }
@@ -522,6 +523,105 @@ function AiPromptsPanel() {
             {displayPrompt}
           </div>
         )}
+      </div>
+    </div>
+  )
+}
+
+function ProfilePanel() {
+  const { admin, setAdmin } = useAuth()
+  const queryClient = useQueryClient()
+  const [name, setName] = useState(admin?.name || "")
+  const [isUploading, setIsUploading] = useState(false)
+
+  const mutation = useMutation({
+    mutationFn: (data: { name?: string, profile_image_url?: string }) => updateAdminMe(data),
+    onSuccess: (updatedAdmin) => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "me"] })
+      setAdmin(updatedAdmin)
+    }
+  })
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setIsUploading(true)
+    try {
+      const { url } = await uploadAsset(file)
+      mutation.mutate({ profile_image_url: url })
+    } catch (error) {
+      console.error("Upload failed", error)
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
+  const adminAvatar = admin?.profile_image_url 
+    ? `${admin.profile_image_url}${admin.profile_image_url.includes('?') ? '&' : '?'}t=${normalizeDate(admin.updated_at)?.getTime() || Date.now()}`
+    : null
+
+  return (
+    <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-8 space-y-8 animate-in slide-in-from-bottom-4">
+      <div className="flex flex-col md:flex-row gap-8">
+        {/* Avatar Section */}
+        <div className="flex flex-col items-center space-y-4">
+          <div className="relative group">
+            <div className="h-32 w-32 rounded-3xl bg-gradient-to-br from-slate-100 to-slate-200 border-2 border-white shadow-xl flex items-center justify-center text-slate-400 font-bold text-4xl overflow-hidden">
+              {adminAvatar ? (
+                <img src={adminAvatar} alt="" className="h-full w-full object-cover" />
+              ) : (
+                admin?.name?.[0] || admin?.email?.[0]?.toUpperCase() || "A"
+              )}
+              {isUploading && (
+                <div className="absolute inset-0 bg-white/60 backdrop-blur-sm flex items-center justify-center">
+                  <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
+                </div>
+              )}
+            </div>
+            <label className="absolute -bottom-2 -right-2 h-10 w-10 bg-blue-600 text-white rounded-xl shadow-lg border-2 border-white flex items-center justify-center cursor-pointer hover:bg-blue-700 transition-colors">
+              <Camera className="h-5 w-5" />
+              <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} disabled={isUploading} />
+            </label>
+          </div>
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Administrator</p>
+        </div>
+
+        {/* Info Section */}
+        <div className="flex-1 space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Display Name</label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                placeholder="Enter your name"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Email Address</label>
+              <input
+                type="email"
+                value={admin?.email || ""}
+                disabled
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-sm text-slate-400 cursor-not-allowed"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end">
+            <button
+              onClick={() => mutation.mutate({ name })}
+              disabled={mutation.isPending || name === admin?.name}
+              className="flex items-center px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl shadow-lg shadow-blue-200 transition-all disabled:opacity-50"
+            >
+              {mutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+              Update Profile
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   )

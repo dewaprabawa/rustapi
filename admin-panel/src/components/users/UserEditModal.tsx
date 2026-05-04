@@ -66,7 +66,7 @@ export default function UserEditModal({ user, onClose, onSave, isSaving }: UserE
             <div className="relative group">
               <div className="h-24 w-24 rounded-3xl bg-slate-100 border-4 border-white shadow-md overflow-hidden flex items-center justify-center">
                 {formData.profile_image_url ? (
-                  <img src={formData.profile_image_url} alt="Profile" className="h-full w-full object-cover" />
+                  <img src={`${formData.profile_image_url}${formData.profile_image_url.includes('?') ? '&' : '?'}t=${Date.now()}`} alt="Profile" className="h-full w-full object-cover" />
                 ) : (
                   <User className="h-10 w-10 text-slate-300" />
                 )}

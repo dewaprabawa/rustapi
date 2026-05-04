@@ -28,7 +28,11 @@ export default function UserTableRow({
         <div className="flex items-center">
           <div className="h-9 w-9 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center text-blue-700 font-bold text-sm mr-3">
             {user.profile_image_url ? (
-              <img src={user.profile_image_url} alt="" className="h-full w-full rounded-full object-cover" />
+              <img 
+                src={`${user.profile_image_url}${user.profile_image_url.includes('?') ? '&' : '?'}t=${normalizeDate(user.updated_at)?.getTime() || Date.now()}`} 
+                alt="" 
+                className="h-full w-full rounded-full object-cover" 
+              />
             ) : (
               (user.name || user.email || "U")[0].toUpperCase()
             )}

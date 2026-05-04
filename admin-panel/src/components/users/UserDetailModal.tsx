@@ -32,7 +32,11 @@ export default function UserDetailModal({ user, onClose }: UserDetailModalProps)
             <div className="h-24 w-24 rounded-3xl bg-white p-1.5 shadow-xl">
               <div className="h-full w-full rounded-[1.25rem] bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center text-slate-400 font-bold text-3xl overflow-hidden">
                 {user.profile_image_url ? (
-                  <img src={user.profile_image_url} alt="" className="h-full w-full object-cover" />
+                  <img 
+                    src={`${user.profile_image_url}${user.profile_image_url.includes('?') ? '&' : '?'}t=${normalizeDate(user.updated_at)?.getTime() || Date.now()}`} 
+                    alt="" 
+                    className="h-full w-full object-cover" 
+                  />
                 ) : (
                   (user.name || user.email || "U")[0].toUpperCase()
                 )}

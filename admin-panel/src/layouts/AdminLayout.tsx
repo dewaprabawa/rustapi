@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom"
 import { LayoutDashboard, BookOpen, Users, BrainCircuit, Settings, LogOut, Trophy, CreditCard, Bell, Sparkles, Mic, Activity } from "lucide-react"
-import { cn } from "../lib/utils"
+import { cn, normalizeDate } from "../lib/utils"
 import { useAuth } from "../contexts/AuthContext"
 
 export default function AdminLayout() {
@@ -94,8 +94,16 @@ export default function AdminLayout() {
             <button className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors relative">
               <Bell className="h-5 w-5" />
             </button>
-            <div className="h-9 w-9 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 border border-blue-200/50 flex items-center justify-center text-blue-700 font-bold text-sm shadow-sm">
-              {adminInitial}
+            <div className="h-9 w-9 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 border border-blue-200/50 flex items-center justify-center text-blue-700 font-bold text-sm shadow-sm overflow-hidden">
+              {admin?.profile_image_url ? (
+                <img 
+                  src={`${admin.profile_image_url}${admin.profile_image_url.includes('?') ? '&' : '?'}t=${normalizeDate(admin.updated_at)?.getTime() || Date.now()}`} 
+                  alt="" 
+                  className="h-full w-full object-cover" 
+                />
+              ) : (
+                adminInitial
+              )}
             </div>
           </div>
         </header>

@@ -90,6 +90,43 @@ pub async fn admin_me(
     Json(admin)
 }
 
+#[derive(Debug, serde::Deserialize)]
+pub struct UpdateAdminRequest {
+    pub name: Option<String>,
+    pub profile_image_url: Option<String>,
+}
+
+/// PUT /admin/me
+pub async fn update_admin_me(
+    State(state): State<Arc<AppState>>,
+    admin: Admin,
+    Json(payload): Json<UpdateAdminRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    let collection: Collection<Admin> = state.db.database("rustapi").collection("admins");
+
+    let mut update_doc = doc! {
+        "updated_at": bson::DateTime::now()
+    };
+
+    if let Some(name) = payload.name {
+        update_doc.insert("name", name);
+    }
+    if let Some(profile_image_url) = payload.profile_image_url {
+        update_doc.insert("profile_image_url", profile_image_url);
+    }
+
+    collection.update_one(
+        doc! { "_id": admin.id.unwrap() },
+        doc! { "$set": update_doc }
+    ).await?;
+
+    let mut updated_admin = collection.find_one(doc! { "_id": admin.id.unwrap() }).await?
+        .ok_or(AppError::NotFound)?;
+    
+    updated_admin.password.clear();
+    Ok(Json(updated_admin))
+}
+
 /// GET /admin/users — List all users with pagination
 pub async fn list_users(
     State(state): State<Arc<AppState>>,

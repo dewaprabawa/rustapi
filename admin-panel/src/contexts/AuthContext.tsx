@@ -5,8 +5,10 @@ interface AdminUser {
   _id?: { $oid: string }
   email: string
   name?: string
+  profile_image_url?: string
   role?: string
   is_active?: boolean
+  updated_at?: any
 }
 
 interface AuthContextType {
@@ -16,6 +18,7 @@ interface AuthContextType {
   isLoading: boolean
   login: (email: string, password: string) => Promise<void>
   logout: () => void
+  setAdmin: (admin: AdminUser | null) => void
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -64,7 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   return (
-    <AuthContext.Provider value={{ admin, token, isAuthenticated: !!token, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ admin, token, isAuthenticated: !!token, isLoading, login, logout, setAdmin }}>
       {children}
     </AuthContext.Provider>
   )

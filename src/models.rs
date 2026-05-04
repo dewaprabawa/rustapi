@@ -190,6 +190,7 @@ pub struct Admin {
     #[serde(skip_serializing_if = "String::is_empty")]
     pub password: String, // hashed — never returned in responses
     pub name: String,
+    pub profile_image_url: Option<String>,
     pub role: Role,
     pub is_active: bool,
 
