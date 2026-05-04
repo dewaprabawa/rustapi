@@ -33,6 +33,11 @@ pub struct User {
     pub persona: Persona,
     pub progress: Progress,
 
+    #[serde(default)]
+    pub level: i32,
+    #[serde(default)]
+    pub xp: i32,
+
     pub is_verified: bool,
     #[serde(default, skip_serializing_if = "Option::is_none", with = "optional_bson_datetime")]
     pub last_login: Option<DateTime<Utc>>,
@@ -240,4 +245,24 @@ pub struct NotificationRequest {
     pub user_id: Option<String>,
     pub title: String,
     pub message: String,
+}
+// ============ Admin Dashboard Stats ============
+
+#[derive(Debug, Serialize)]
+pub struct DashboardStats {
+    pub total_users: u64,
+    pub total_courses: u64,
+    pub total_scenarios: u64,
+    pub total_speaking_sessions: u64,
+    pub total_vocab_sets: u64,
+    pub active_users_today: u64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdateUserRequest {
+    pub name: Option<String>,
+    pub level: Option<i32>,
+    pub xp: Option<i32>,
+    pub profile_image_url: Option<String>,
+    pub is_verified: Option<bool>,
 }

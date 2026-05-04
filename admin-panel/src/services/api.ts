@@ -1,4 +1,5 @@
 import axios from "axios"
+ 
 
 const API_URL = import.meta.env.VITE_API_URL || "/admin"
 
@@ -40,6 +41,9 @@ export const adminLogin = (email: string, password: string) =>
 export const getAdminMe = () =>
   api.get("/me")
 
+export const getDashboardStats = () =>
+  api.get("/dashboard/stats").then(r => r.data)
+
 // ============ Users ============
 export const getUsers = (page = 1, limit = 20) =>
   api.get("/users", { params: { page, limit } }).then(r => r.data)
@@ -49,6 +53,9 @@ export const getUser = (id: string) =>
 
 export const deleteUser = (id: string) =>
   api.delete(`/users/${id}`).then(r => r.data)
+
+export const updateUser = (id: string, data: any) =>
+  api.put(`/users/${id}`, data).then(r => r.data)
 
 // ============ Courses ============
 export const getCourses = () =>

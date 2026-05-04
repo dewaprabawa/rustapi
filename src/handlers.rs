@@ -50,6 +50,8 @@ pub async fn register(
             streak_days: 0,
             total_practice: 0,
         },
+        level: 0,
+        xp: 0,
         is_verified: false,
         last_login: None,
         created_at: Utc::now(),
@@ -260,6 +262,8 @@ pub async fn firebase_login(
                     streak_days: 0,
                     total_practice: 0,
                 },
+                level: 0,
+                xp: 0,
                 is_verified: true, // Auto verify OAuth users
                 last_login: Some(Utc::now()),
                 created_at: Utc::now(),
@@ -315,8 +319,8 @@ pub async fn upload_profile_image(
     let filename = filename.unwrap_or_else(|| "profile.jpg".to_string());
     let content_type = content_type.unwrap_or_else(|| "image/jpeg".to_string());
 
-    let supabase_url = "https://jliibnwjluancnoayayd.supabase.co";
-    let supabase_key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpsaWlibndqbHVhbmNub2F5YXlkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwMDUxOTMsImV4cCI6MjA5MjU4MTE5M30.PDGYaSPI9bf4pfSwxrJJ6zAGHZRiQ-ezncn-d2MZoQE";
+    let supabase_url = "https://jliibnwjluancnoayayd.storage.supabase.co";
+    let supabase_key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpsaWlibndqbHVhbmNub2F5YXlkIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NzAwNTE5MywiZXhwIjoyMDkyNTgxMTkzfQ.gk97AUKZ-Gk_fZXxQ9CVyKN3znj3QjTbGjfzHYSBREc";
     
     // We use the `rustapi` bucket.
     let user_id = user.id.unwrap().to_string();

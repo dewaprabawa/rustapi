@@ -18,7 +18,7 @@ pub mod vocab;
 pub mod voice;
 
 use crate::admin::handlers::{
-    admin_login, admin_me, delete_user, get_user, list_users, upload_asset,
+    admin_login, admin_me, delete_user, get_user, list_users, upload_asset, get_dashboard_stats, update_user,
 };
 use crate::ai::handlers::{
     fulfill_conversation_request, generate_course, generate_vocab, get_credit_usage,
@@ -104,9 +104,10 @@ pub async fn create_app() -> Router {
         // Auth
         .route("/login", post(admin_login))
         .route("/me", get(admin_me))
+        .route("/dashboard/stats", get(get_dashboard_stats))
         // User management
         .route("/users", get(list_users))
-        .route("/users/:id", get(get_user).delete(delete_user))
+        .route("/users/:id", get(get_user).put(update_user).delete(delete_user))
         // Content CMS
         .route("/courses", get(list_courses).post(create_course))
         .route(
