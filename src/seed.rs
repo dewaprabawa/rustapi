@@ -29,6 +29,7 @@ pub async fn seed_admin(client: &Client) {
                 email: "admin@app.com".to_string(),
                 password: hash_password("admin123"),
                 name: "Super Admin".to_string(),
+                profile_image_url: None,
                 role: Role::Admin,
                 is_active: true,
                 created_at: Utc::now(),
