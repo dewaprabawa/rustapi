@@ -37,7 +37,9 @@ pub struct GameContent {
     pub xp_reward: i64,
     pub is_active: bool,
     pub order: i32,
+    #[serde(with = "mongodb::bson::serde_helpers::chrono_datetime_as_bson_datetime")]
     pub created_at: DateTime<Utc>,
+    #[serde(with = "mongodb::bson::serde_helpers::chrono_datetime_as_bson_datetime")]
     pub updated_at: DateTime<Utc>,
 }
 
@@ -80,6 +82,7 @@ pub struct GameResult {
     pub score: f64,
     pub attempts: i32,
     pub completed: bool,
+    #[serde(with = "mongodb::bson::serde_helpers::chrono_datetime_as_bson_datetime")]
     pub created_at: DateTime<Utc>,
 }
 
@@ -104,6 +107,7 @@ pub struct SpeakingResult {
     pub pronunciation_score: Option<f64>,
     pub fluency_score: Option<f64>,
     pub audio_url: Option<String>,
+    #[serde(with = "mongodb::bson::serde_helpers::chrono_datetime_as_bson_datetime")]
     pub created_at: DateTime<Utc>,
 }
 
@@ -128,7 +132,9 @@ pub struct GameSession {
     pub status: String, // "active", "completed", "failed"
     pub lives: i32,
     pub current_xp: i64,
+    #[serde(with = "mongodb::bson::serde_helpers::chrono_datetime_as_bson_datetime")]
     pub started_at: DateTime<Utc>,
+    #[serde(with = "mongodb::bson::serde_helpers::chrono_datetime_as_bson_datetime")]
     pub updated_at: DateTime<Utc>,
 }
 
@@ -159,6 +165,7 @@ pub struct OfflineAnswer {
     pub game_id: String,
     pub answer: Value,
     pub is_correct: bool,
+    #[serde(with = "mongodb::bson::serde_helpers::chrono_datetime_as_bson_datetime")]
     pub timestamp: DateTime<Utc>,
 }
 

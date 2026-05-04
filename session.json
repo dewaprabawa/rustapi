@@ -1,0 +1,1 @@
+{"_id":{"$oid":"69f4706a27480d2d1bddcaee"},"user_id":{"$oid":"69f46b1027480d2d1bddcaec"},"game_id":{"$oid":"69f22b3cc8e1d3b6a4c7a3e4"},"status":"active","lives":3,"current_xp":0,"started_at":"2026-05-01T09:20:42.590991Z","updated_at":"2026-05-01T09:20:42.590995Z"}

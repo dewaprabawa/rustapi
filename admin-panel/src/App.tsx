@@ -12,6 +12,10 @@ import Gamification from "./pages/Gamification"
 import Monetization from "./pages/Monetization"
 import Notifications from "./pages/Notifications"
 import Settings from "./pages/Settings"
+import AIGenerator from "./pages/AIGenerator"
+import VoiceConfig from "./pages/VoiceConfig"
+import SpeakingMonitor from "./pages/SpeakingMonitor"
+import VocabForge from "./pages/VocabForge"
 
 function App() {
   return (
@@ -32,12 +36,16 @@ function App() {
           >
             <Route index element={<Dashboard />} />
             <Route path="courses" element={<Courses />} />
+            <Route path="vocab-forge" element={<VocabForge />} />
             <Route path="users" element={<Users />} />
             <Route path="scenarios" element={<Scenarios />} />
             <Route path="gamification" element={<Gamification />} />
             <Route path="monetization" element={<Monetization />} />
             <Route path="notifications" element={<Notifications />} />
             <Route path="settings" element={<Settings />} />
+            <Route path="ai-generator" element={<AIGenerator />} />
+            <Route path="voice-config" element={<VoiceConfig />} />
+            <Route path="speaking-monitor" element={<SpeakingMonitor />} />
             <Route
               path="*"
               element={

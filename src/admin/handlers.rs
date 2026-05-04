@@ -150,7 +150,7 @@ pub async fn upload_asset(
     let supabase_url = "https://jliibnwjluancnoayayd.supabase.co";
     let supabase_key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpsaWlibndqbHVhbmNub2F5YXlkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwMDUxOTMsImV4cCI6MjA5MjU4MTE5M30.PDGYaSPI9bf4pfSwxrJJ6zAGHZRiQ-ezncn-d2MZoQE";
     
-    let ext = filename.split('.').last().unwrap_or("bin");
+    let ext = filename.split('.').next_back().unwrap_or("bin");
     let asset_id = ObjectId::new().to_hex();
     let object_path = format!("assets/{}.{}", asset_id, ext);
     let upload_url = format!("{}/storage/v1/object/rustapi/{}", supabase_url, object_path);

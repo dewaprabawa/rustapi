@@ -44,6 +44,7 @@ pub async fn register(
         name: payload.name,
         profile_image_url: None,
         fcm_token: None,
+        auth_provider: Some("password".to_string()),
         persona: payload.persona.unwrap_or(default_persona),
         progress: Progress {
             streak_days: 0,
@@ -147,11 +148,17 @@ pub async fn update_onboarding(
 }
 
 #[derive(Debug, Deserialize)]
+pub struct FirebaseIdentity {
+    pub sign_in_provider: String,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct FirebaseClaims {
     pub email: Option<String>,
     pub name: Option<String>,
     pub picture: Option<String>,
     pub sub: String,
+    pub firebase: FirebaseIdentity,
 }
 
 pub async fn firebase_login(
@@ -247,6 +254,7 @@ pub async fn firebase_login(
                 name: claims.name,
                 profile_image_url: claims.picture,
                 fcm_token: None,
+                auth_provider: Some(claims.firebase.sign_in_provider.clone()),
                 persona: default_persona,
                 progress: Progress {
                     streak_days: 0,
@@ -371,6 +379,32 @@ pub async fn update_fcm_token(
     Ok(Json(serde_json::json!({"message": "FCM token updated successfully"})))
 }
 
+pub async fn update_profile(
+    State(state): State<Arc<AppState>>,
+    user: User,
+    Json(payload): Json<crate::models::UpdateProfileRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    let collection: Collection<User> = state.db.database("rustapi").collection("users");
+
+    let mut update_doc = doc! {
+        "updated_at": bson::DateTime::now()
+    };
+
+    if let Some(name) = payload.name {
+        update_doc.insert("name", name);
+    }
+
+    collection.update_one(
+        doc! { "_id": user.id.unwrap() },
+        doc! { "$set": update_doc }
+    ).await?;
+
+    let updated_user = collection.find_one(doc! { "_id": user.id.unwrap() }).await?
+        .ok_or(AppError::NotFound)?;
+
+    Ok(Json(updated_user))
+}
+
 // Error Handling
 #[derive(Debug)]
 pub enum AppError {
@@ -378,6 +412,7 @@ pub enum AppError {
     UserAlreadyExists,
     Forbidden,
     NotFound,
+    BadRequest(String),
     InternalServerError,
     DatabaseError(#[allow(dead_code)] mongodb::error::Error),
 }
@@ -393,12 +428,14 @@ impl IntoResponse for AppError {
         let (status, error_message) = match self {
             AppError::InvalidCredentials => (StatusCode::UNAUTHORIZED, "Invalid email or password"),
             AppError::UserAlreadyExists => (StatusCode::CONFLICT, "User already exists"),
-            AppError::Forbidden => (StatusCode::FORBIDDEN, "Access denied"),
+            AppError::Forbidden => (StatusCode::FORBIDDEN, "Forbidden: Session not active or access denied"),
             AppError::NotFound => (StatusCode::NOT_FOUND, "Resource not found"),
+            AppError::BadRequest(ref msg) => (StatusCode::BAD_REQUEST, Box::leak(msg.clone().into_boxed_str()) as &'static str),
             AppError::InternalServerError => (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error"),
             AppError::DatabaseError(err) => {
                 eprintln!("Database error: {:?}", err);
-                (StatusCode::INTERNAL_SERVER_ERROR, "Database error")
+                let err_msg = format!("Database error: {}", err);
+                (StatusCode::INTERNAL_SERVER_ERROR, Box::leak(err_msg.into_boxed_str()) as &'static str)
             },
         };
 

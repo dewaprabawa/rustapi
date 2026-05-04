@@ -23,16 +23,14 @@ pub async fn create_game(
 ) -> Result<impl IntoResponse, AppError> {
     let lesson_id = ObjectId::parse_str(&payload.lesson_id).map_err(|_| AppError::NotFound)?;
     
-    let ai_scenario_id = if let Some(ai_id) = payload.ai_scenario_id {
-        Some(ObjectId::parse_str(&ai_id).map_err(|_| AppError::NotFound)?)
-    } else {
-        None
+    let ai_scenario_id = match payload.ai_scenario_id.as_deref() {
+        Some(ai_id) if !ai_id.trim().is_empty() => Some(ObjectId::parse_str(ai_id).map_err(|_| AppError::NotFound)?),
+        _ => None,
     };
 
-    let module_id = if let Some(mid) = payload.module_id {
-        Some(ObjectId::parse_str(&mid).map_err(|_| AppError::NotFound)?)
-    } else {
-        None
+    let module_id = match payload.module_id.as_deref() {
+        Some(mid) if !mid.trim().is_empty() => Some(ObjectId::parse_str(mid).map_err(|_| AppError::NotFound)?),
+        _ => None,
     };
 
     let collection: Collection<GameContent> = state.db.database("rustapi").collection("games");
@@ -103,8 +101,10 @@ pub async fn update_game(
         update.insert("data_json", mongodb::bson::to_document(&v).unwrap_or(doc! {})); 
     }
     if let Some(v) = payload.ai_scenario_id { 
-        let ai_id = ObjectId::parse_str(&v).map_err(|_| AppError::NotFound)?;
-        update.insert("ai_scenario_id", ai_id); 
+        if !v.trim().is_empty() {
+            let ai_id = ObjectId::parse_str(&v).map_err(|_| AppError::NotFound)?;
+            update.insert("ai_scenario_id", ai_id); 
+        }
     }
     if let Some(v) = payload.xp_reward { update.insert("xp_reward", v); }
     if let Some(v) = payload.is_active { update.insert("is_active", v); }

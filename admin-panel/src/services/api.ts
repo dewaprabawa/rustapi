@@ -90,8 +90,8 @@ export const deleteLesson = (id: string) =>
   api.delete(`/lessons/${id}`).then(r => r.data)
 
 // ============ Vocabulary ============
-export const getVocabulary = () =>
-  api.get("/vocabulary").then(r => r.data)
+export const getVocabulary = (lessonId?: string) =>
+  api.get(lessonId ? `/vocabulary?lesson_id=${lessonId}` : "/vocabulary").then(r => r.data)
 
 export const getVocabularyById = (id: string) =>
   api.get(`/vocabulary/${id}`).then(r => r.data)
@@ -104,6 +104,32 @@ export const updateVocabulary = (id: string, data: any) =>
 
 export const deleteVocabularyItem = (id: string) =>
   api.delete(`/vocabulary/${id}`).then(r => r.data)
+
+// ============ VocabForge AI ============
+export const generateVocabSet = (data: { topic: string; level: string; word_count?: number; language?: string; dialogue_sentence_count?: number }) =>
+  api.post("/ai/generate-vocab", {
+    topic: data.topic,
+    level: data.level,
+    word_count: data.word_count,
+    dialogue_sentence_count: data.dialogue_sentence_count,
+    target_language: data.language
+  }).then(r => r.data)
+
+export const saveVocabSet = (data: { preview: any; level: string; language: string; topic: string }) =>
+  api.post("/ai/save-vocab", data).then(r => r.data)
+
+export const getVocabSets = () =>
+  api.get("/vocab-sets").then(r => r.data)
+
+export const getVocabSetWords = (id: string) =>
+  api.get(`/vocab-sets/${id}/words`).then(r => r.data)
+
+// ============ Conversation Requests ============
+export const getConversationRequests = () =>
+  api.get("/conversation-requests").then(r => r.data)
+
+export const generateConversationScenario = (id: string) =>
+  api.post(`/conversation-requests/${id}/generate`).then(r => r.data)
 
 // ============ Dialogues ============
 export const getDialogues = () =>
@@ -216,3 +242,93 @@ export const uploadAsset = (file: File) => {
     headers: { "Content-Type": "multipart/form-data" }
   }).then(r => r.data)
 }
+
+// ============ LLM API Keys ============
+export const getApiKeys = () =>
+  api.get("/api-keys").then(r => r.data)
+
+export const createApiKey = (data: { provider: string, name: string, api_key: string }) =>
+  api.post("/api-keys", data).then(r => r.data)
+
+export const deleteApiKey = (id: string) =>
+  api.delete(`/api-keys/${id}`).then(r => r.data)
+
+export const activateApiKey = (id: string) =>
+  api.put(`/api-keys/${id}/activate`).then(r => r.data)
+
+// ============ AI Translation & Generation ============
+export const translateText = (text: string, from?: string, to?: string) =>
+  api.post("/translate", { text, from, to }).then(r => r.data)
+
+export const aiGenerateContent = (entity_type: string, context?: string) =>
+  api.post("/ai-generate", { entity_type, context }).then(r => r.data)
+
+// ============ Content Version History ============
+export const getContentVersions = (entity_type: string, entity_id: string) =>
+  api.get(`/versions/${entity_type}/${entity_id}`).then(r => r.data)
+
+export const rollbackContentVersion = (entity_type: string, entity_id: string, version: number) =>
+  api.post(`/versions/${entity_type}/${entity_id}/rollback/${version}`).then(r => r.data)
+
+export const cloneContent = (entity_type: string, entity_id: string) =>
+  api.post(`/clone/${entity_type}/${entity_id}`).then(r => r.data)
+
+// ============ AI Prompts ============
+export const getAiPrompts = () =>
+  api.get("/ai-prompts").then(r => r.data)
+
+export const updateAiPrompt = (entity_type: string, prompt_template: string) =>
+  api.put(`/ai-prompts/${entity_type}`, { prompt_template }).then(r => r.data)
+
+// ============ AI Course Generator ============
+export const generateCourse = (data: {
+  topic: string
+  level: string
+  category: string
+  skill_focus?: string[]
+  target_age?: string
+  num_modules?: number
+  lessons_per_module?: number
+  vocab_per_lesson?: number
+}) => api.post("/ai/generate-course", data).then(r => r.data)
+
+export const saveCourse = (preview: any) =>
+  api.post("/ai/save-course", { preview }).then(r => r.data)
+
+export const getCreditUsage = () =>
+  api.get("/ai/credit-usage").then(r => r.data)
+
+// ============ Voice Abstraction ============
+export const getVoiceConfig = () =>
+  api.get("/voice/config").then(r => r.data)
+
+export const updateVoiceConfig = (data: any) =>
+  api.put("/voice/config", data).then(r => r.data)
+
+export const testTts = (data: { text: string, voice_id: string }) =>
+  api.post("/voice/tts", data, { responseType: 'blob' }).then(r => r.data)
+
+// ============ Speaking Monitor ============
+export const getSpeakingSessions = () =>
+  api.get("/speaking/sessions").then(r => r.data)
+
+export const getSpeakingScenarios = () =>
+  api.get("/speaking/scenarios").then(r => r.data)
+
+export const createSpeakingScenario = (data: any) =>
+  api.post("/speaking/scenarios", data).then(r => r.data)
+
+export const updateSpeakingScenario = (id: string, data: any) =>
+  api.put(`/speaking/scenarios/${id}`, data).then(r => r.data)
+
+export const deleteSpeakingScenario = (id: string) =>
+  api.delete(`/speaking/scenarios/${id}`).then(r => r.data)
+
+export const aiGenerateSpeakingScenario = (data: { topic: string; level: string }) =>
+  api.post("/speaking/scenarios/ai-generate", data).then(r => r.data)
+
+export const startSpeakingTest = (scenarioId: string) =>
+  api.post(`/speaking/test/start/${scenarioId}`).then(r => r.data)
+
+export const sendSpeakingTestTurn = (sessionId: string, text: string) =>
+  api.post(`/speaking/test/turn/${sessionId}`, { text }).then(r => r.data)

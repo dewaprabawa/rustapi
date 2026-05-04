@@ -28,6 +28,7 @@ pub struct User {
     pub name: Option<String>,
     pub profile_image_url: Option<String>,
     pub fcm_token: Option<String>,
+    pub auth_provider: Option<String>, // e.g. "google.com", "facebook.com", "password"
 
     pub persona: Persona,
     pub progress: Progress,
@@ -43,7 +44,7 @@ pub struct User {
 }
 
 /// Serde helper for Option<DateTime<Utc>> stored as BSON DateTime
-mod optional_bson_datetime {
+pub mod optional_bson_datetime {
     use chrono::{DateTime, Utc};
     use serde::{self, Deserialize, Deserializer, Serialize, Serializer};
     use bson;
@@ -131,6 +132,10 @@ pub struct OnboardingRequest {
     pub weakness: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct UpdateProfileRequest {
+    pub name: Option<String>,
+}
 #[derive(Debug, Deserialize)]
 pub struct LoginRequest {
     pub email: String,

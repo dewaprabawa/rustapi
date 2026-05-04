@@ -12,6 +12,7 @@ pub struct UserProgress {
     pub xp: i64,
     pub level: i32,
     pub streak_days: i32,
+    #[serde(default, skip_serializing_if = "Option::is_none", with = "crate::models::optional_bson_datetime")]
     pub last_activity_date: Option<DateTime<Utc>>,
     pub completed_lessons: Vec<ObjectId>,
     pub completed_quizzes: Vec<ObjectId>,
@@ -20,7 +21,9 @@ pub struct UserProgress {
     pub streak_freezes: i32,
     pub current_unit: i32,
     pub current_lesson_node: i32,
+    #[serde(with = "mongodb::bson::serde_helpers::chrono_datetime_as_bson_datetime")]
     pub created_at: DateTime<Utc>,
+    #[serde(with = "mongodb::bson::serde_helpers::chrono_datetime_as_bson_datetime")]
     pub updated_at: DateTime<Utc>,
 }
 

@@ -6,7 +6,7 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 
-export const normalizeDate = (date) => {
+export const normalizeDate = (date: any) => {
   if (date?.$date?.$numberLong) {
     return new Date(Number(date.$date.$numberLong));
   }

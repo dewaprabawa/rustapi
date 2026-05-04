@@ -11,7 +11,7 @@ use crate::handlers::{AppState, AppError};
 use std::sync::Arc;
 use bson::oid::ObjectId;
 use chrono::Utc;
-use mongodb::options::FindOptions;
+use mongodb::options::{FindOptions, FindOneOptions};
 use futures::TryStreamExt;
 
 // ==================== COURSES ====================
@@ -32,9 +32,18 @@ pub async fn create_course(
         description_id: payload.description_id,
         category: payload.category,
         level: payload.level,
+        status: CourseStatus::Draft,
+        skill_focus: payload.skill_focus.unwrap_or_default(),
+        target_age: payload.target_age.unwrap_or(TargetAge::All),
+        estimated_duration: payload.estimated_duration.unwrap_or_else(|| "4 weeks".to_string()),
+        is_paid: payload.is_paid.unwrap_or(false),
+        enrollment_cap: payload.enrollment_cap,
+        visibility: payload.visibility.unwrap_or(Visibility::Public),
         cover_image_url: payload.cover_image_url,
+        source: None,
         is_published: false,
         order: payload.order.unwrap_or(0),
+        tags: payload.tags.unwrap_or_default().into(),
         created_at: Utc::now(),
         updated_at: Utc::now(),
     };
@@ -92,6 +101,13 @@ pub async fn update_course(
     let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
     let collection: Collection<Course> = state.db.database("rustapi").collection("courses");
 
+    // Snapshot before edit
+    if let Ok(Some(old_doc)) = collection.find_one(doc! { "_id": oid }).await {
+        if let Ok(old_bson) = mongodb::bson::to_document(&old_doc) {
+            let _ = save_content_version(&state, "course", oid, _admin.email.clone(), old_bson, Some("Auto-saved before edit".to_string())).await;
+        }
+    }
+
     let mut update = doc! { "updated_at": bson::DateTime::now() };
     if let Some(v) = payload.title { update.insert("title", v); }
     if let Some(v) = payload.title_id { update.insert("title_id", v); }
@@ -100,11 +116,21 @@ pub async fn update_course(
     if let Some(v) = payload.cover_image_url { update.insert("cover_image_url", v); }
     if let Some(v) = payload.is_published { update.insert("is_published", v); }
     if let Some(v) = payload.order { update.insert("order", v); }
+    if let Some(ref v) = payload.status { update.insert("status", mongodb::bson::to_bson(v).unwrap()); }
+    if let Some(ref v) = payload.skill_focus { update.insert("skill_focus", mongodb::bson::to_bson(v).unwrap()); }
+    if let Some(ref v) = payload.target_age { update.insert("target_age", mongodb::bson::to_bson(v).unwrap()); }
+    if let Some(ref v) = payload.estimated_duration { update.insert("estimated_duration", v); }
+    if let Some(v) = payload.is_paid { update.insert("is_paid", v); }
+    if let Some(v) = payload.enrollment_cap { update.insert("enrollment_cap", v); }
+    if let Some(ref v) = payload.visibility { update.insert("visibility", mongodb::bson::to_bson(v).unwrap()); }
     if let Some(ref v) = payload.category {
         update.insert("category", mongodb::bson::to_bson(v).unwrap());
     }
     if let Some(ref v) = payload.level {
         update.insert("level", mongodb::bson::to_bson(v).unwrap());
+    }
+    if let Some(ref v) = payload.tags {
+        update.insert("tags", mongodb::bson::to_bson(v).unwrap());
     }
 
     let result = collection.update_one(doc! { "_id": oid }, doc! { "$set": update }).await?;
@@ -135,8 +161,11 @@ pub async fn create_module(
     _admin: Admin,
     Json(payload): Json<CreateModuleRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let course_id = ObjectId::parse_str(&payload.course_id).map_err(|_| AppError::NotFound)?;
+    let course_id = ObjectId::parse_str(&payload.course_id).map_err(|_| AppError::BadRequest("Invalid course_id".to_string()))?;
     let collection: Collection<Module> = state.db.database("rustapi").collection("modules");
+
+    let prerequisite_oid = payload.prerequisite_id
+        .and_then(|id| ObjectId::parse_str(&id).ok());
 
     let module = Module {
         id: None,
@@ -145,8 +174,13 @@ pub async fn create_module(
         title_id: payload.title_id,
         description: payload.description,
         description_id: payload.description_id,
+        prerequisite_id: prerequisite_oid,
+        passing_score_threshold: payload.passing_score_threshold,
+        skill_tags: payload.skill_tags.unwrap_or_default(),
         order: payload.order.unwrap_or(0),
         is_published: false,
+        is_optional: payload.is_optional.unwrap_or(false),
+        tags: payload.tags,
         created_at: Utc::now(),
         updated_at: Utc::now(),
     };
@@ -203,6 +237,13 @@ pub async fn update_module(
     let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
     let collection: Collection<Module> = state.db.database("rustapi").collection("modules");
 
+    // Snapshot before edit
+    if let Ok(Some(old_doc)) = collection.find_one(doc! { "_id": oid }).await {
+        if let Ok(old_bson) = mongodb::bson::to_document(&old_doc) {
+            let _ = save_content_version(&state, "module", oid, _admin.email.clone(), old_bson, Some("Auto-saved before edit".to_string())).await;
+        }
+    }
+
     let mut update = doc! { "updated_at": bson::DateTime::now() };
     if let Some(v) = payload.title { update.insert("title", v); }
     if let Some(v) = payload.title_id { update.insert("title_id", v); }
@@ -210,6 +251,15 @@ pub async fn update_module(
     if let Some(v) = payload.description_id { update.insert("description_id", v); }
     if let Some(v) = payload.is_published { update.insert("is_published", v); }
     if let Some(v) = payload.order { update.insert("order", v); }
+    if let Some(v) = payload.is_optional { update.insert("is_optional", v); }
+    if let Some(v) = payload.passing_score_threshold { update.insert("passing_score_threshold", v); }
+    if let Some(ref v) = payload.skill_tags { update.insert("skill_tags", mongodb::bson::to_bson(v).unwrap()); }
+    if let Some(ref v) = payload.tags { update.insert("tags", mongodb::bson::to_bson(v).unwrap()); }
+    
+    if let Some(id_str) = payload.prerequisite_id {
+        let p_oid = ObjectId::parse_str(&id_str).ok();
+        update.insert("prerequisite_id", mongodb::bson::to_bson(&p_oid).unwrap());
+    }
 
     let result = collection.update_one(doc! { "_id": oid }, doc! { "$set": update }).await?;
     if result.matched_count == 0 { return Err(AppError::NotFound); }
@@ -239,22 +289,26 @@ pub async fn create_lesson(
     _admin: Admin,
     Json(payload): Json<CreateLessonRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let module_id = ObjectId::parse_str(&payload.module_id).map_err(|_| AppError::NotFound)?;
+    let module_oid = ObjectId::parse_str(&payload.module_id).map_err(|_| AppError::BadRequest("Invalid module_id".to_string()))?;
     let collection: Collection<Lesson> = state.db.database("rustapi").collection("lessons");
 
     let lesson = Lesson {
         id: None,
-        module_id,
+        module_id: module_oid,
         title: payload.title,
         title_id: payload.title_id,
         content: payload.content,
         content_id: payload.content_id,
+        instruction: payload.instruction,
+        instruction_id: payload.instruction_id,
+        culture_notes: payload.culture_notes,
         audio_url: payload.audio_url,
         level: payload.level,
         category: payload.category,
         xp_reward: payload.xp_reward.unwrap_or(10),
         order: payload.order.unwrap_or(0),
         is_published: false,
+        tags: payload.tags,
         created_at: Utc::now(),
         updated_at: Utc::now(),
     };
@@ -311,21 +365,28 @@ pub async fn update_lesson(
     let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
     let collection: Collection<Lesson> = state.db.database("rustapi").collection("lessons");
 
+    // Snapshot before edit
+    if let Ok(Some(old_doc)) = collection.find_one(doc! { "_id": oid }).await {
+        if let Ok(old_bson) = mongodb::bson::to_document(&old_doc) {
+            let _ = save_content_version(&state, "lesson", oid, _admin.email.clone(), old_bson, Some("Auto-saved before edit".to_string())).await;
+        }
+    }
+
     let mut update = doc! { "updated_at": bson::DateTime::now() };
     if let Some(v) = payload.title { update.insert("title", v); }
     if let Some(v) = payload.title_id { update.insert("title_id", v); }
     if let Some(v) = payload.content { update.insert("content", v); }
     if let Some(v) = payload.content_id { update.insert("content_id", v); }
+    if let Some(v) = payload.instruction { update.insert("instruction", v); }
+    if let Some(v) = payload.instruction_id { update.insert("instruction_id", v); }
+    if let Some(v) = payload.culture_notes { update.insert("culture_notes", v); }
     if let Some(v) = payload.audio_url { update.insert("audio_url", v); }
     if let Some(v) = payload.xp_reward { update.insert("xp_reward", v); }
     if let Some(v) = payload.is_published { update.insert("is_published", v); }
     if let Some(v) = payload.order { update.insert("order", v); }
-    if let Some(ref v) = payload.level {
-        update.insert("level", mongodb::bson::to_bson(v).unwrap());
-    }
-    if let Some(ref v) = payload.category {
-        update.insert("category", mongodb::bson::to_bson(v).unwrap());
-    }
+    if let Some(ref v) = payload.level { update.insert("level", mongodb::bson::to_bson(v).unwrap()); }
+    if let Some(ref v) = payload.category { update.insert("category", mongodb::bson::to_bson(v).unwrap()); }
+    if let Some(ref v) = payload.tags { update.insert("tags", mongodb::bson::to_bson(v).unwrap()); }
 
     let result = collection.update_one(doc! { "_id": oid }, doc! { "$set": update }).await?;
     if result.matched_count == 0 { return Err(AppError::NotFound); }
@@ -785,4 +846,462 @@ pub async fn public_recommendations(
         "recommended_courses": recommended_courses,
         "recommended_scenarios": recommended_scenarios,
     })))
+}
+
+// ==================== LLM API KEYS ====================
+
+/// GET /admin/api-keys
+pub async fn list_api_keys(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+) -> Result<impl IntoResponse, AppError> {
+    let col: Collection<LlmApiKey> = state.db.database("rustapi").collection("llm_api_keys");
+    let cursor = col.find(doc! {}).await?;
+    let keys: Vec<LlmApiKey> = cursor.try_collect().await?;
+
+    // Mask the api_key values for security
+    let masked: Vec<serde_json::Value> = keys.iter().map(|k| {
+        let last6 = if k.api_key.len() > 6 { &k.api_key[k.api_key.len()-6..] } else { &k.api_key };
+        serde_json::json!({
+            "_id": k.id.map(|id| id.to_hex()),
+            "provider": k.provider,
+            "name": k.name,
+            "api_key_masked": format!("••••••••••••{}", last6),
+            "is_active": k.is_active,
+            "created_at": k.created_at.to_rfc3339(),
+        })
+    }).collect();
+
+    Ok(Json(masked))
+}
+
+/// POST /admin/api-keys
+pub async fn create_api_key(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+    Json(payload): Json<CreateLlmApiKeyRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    let col: Collection<LlmApiKey> = state.db.database("rustapi").collection("llm_api_keys");
+
+    // If this is the first key, make it active automatically
+    let count = col.count_documents(doc! {}).await?;
+
+    let key = LlmApiKey {
+        id: None,
+        provider: payload.provider,
+        name: payload.name,
+        api_key: payload.api_key,
+        is_active: count == 0, // first key is auto-active
+        created_at: Utc::now(),
+    };
+
+    let result = col.insert_one(key).await?;
+    Ok((StatusCode::CREATED, Json(serde_json::json!({
+        "id": result.inserted_id.as_object_id().map(|id| id.to_hex()),
+        "message": "API key saved"
+    }))))
+}
+
+/// PUT /admin/api-keys/:id/activate
+pub async fn activate_api_key(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, AppError> {
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::InvalidCredentials)?;
+    let col: Collection<LlmApiKey> = state.db.database("rustapi").collection("llm_api_keys");
+
+    // Deactivate all keys first
+    col.update_many(doc! {}, doc! { "$set": { "is_active": false } }).await?;
+    // Activate the selected one
+    col.update_one(doc! { "_id": oid }, doc! { "$set": { "is_active": true } }).await?;
+
+    Ok(Json(serde_json::json!({ "message": "Key activated" })))
+}
+
+/// DELETE /admin/api-keys/:id
+pub async fn delete_api_key(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, AppError> {
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::InvalidCredentials)?;
+    let col: Collection<LlmApiKey> = state.db.database("rustapi").collection("llm_api_keys");
+    col.delete_one(doc! { "_id": oid }).await?;
+    Ok(Json(serde_json::json!({ "message": "Key deleted" })))
+}
+
+// ==================== AI TRANSLATE / GENERATE ====================
+
+/// Helper: get the active API key from DB
+async fn get_active_key(state: &Arc<AppState>) -> Result<LlmApiKey, AppError> {
+    let col: Collection<LlmApiKey> = state.db.database("rustapi").collection("llm_api_keys");
+    col.find_one(doc! { "is_active": true }).await?
+        .ok_or(AppError::NotFound)
+}
+
+/// Helper: call Gemini API
+async fn call_gemini(api_key: &str, prompt: &str) -> Result<String, AppError> {
+    let url = format!(
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={}",
+        api_key
+    );
+    let client = reqwest::Client::new();
+    let res = client.post(&url)
+        .json(&serde_json::json!({
+            "contents": [{ "parts": [{ "text": prompt }] }],
+            "generationConfig": { "responseMimeType": "application/json" }
+        }))
+        .send()
+        .await
+        .map_err(|e| {
+            eprintln!("Gemini API error: {:?}", e);
+            AppError::InternalServerError
+        })?;
+
+    if !res.status().is_success() {
+        let status = res.status();
+        let body = res.text().await.unwrap_or_default();
+        eprintln!("Gemini API error {}: {}", status, body);
+        return Err(AppError::InternalServerError);
+    }
+
+    let data: serde_json::Value = res.json().await.map_err(|_| AppError::InternalServerError)?;
+    let text = data["candidates"][0]["content"]["parts"][0]["text"]
+        .as_str()
+        .unwrap_or("{}")
+        .to_string();
+
+    Ok(text)
+}
+
+/// Helper: call Groq API (OpenAI-compatible)
+async fn call_groq(api_key: &str, prompt: &str) -> Result<String, AppError> {
+    let client = reqwest::Client::new();
+    let res = client.post("https://api.groq.com/openai/v1/chat/completions")
+        .header("Authorization", format!("Bearer {}", api_key))
+        .json(&serde_json::json!({
+            "model": "llama-3.3-70b-versatile",
+            "messages": [
+                { "role": "system", "content": "You are a helpful assistant. Always respond with valid JSON only, no markdown fences." },
+                { "role": "user", "content": prompt }
+            ],
+            "temperature": 0.7,
+            "response_format": { "type": "json_object" }
+        }))
+        .send()
+        .await
+        .map_err(|e| {
+            eprintln!("Groq API error: {:?}", e);
+            AppError::InternalServerError
+        })?;
+
+    if !res.status().is_success() {
+        let status = res.status();
+        let body = res.text().await.unwrap_or_default();
+        eprintln!("Groq API error {}: {}", status, body);
+        return Err(AppError::InternalServerError);
+    }
+
+    let data: serde_json::Value = res.json().await.map_err(|_| AppError::InternalServerError)?;
+    let text = data["choices"][0]["message"]["content"]
+        .as_str()
+        .unwrap_or("{}")
+        .to_string();
+
+    Ok(text)
+}
+
+/// Dispatcher: route to the correct LLM provider
+async fn call_llm(key: &LlmApiKey, prompt: &str) -> Result<String, AppError> {
+    match key.provider.as_str() {
+        "gemini" => call_gemini(&key.api_key, prompt).await,
+        "groq" => call_groq(&key.api_key, prompt).await,
+        // OpenAI-compatible providers can reuse the Groq path with a different URL in the future
+        _ => {
+            eprintln!("Unsupported provider: {}", key.provider);
+            Err(AppError::InternalServerError)
+        }
+    }
+}
+
+/// Public wrappers so the AI course generator module can reuse these callers.
+pub async fn call_gemini_pub(api_key: &str, prompt: &str) -> Result<String, AppError> {
+    call_gemini(api_key, prompt).await
+}
+
+pub async fn call_groq_pub(api_key: &str, prompt: &str) -> Result<String, AppError> {
+    call_groq(api_key, prompt).await
+}
+
+/// POST /admin/translate
+pub async fn translate_text(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+    Json(payload): Json<TranslateRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    let active_key = get_active_key(&state).await?;
+    let from_lang = payload.from.as_deref().unwrap_or("English");
+    let to_lang = payload.to.as_deref().unwrap_or("Indonesian (Bahasa Indonesia)");
+
+    let prompt = format!(
+        "Translate the following text from {} to {}. \
+         Return ONLY a JSON object with a single key \"translated\" containing the translation. \
+         Do not add explanations.\n\nText: \"{}\"",
+        from_lang, to_lang, payload.text
+    );
+
+    let result = call_llm(&active_key, &prompt).await?;
+
+    // Parse the JSON response to extract the translated text
+    let parsed: serde_json::Value = serde_json::from_str(&result)
+        .unwrap_or(serde_json::json!({ "translated": result }));
+
+    Ok(Json(parsed))
+}
+
+/// POST /admin/ai-generate
+pub async fn ai_generate_content(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+    Json(payload): Json<AiGenerateRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    let active_key = get_active_key(&state).await?;
+    let context = payload.context.as_deref().unwrap_or("hospitality industry");
+
+    let default_prompt = match payload.entity_type.as_str() {
+        "course" => format!(
+            "Generate a JSON object for a new English learning course for the {}. \
+             The JSON must have these keys: \"title\", \"title_id\" (Bahasa Indonesia translation), \
+             \"description\", \"description_id\" (Bahasa Indonesia translation). \
+             Make it professional and engaging for Indonesian learners.", context
+        ),
+        "module" => format!(
+            "Generate a JSON object for a new learning module within a {} English course. \
+             The JSON must have these keys: \"title\", \"title_id\" (Bahasa Indonesia translation), \
+             \"description\", \"description_id\" (Bahasa Indonesia translation). \
+             Make it professional and engaging for Indonesian learners.", context
+        ),
+        "lesson" => format!(
+            "Generate a JSON object for a new lesson within a {} English course. \
+             The JSON must have exactly these 7 keys:\n\
+             1. \"title\": A catchy title.\n\
+             2. \"title_id\": Bahasa Indonesia translation of the title.\n\
+             3. \"content\": MUST be a single PLAIN TEXT string formatted with MARKDOWN. DO NOT return a JSON object here. \
+                Example format:\n\
+                ## Introduction\nWelcome to...\n\n## Vocabulary\n- Word: Translation\n\n## Dialogue\nGuest: Hello\nStaff: Hi\n\
+             4. \"content_id\": Bahasa Indonesia translation of the markdown content.\n\
+             5. \"instruction\": A brief instruction telling the learner what to do (e.g. \"Read the dialogue and practice with a partner\").\n\
+             6. \"instruction_id\": Bahasa Indonesia translation of the instruction.\n\
+             7. \"culture_notes\": A short cultural tip for Indonesian learners about politeness, customs, or communication style relevant to the lesson topic.\n\
+             Make it professional, practical, and engaging for Indonesian learners.", context
+        ),
+        "game" => format!(
+            "Generate a JSON object for a hospitality English mini-game. Context: {}. \
+             The JSON must have these keys: \
+             \"title\" (catchy game name), \
+             \"instructions\" (PLAIN TEXT instructions), \
+             \"data_json\" (a structured object containing the game exercise data). \
+             For SCENE_MATCHER: data_json has \"options\" array with {{\"scene\", \"formal\", \"casual\"}}.\
+             For WORD_SCRAMBLE: data_json has \"words\" array with {{\"word\", \"hint\", \"scrambled\"}}.\
+             For MATCHING: data_json has \"pairs\" array with {{\"en\", \"id\"}}.\
+             For FILL_IN_THE_BLANK: data_json has \"sentences\" array with {{\"text\", \"answer\", \"options\"}}.\
+             For RESPECT_MASTER: data_json has \"scenarios\" array with {{\"situation\", \"options\", \"correct\" index}}.\
+             Generate exactly 5 items. Content must be relevant to hospitality industry.", context
+        ),
+        _ => return Err(AppError::InternalServerError),
+    };
+
+    let prompt_col: Collection<AIPromptConfig> = state.db.database("rustapi").collection("ai_prompts");
+    let custom_prompt = prompt_col.find_one(doc! { "entity_type": payload.entity_type.clone() }).await?;
+    let prompt = if let Some(p) = custom_prompt {
+        p.prompt_template.replace("{context}", &context)
+    } else {
+        default_prompt
+    };
+
+    let result = call_llm(&active_key, &prompt).await?;
+    let parsed: serde_json::Value = serde_json::from_str(&result)
+        .unwrap_or(serde_json::json!({ "error": "Failed to parse AI response" }));
+
+    Ok(Json(parsed))
+}
+
+// ==================== CONTENT VERSIONING ====================
+
+async fn save_content_version(
+    state: &Arc<AppState>,
+    entity_type: &str,
+    entity_id: ObjectId,
+    admin_email: String,
+    snapshot: bson::Document,
+    change_summary: Option<String>,
+) -> Result<(), AppError> {
+    let col: Collection<ContentVersion> = state.db.database("rustapi").collection("content_versions");
+    
+    let opts = FindOneOptions::builder().sort(doc! { "version": -1 }).build();
+    let latest = col.find_one(doc! { "entity_id": entity_id, "entity_type": entity_type }).with_options(opts).await?;
+    let version = latest.map(|v| v.version + 1).unwrap_or(1);
+
+    let cv = ContentVersion {
+        id: None,
+        entity_type: entity_type.to_string(),
+        entity_id,
+        version,
+        snapshot,
+        changed_by: admin_email,
+        change_summary,
+        created_at: Utc::now(),
+    };
+
+    col.insert_one(cv).await?;
+    Ok(())
+}
+
+/// GET /admin/versions/:entity_type/:entity_id
+pub async fn list_content_versions(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+    Path((entity_type, entity_id)): Path<(String, String)>,
+) -> Result<impl IntoResponse, AppError> {
+    let oid = ObjectId::parse_str(&entity_id).map_err(|_| AppError::NotFound)?;
+    let col: Collection<ContentVersion> = state.db.database("rustapi").collection("content_versions");
+    
+    let opts = FindOptions::builder().sort(doc! { "version": -1 }).build();
+    let cursor = col.find(doc! { "entity_type": entity_type, "entity_id": oid }).with_options(opts).await?;
+    let versions: Vec<ContentVersion> = cursor.try_collect().await?;
+    
+    Ok(Json(versions))
+}
+
+/// POST /admin/versions/:entity_type/:entity_id/rollback/:version
+pub async fn rollback_content_version(
+    State(state): State<Arc<AppState>>,
+    admin: Admin,
+    Path((entity_type, entity_id, version)): Path<(String, String, i32)>,
+) -> Result<impl IntoResponse, AppError> {
+    let oid = ObjectId::parse_str(&entity_id).map_err(|_| AppError::NotFound)?;
+    let col: Collection<ContentVersion> = state.db.database("rustapi").collection("content_versions");
+    
+    let cv = col.find_one(doc! { "entity_type": &entity_type, "entity_id": oid, "version": version }).await?
+        .ok_or(AppError::NotFound)?;
+
+    match entity_type.as_str() {
+        "course" => {
+            let coll: Collection<Course> = state.db.database("rustapi").collection("courses");
+            if let Ok(Some(curr)) = coll.find_one(doc! { "_id": oid }).await {
+                let _ = save_content_version(&state, "course", oid, admin.email.clone(), mongodb::bson::to_document(&curr).unwrap(), Some(format!("Auto-saved before rollback to v{}", version))).await;
+            }
+            let mut snap = cv.snapshot.clone();
+            snap.remove("_id"); 
+            coll.update_one(doc! { "_id": oid }, doc! { "$set": snap }).await?;
+        },
+        "module" => {
+            let coll: Collection<Module> = state.db.database("rustapi").collection("modules");
+            if let Ok(Some(curr)) = coll.find_one(doc! { "_id": oid }).await {
+                let _ = save_content_version(&state, "module", oid, admin.email.clone(), mongodb::bson::to_document(&curr).unwrap(), Some(format!("Auto-saved before rollback to v{}", version))).await;
+            }
+            let mut snap = cv.snapshot.clone();
+            snap.remove("_id");
+            coll.update_one(doc! { "_id": oid }, doc! { "$set": snap }).await?;
+        },
+        "lesson" => {
+            let coll: Collection<Lesson> = state.db.database("rustapi").collection("lessons");
+            if let Ok(Some(curr)) = coll.find_one(doc! { "_id": oid }).await {
+                let _ = save_content_version(&state, "lesson", oid, admin.email.clone(), mongodb::bson::to_document(&curr).unwrap(), Some(format!("Auto-saved before rollback to v{}", version))).await;
+            }
+            let mut snap = cv.snapshot.clone();
+            snap.remove("_id");
+            coll.update_one(doc! { "_id": oid }, doc! { "$set": snap }).await?;
+        },
+        _ => return Err(AppError::NotFound),
+    }
+
+    Ok(Json(serde_json::json!({ "message": "Rollback successful" })))
+}
+
+/// POST /admin/clone/:entity_type/:id
+pub async fn clone_content(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+    Path((entity_type, id)): Path<(String, String)>,
+) -> Result<impl IntoResponse, AppError> {
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound)?;
+    
+    match entity_type.as_str() {
+        "course" => {
+            let col: Collection<Course> = state.db.database("rustapi").collection("courses");
+            let mut item = col.find_one(doc! { "_id": oid }).await?.ok_or(AppError::NotFound)?;
+            item.id = None;
+            item.title = format!("{} (Copy)", item.title);
+            item.is_published = false;
+            item.created_at = Utc::now();
+            item.updated_at = Utc::now();
+            let result = col.insert_one(item.clone()).await?;
+            item.id = result.inserted_id.as_object_id();
+            return Ok(Json(serde_json::to_value(item).unwrap()));
+        },
+        "module" => {
+            let col: Collection<Module> = state.db.database("rustapi").collection("modules");
+            let mut item = col.find_one(doc! { "_id": oid }).await?.ok_or(AppError::NotFound)?;
+            item.id = None;
+            item.title = format!("{} (Copy)", item.title);
+            item.is_published = false;
+            item.created_at = Utc::now();
+            item.updated_at = Utc::now();
+            let result = col.insert_one(item.clone()).await?;
+            item.id = result.inserted_id.as_object_id();
+            return Ok(Json(serde_json::to_value(item).unwrap()));
+        },
+        "lesson" => {
+            let col: Collection<Lesson> = state.db.database("rustapi").collection("lessons");
+            let mut item = col.find_one(doc! { "_id": oid }).await?.ok_or(AppError::NotFound)?;
+            item.id = None;
+            item.title = format!("{} (Copy)", item.title);
+            item.is_published = false;
+            item.created_at = Utc::now();
+            item.updated_at = Utc::now();
+            let result = col.insert_one(item.clone()).await?;
+            item.id = result.inserted_id.as_object_id();
+            return Ok(Json(serde_json::to_value(item).unwrap()));
+        },
+        _ => Err(AppError::NotFound),
+    }
+}
+
+// ==================== AI PROMPT TEMPLATES ====================
+
+/// GET /admin/ai-prompts
+pub async fn get_ai_prompts(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+) -> Result<impl IntoResponse, AppError> {
+    let col: Collection<AIPromptConfig> = state.db.database("rustapi").collection("ai_prompts");
+    let cursor = col.find(doc! {}).await?;
+    let prompts: Vec<AIPromptConfig> = cursor.try_collect().await?;
+    Ok(Json(prompts))
+}
+
+/// PUT /admin/ai-prompts/:entity_type
+pub async fn update_ai_prompt(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+    Path(entity_type): Path<String>,
+    Json(payload): Json<UpdatePromptRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    let col: Collection<AIPromptConfig> = state.db.database("rustapi").collection("ai_prompts");
+    
+    let update_doc = doc! {
+        "$set": {
+            "entity_type": &entity_type,
+            "prompt_template": payload.prompt_template,
+            "updated_at": bson::DateTime::now()
+        }
+    };
+    
+    let opts = mongodb::options::UpdateOptions::builder().upsert(true).build();
+    col.update_one(doc! { "entity_type": &entity_type }, update_doc).with_options(opts).await?;
+    
+    let updated = col.find_one(doc! { "entity_type": &entity_type }).await?.unwrap();
+    Ok(Json(updated))
 }
