@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { Search, ChevronLeft, ChevronRight, Users as UsersIcon, Shield, Zap, TrendingUp, UserCheck } from "lucide-react"
+import { Search, ChevronLeft, ChevronRight, Users as UsersIcon, Shield, TrendingUp, UserCheck } from "lucide-react"
 import { getUsers, deleteUser, updateUser } from "../services/api"
 import UserTableRow from "../components/users/UserTableRow"
 import UserDetailModal from "../components/users/UserDetailModal"

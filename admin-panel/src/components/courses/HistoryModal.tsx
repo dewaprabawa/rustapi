@@ -36,7 +36,7 @@ export default function HistoryModal({
                 <div key={v.version} className="p-4 rounded-xl border border-slate-100 bg-slate-50 flex justify-between items-center">
                   <div>
                     <div className="font-medium text-slate-800">Version {v.version}</div>
-                    <div className="text-xs text-slate-500 mt-1">{normalizeDate(v.created_at).toLocaleString()}</div>
+                    <div className="text-xs text-slate-500 mt-1">{normalizeDate(v.created_at)?.toLocaleString() || "—"}</div>
                   </div>
                   <button
                     onClick={() => rollbackMutation.mutate(v.version)}

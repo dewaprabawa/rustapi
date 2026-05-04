@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
-import { BrainCircuit, Scale, Save, Loader2, RefreshCw, Key, Trash, Check, Plus, MessageSquare, Edit, RotateCcw, User, Camera } from "lucide-react"
+import { BrainCircuit, Scale, Save, Loader2, RefreshCw, Key, Trash, Check, Plus, MessageSquare, Edit, RotateCcw, Camera } from "lucide-react"
 import { getAiConfigs, updateAiConfig, getEvaluationWeights, updateEvaluationWeights, getApiKeys, createApiKey, deleteApiKey, activateApiKey, getAiPrompts, updateAiPrompt, updateAdminMe, uploadAsset } from "../services/api"
 import { cn, normalizeDate } from "../lib/utils"
 import { useAuth } from "../contexts/AuthContext"

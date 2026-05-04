@@ -116,7 +116,7 @@ export default function DetailModal({
               <div>
                 <span className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Created At</span>
                 <span className="text-sm text-slate-700">
-                  {detailItem.created_at ? normalizeDate(detailItem.created_at).toLocaleDateString() : "—"}
+                  {detailItem.created_at ? normalizeDate(detailItem.created_at)?.toLocaleDateString() || "—" : "—"}
                 </span>
               </div>
             </div>
