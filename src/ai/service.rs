@@ -186,6 +186,9 @@ pub async fn call_anthropic(api_key: &str, prompt: &str) -> Result<LlmResponse, 
         let status = res.status();
         let body = res.text().await.unwrap_or_default();
         eprintln!("Anthropic API error {}: {}", status, body);
+        if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+            return Err(AppError::TooManyRequests("Anthropic API quota exceeded. Please wait a moment or upgrade your plan.".to_string()));
+        }
         return Err(AppError::InternalServerError);
     }
 
@@ -266,11 +269,56 @@ pub async fn call_llm_for_course(key: &LlmApiKey, prompt: &str) -> Result<LlmRes
             let est_output = (text.len() / 4) as i64;
             Ok(LlmResponse { text, input_tokens: est_input, output_tokens: est_output, total_tokens: est_input + est_output })
         },
+        "aicc" => {
+            let text = call_openai_compatible("https://api.ai.cc/v1", "mistralai/Mistral-7B-Instruct-v0.2", &key.api_key, prompt).await?;
+            let est_input = (prompt.len() / 4) as i64;
+            let est_output = (text.len() / 4) as i64;
+            Ok(LlmResponse { text, input_tokens: est_input, output_tokens: est_output, total_tokens: est_input + est_output })
+        },
         _ => {
             eprintln!("Unsupported provider for course generation: {}", key.provider);
             Err(AppError::InternalServerError)
         }
     }
+}
+
+/// Generic helper for OpenAI-compatible APIs (Mistral, AICC, etc.)
+pub async fn call_openai_compatible(base_url: &str, model: &str, api_key: &str, prompt: &str) -> Result<String, AppError> {
+    let client = reqwest::Client::new();
+    let res = client.post(format!("{}/chat/completions", base_url))
+        .header("Authorization", format!("Bearer {}", api_key))
+        .json(&serde_json::json!({
+            "model": model,
+            "messages": [
+                { "role": "system", "content": "You are a helpful curriculum designer. Respond ONLY with valid JSON." },
+                { "role": "user", "content": prompt }
+            ],
+            "temperature": 0.7
+        }))
+        .send()
+        .await
+        .map_err(|e| {
+            eprintln!("OpenAI-compatible API request error: {:?}", e);
+            AppError::InternalServerError
+        })?;
+
+    if !res.status().is_success() {
+        let status = res.status();
+        let body = res.text().await.unwrap_or_default();
+        eprintln!("OpenAI-compatible API error {}: {}", status, body);
+        if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+            return Err(AppError::TooManyRequests("AI provider quota exceeded. Please wait a moment.".to_string()));
+        }
+        return Err(AppError::InternalServerError);
+    }
+
+    let data: serde_json::Value = res.json().await.map_err(|_| AppError::InternalServerError)?;
+    let text = data["choices"][0]["message"]["content"]
+        .as_str()
+        .unwrap_or("{}")
+        .to_string();
+
+    Ok(text)
 }
 
 /// Estimate cost in USD based on provider and token counts.
@@ -292,6 +340,12 @@ pub fn estimate_cost(provider: &str, input_tokens: i64, output_tokens: i64) -> f
         "groq" => {
             let input_cost = (input_tokens as f64 / 1_000_000.0) * 0.59;
             let output_cost = (output_tokens as f64 / 1_000_000.0) * 0.79;
+            input_cost + output_cost
+        },
+        // AICC Mistral 7B — very cheap
+        "aicc" => {
+            let input_cost = (input_tokens as f64 / 1_000_000.0) * 0.20;
+            let output_cost = (output_tokens as f64 / 1_000_000.0) * 0.20;
             input_cost + output_cost
         },
         _ => 0.0,

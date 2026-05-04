@@ -15,6 +15,7 @@ use bson::oid::ObjectId;
 use chrono::{Utc, Datelike};
 use mongodb::bson::doc;
 use futures::stream::StreamExt;
+use futures::TryStreamExt;
 
 // ==================== Phase 1: Generate Course Preview ====================
 
@@ -47,23 +48,45 @@ pub async fn generate_course(
         )));
     }
 
-    // 2. Get active LLM API key
+    // 2. Get all active LLM API keys
     let key_col: Collection<LlmApiKey> = db.collection("llm_api_keys");
-    let active_key = key_col.find_one(doc! { "is_active": true }).await?
-        .ok_or(AppError::BadRequest("No active LLM API key found. Please activate an API key in API Key Management.".to_string()))?;
+    let cursor = key_col.find(doc! { "is_active": true }).await?;
+    let active_keys: Vec<LlmApiKey> = cursor.try_collect().await?;
+
+    if active_keys.is_empty() {
+        return Err(AppError::BadRequest("No active LLM API key found. Please activate an API key in API Key Management.".to_string()));
+    }
 
     // 3. Build the prompt
     let prompt = build_course_prompt(&payload);
 
-    // 4. Call the LLM
-    let llm_response = call_llm_for_course(&active_key, &prompt).await;
+    // 4. Try keys until success or all fail
+    let mut last_error = None;
+    let mut successful_key = None;
+    let mut llm_response = None;
 
-    // 5. Log the generation (success or failure)
-    let (status, error_msg, tokens) = match &llm_response {
-        Ok(r) => ("success".to_string(), None, (r.input_tokens, r.output_tokens, r.total_tokens)),
-        Err(_) => ("error".to_string(), Some("LLM call failed".to_string()), (0, 0, 0)),
-    };
+    for key in active_keys {
+        match call_llm_for_course(&key, &prompt).await {
+            Ok(resp) => {
+                llm_response = Some(resp);
+                successful_key = Some(key);
+                break;
+            }
+            Err(e) => {
+                println!("⚠️ API Key ({}) failed: {:?}", key.provider, e);
+                last_error = Some(e);
+                // Continue to next key
+            }
+        }
+    }
 
+    let active_key = successful_key.ok_or_else(|| {
+        last_error.unwrap_or(AppError::InternalServerError)
+    })?;
+    let llm_resp = llm_response.unwrap();
+
+    // 5. Log the generation
+    let tokens = (llm_resp.input_tokens, llm_resp.output_tokens, llm_resp.total_tokens);
     let cost = estimate_cost(&active_key.provider, tokens.0, tokens.1);
 
     let log_entry = AiGenerationLog {
@@ -80,15 +103,14 @@ pub async fn generate_course(
         output_tokens: tokens.1,
         total_tokens: tokens.2,
         estimated_cost_usd: cost,
-        status,
-        error_message: error_msg,
+        status: "success".to_string(),
+        error_message: None,
         created_at: Utc::now(),
     };
     let _ = log_col.insert_one(log_entry).await;
 
     // 6. Parse the response
-    let llm_response = llm_response?;
-    let preview = parse_course_preview(&llm_response.text)?;
+    let preview = parse_course_preview(&llm_resp.text)?;
 
     // 7. Build response with credit usage info
     let remaining = DAILY_GENERATION_LIMIT - today_count - 1;
@@ -104,7 +126,7 @@ pub async fn generate_course(
         "course": preview.course,
         "modules": preview.modules,
         "_meta": {
-            "tokens_used": llm_response.total_tokens,
+            "tokens_used": llm_resp.total_tokens,
             "estimated_cost_usd": format!("{:.4}", cost),
             "daily_remaining": remaining,
             "daily_limit": DAILY_GENERATION_LIMIT,
@@ -142,23 +164,44 @@ pub async fn generate_vocab(
         )));
     }
 
-    // 2. Get active LLM API key
+    // 2. Get all active LLM API keys
     let key_col: Collection<LlmApiKey> = db.collection("llm_api_keys");
-    let active_key = key_col.find_one(doc! { "is_active": true }).await?
-        .ok_or(AppError::BadRequest("No active LLM API key found. Please activate an API key in API Key Management.".to_string()))?;
+    let cursor = key_col.find(doc! { "is_active": true }).await?;
+    let active_keys: Vec<LlmApiKey> = cursor.try_collect().await?;
+
+    if active_keys.is_empty() {
+        return Err(AppError::BadRequest("No active LLM API key found. Please activate an API key in API Key Management.".to_string()));
+    }
 
     // 3. Build the prompt
     let prompt = build_vocab_prompt(&payload);
 
-    // 4. Call the LLM
-    let llm_response = call_llm_for_course(&active_key, &prompt).await;
+    // 4. Try keys until success or all fail
+    let mut last_error = None;
+    let mut successful_key = None;
+    let mut llm_response = None;
+
+    for key in active_keys {
+        match call_llm_for_course(&key, &prompt).await {
+            Ok(resp) => {
+                llm_response = Some(resp);
+                successful_key = Some(key);
+                break;
+            }
+            Err(e) => {
+                println!("⚠️ API Key ({}) failed for vocab: {:?}", key.provider, e);
+                last_error = Some(e);
+            }
+        }
+    }
+
+    let active_key = successful_key.ok_or_else(|| {
+        last_error.unwrap_or(AppError::InternalServerError)
+    })?;
+    let llm_resp = llm_response.unwrap();
 
     // 5. Log the generation
-    let (status, error_msg, tokens) = match &llm_response {
-        Ok(r) => ("success".to_string(), None, (r.input_tokens, r.output_tokens, r.total_tokens)),
-        Err(_) => ("error".to_string(), Some("LLM call failed".to_string()), (0, 0, 0)),
-    };
-
+    let tokens = (llm_resp.input_tokens, llm_resp.output_tokens, llm_resp.total_tokens);
     let cost = estimate_cost(&active_key.provider, tokens.0, tokens.1);
 
     let log_entry = AiGenerationLog {
@@ -171,15 +214,14 @@ pub async fn generate_vocab(
         output_tokens: tokens.1,
         total_tokens: tokens.2,
         estimated_cost_usd: cost,
-        status,
-        error_message: error_msg,
+        status: "success".to_string(),
+        error_message: None,
         created_at: Utc::now(),
     };
     let _ = log_col.insert_one(log_entry).await;
 
     // 6. Parse the response
-    let llm_response = llm_response?;
-    let preview = parse_vocab_preview(&llm_response.text)?;
+    let preview = parse_vocab_preview(&llm_resp.text)?;
 
     // 7. Build response
     let remaining = DAILY_GENERATION_LIMIT - today_count - 1;
@@ -188,7 +230,7 @@ pub async fn generate_vocab(
     let response = serde_json::json!({
         "preview": preview,
         "_meta": {
-            "tokens_used": llm_response.total_tokens,
+            "tokens_used": llm_resp.total_tokens,
             "estimated_cost_usd": format!("{:.4}", cost),
             "daily_remaining": remaining,
             "daily_limit": DAILY_GENERATION_LIMIT,

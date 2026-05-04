@@ -963,6 +963,9 @@ async fn call_gemini(api_key: &str, prompt: &str) -> Result<String, AppError> {
         let status = res.status();
         let body = res.text().await.unwrap_or_default();
         eprintln!("Gemini API error {}: {}", status, body);
+        if status == axum::http::StatusCode::TOO_MANY_REQUESTS {
+            return Err(AppError::TooManyRequests("Gemini API quota exceeded. Please wait a moment or switch to a different provider.".to_string()));
+        }
         return Err(AppError::InternalServerError);
     }
 

@@ -315,6 +315,7 @@ function ApiKeysManagerPanel() {
               <option value="groq">Groq</option>
               <option value="openai">OpenAI</option>
               <option value="anthropic">Anthropic</option>
+              <option value="aicc">AICC (OpenAI-compatible)</option>
             </select>
           </div>
           <div className="md:col-span-3">

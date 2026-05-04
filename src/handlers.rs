@@ -418,6 +418,7 @@ pub enum AppError {
     NotFound,
     BadRequest(String),
     InternalServerError,
+    TooManyRequests(String),
     DatabaseError(#[allow(dead_code)] mongodb::error::Error),
 }
 
@@ -436,6 +437,7 @@ impl IntoResponse for AppError {
             AppError::NotFound => (StatusCode::NOT_FOUND, "Resource not found"),
             AppError::BadRequest(ref msg) => (StatusCode::BAD_REQUEST, Box::leak(msg.clone().into_boxed_str()) as &'static str),
             AppError::InternalServerError => (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error"),
+            AppError::TooManyRequests(ref msg) => (StatusCode::TOO_MANY_REQUESTS, Box::leak(msg.clone().into_boxed_str()) as &'static str),
             AppError::DatabaseError(err) => {
                 eprintln!("Database error: {:?}", err);
                 let err_msg = format!("Database error: {}", err);
