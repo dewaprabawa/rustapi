@@ -25,17 +25,19 @@ impl GeminiService {
 
 pub fn build_speakup_prompt(topic: &str, content_type: &str, difficulty: &str) -> String {
     let mut prompt = String::new();
-    prompt.push_str("You are an expert English language curriculum designer.\n\n");
+    prompt.push_str("You are an expert hospitality English curriculum designer for Indonesian learners.\n\n");
     prompt.push_str(&format!("Generate a SpeakUp drill for the topic: '{}'.\n", topic));
     prompt.push_str(&format!("Content Type: {}\n", content_type));
     prompt.push_str(&format!("Difficulty: {}\n", difficulty));
     prompt.push_str("\nReturn a JSON object with:\n");
-    prompt.push_str("- title: A catchy title\n");
-    prompt.push_str("- transcript: The full target sentence or paragraph (natural and useful for hospitality)\n");
+    prompt.push_str("- title: A catchy English title\n");
+    prompt.push_str("- title_id: Bahasa Indonesia translation of the title\n");
+    prompt.push_str("- transcript: The full target sentence or paragraph in English (highly natural and useful for professional hospitality)\n");
+    prompt.push_str("- transcript_id: Bahasa Indonesia translation of the transcript\n");
     if content_type == "expansion" {
-        prompt.push_str("- steps: An array of strings building the sentence clause-by-clause (3-5 steps)\n");
+        prompt.push_str("- steps: An array of strings building the English sentence clause-by-clause (3-5 steps)\n");
     }
-    prompt.push_str("- target_wpm: Recommended speed (Beginner: 80-100, Inter: 120-140, Advanced: 160+)\n");
+    prompt.push_str("- target_wpm: Recommended speed (Beginner: 80-100, Inter: 110-130, Advanced: 150+)\n");
     prompt.push_str("\nIMPORTANT: Return ONLY the JSON object, no markdown, no explanation.\n");
     prompt
 }

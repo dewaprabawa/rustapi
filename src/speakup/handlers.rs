@@ -7,7 +7,7 @@ use axum::{
 };
 use crate::handlers::{AppState, AppError};
 use crate::models::{User, Admin};
-use crate::speakup::models::{SpeakUpContent, SpeakUpSession};
+use crate::speakup::models::{SpeakUpContent, SpeakUpSession, CreateSpeakUpContentRequest, UpdateSpeakUpContentRequest};
 use crate::speakup::engine::FluencyEngine;
 use crate::voice::deepgram::DeepgramSTT;
 use crate::voice::traits::SpeechToText;
@@ -94,15 +94,31 @@ pub async fn speakup_ai_generate_content(
 pub async fn speakup_create_content(
     State(state): State<Arc<AppState>>,
     _admin: Admin,
-    Json(payload): Json<SpeakUpContent>,
+    Json(payload): Json<CreateSpeakUpContentRequest>,
 ) -> Result<axum::response::Response, AppError> {
     let collection: Collection<SpeakUpContent> = state.db.database("rustapi").collection("speakup_content");
-    let result = collection.insert_one(payload).await.map_err(|_| AppError::InternalServerError)?;
-    let new_id = result.inserted_id.as_object_id().unwrap();
     
-    let created = collection.find_one(doc! { "_id": new_id }).await?
-        .ok_or(AppError::NotFound("Not found".to_string()))?;
-        
+    let now = Utc::now();
+    let content = SpeakUpContent {
+        id: None,
+        content_type: payload.content_type,
+        difficulty: payload.difficulty,
+        title: payload.title,
+        title_id: payload.title_id,
+        transcript: payload.transcript,
+        transcript_id: payload.transcript_id,
+        audio_url: payload.audio_url,
+        steps: payload.steps,
+        target_wpm: payload.target_wpm.unwrap_or(120),
+        created_at: now,
+        updated_at: now,
+    };
+
+    let result = collection.insert_one(content.clone()).await.map_err(|_| AppError::InternalServerError)?;
+    
+    let mut created = content;
+    created.id = result.inserted_id.as_object_id();
+
     Ok((StatusCode::CREATED, Json(created)).into_response())
 }
 
@@ -111,17 +127,24 @@ pub async fn speakup_update_content(
     State(state): State<Arc<AppState>>,
     _admin: Admin,
     Path(id): Path<String>,
-    Json(mut payload): Json<SpeakUpContent>,
+    Json(payload): Json<UpdateSpeakUpContentRequest>,
 ) -> Result<axum::response::Response, AppError> {
     let oid = mongodb::bson::oid::ObjectId::parse_str(&id).map_err(|_| AppError::BadRequest("Invalid ID".to_string()))?;
     let collection: Collection<SpeakUpContent> = state.db.database("rustapi").collection("speakup_content");
-    
-    payload.id = Some(oid);
-    let result = collection.replace_one(doc! { "_id": oid }, payload).await.map_err(|_| AppError::InternalServerError)?;
-    
-    if result.matched_count == 0 {
-        return Err(AppError::NotFound("Not found".to_string()));
-    }
+
+    let mut update = doc! { "updated_at": Utc::now() };
+    if let Some(v) = payload.title { update.insert("title", v); }
+    if let Some(v) = payload.title_id { update.insert("title_id", v); }
+    if let Some(v) = payload.transcript { update.insert("transcript", v); }
+    if let Some(v) = payload.transcript_id { update.insert("transcript_id", v); }
+    if let Some(v) = payload.audio_url { update.insert("audio_url", v); }
+    if let Some(v) = payload.steps { update.insert("steps", mongodb::bson::to_bson(&v).unwrap()); }
+    if let Some(v) = payload.difficulty { update.insert("difficulty", v); }
+    if let Some(v) = payload.target_wpm { update.insert("target_wpm", v); }
+    if let Some(v) = payload.content_type { update.insert("content_type", mongodb::bson::to_bson(&v).unwrap()); }
+
+    let result = collection.update_one(doc! { "_id": oid }, doc! { "$set": update }).await.map_err(|_| AppError::InternalServerError)?;
+    if result.matched_count == 0 { return Err(AppError::NotFound("Content not found".to_string())); }
     
     let updated = collection.find_one(doc! { "_id": oid }).await?
         .ok_or(AppError::NotFound("Not found".to_string()))?;
@@ -178,6 +201,42 @@ pub async fn speakup_get_content(
     Ok(Json(content).into_response())
 }
 
+/// Helper to perform analysis logic shared between User and Admin handlers
+async fn perform_speakup_analysis_logic(
+    state: Arc<AppState>,
+    cid: mongodb::bson::oid::ObjectId,
+    audio_bytes: Vec<u8>,
+    mime_type: String,
+) -> Result<crate::speakup::models::SpeakUpAnalysis, AppError> {
+    // 1. Get Content from DB
+    let db = state.db.database("rustapi");
+    let content_col: Collection<SpeakUpContent> = db.collection("speakup_content");
+    let content = content_col.find_one(doc! { "_id": cid }).await?
+        .ok_or(AppError::NotFound("Content not found".to_string()))?;
+
+    // 2. Get Deepgram Key
+    let config_col: Collection<crate::voice::models::VoiceConfig> = db.collection("voice_configs");
+    let config = config_col.find_one(doc! {}).await?.ok_or(AppError::InternalServerError)?;
+    let dg_key = if config.deepgram_api_key.is_empty() {
+        std::env::var("DEEPGRAM_API_KEY").map_err(|_| AppError::InternalServerError)?
+    } else {
+        config.deepgram_api_key
+    };
+
+    // 3. Transcribe with Timing
+    let stt = DeepgramSTT::new(dg_key);
+    let transcript_res = stt.transcribe_with_timing(audio_bytes, &mime_type).await?;
+
+    // 4. Analyze via FluencyEngine
+    let analysis = FluencyEngine::analyze(
+        transcript_res,
+        &content.transcript,
+        content.target_wpm,
+    ).await?;
+
+    Ok(analysis)
+}
+
 /// POST /speakup/analyze
 pub async fn speakup_analyze_attempt(
     State(state): State<Arc<AppState>>,
@@ -205,45 +264,22 @@ pub async fn speakup_analyze_attempt(
     let cid_str = content_id.ok_or(AppError::BadRequest("Missing content_id".to_string()))?;
     let cid = mongodb::bson::oid::ObjectId::parse_str(&cid_str).map_err(|_| AppError::BadRequest("Invalid content_id".to_string()))?;
 
-    // 1. Get Content from DB
+    let analysis = perform_speakup_analysis_logic(state.clone(), cid, audio_bytes, mime_type).await?;
+
+    // Save Session
     let db = state.db.database("rustapi");
-    let content_col: Collection<SpeakUpContent> = db.collection("speakup_content");
-    let content = content_col.find_one(doc! { "_id": cid }).await?
-        .ok_or(AppError::NotFound("Content not found".to_string()))?;
-
-    // 2. Get Deepgram Key
-    let config_col: Collection<crate::voice::models::VoiceConfig> = db.collection("voice_configs");
-    let config = config_col.find_one(doc! {}).await?.ok_or(AppError::InternalServerError)?;
-    let dg_key = if config.deepgram_api_key.is_empty() {
-        std::env::var("DEEPGRAM_API_KEY").map_err(|_| AppError::InternalServerError)?
-    } else {
-        config.deepgram_api_key
-    };
-
-    // 3. Transcribe with Timing
-    let stt = DeepgramSTT::new(dg_key);
-    let transcript_res = stt.transcribe_with_timing(audio_bytes, &mime_type).await?;
-
-    // 4. Analyze via FluencyEngine
-    let analysis = FluencyEngine::analyze(
-        transcript_res,
-        &content.transcript,
-        content.target_wpm,
-    ).await?;
-
-    // 5. Save Session
     let session_col: Collection<SpeakUpSession> = db.collection("speakup_sessions");
     let session = SpeakUpSession {
         id: None,
         user_id: user.id.unwrap(),
         content_id: cid,
         analysis: analysis.clone(),
-        audio_recording_url: None, // TODO: Upload to S3 if needed
+        audio_recording_url: None,
         created_at: Utc::now(),
     };
     session_col.insert_one(session).await?;
     
-    // Notify admins about the new activity
+    // Notify admins
     let db_clone = state.db.clone();
     let user_name = user.name.clone().unwrap_or_else(|| "User".to_string());
     let score = analysis.fluency_score;
@@ -254,6 +290,42 @@ pub async fn speakup_analyze_attempt(
             &format!("User {} completed a SpeakUp session with a fluency score of {}%.", user_name, score),
         ).await;
     });
+
+    Ok(Json(analysis).into_response())
+}
+
+/// POST /admin/speakup/test-analyze
+/// Admin version of analyze that doesn't require a student user account
+pub async fn speakup_admin_test_analyze(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+    mut multipart: Multipart,
+) -> Result<axum::response::Response, AppError> {
+    let mut audio_data = None;
+    let mut content_id = None;
+    let mut mime_type = "audio/wav".to_string();
+
+    while let Some(field) = multipart.next_field().await.map_err(|_| AppError::InternalServerError)? {
+        match field.name() {
+            Some("audio") => {
+                mime_type = field.content_type().unwrap_or("audio/wav").to_string();
+                audio_data = Some(field.bytes().await.map_err(|_| AppError::InternalServerError)?.to_vec());
+            }
+            Some("content_id") => {
+                content_id = Some(field.text().await.map_err(|_| AppError::InternalServerError)?);
+            }
+            _ => {}
+        }
+    }
+
+    let audio_bytes = audio_data.ok_or(AppError::BadRequest("Missing audio".to_string()))?;
+    let cid_str = content_id.ok_or(AppError::BadRequest("Missing content_id".to_string()))?;
+    let cid = mongodb::bson::oid::ObjectId::parse_str(&cid_str).map_err(|_| AppError::BadRequest("Invalid content_id".to_string()))?;
+
+    let analysis = perform_speakup_analysis_logic(state, cid, audio_bytes, mime_type).await?;
+
+    // For admin tests, we don't necessarily need to save to speakup_sessions
+    // but returning the analysis is enough for the UI to show "real" behavior.
 
     Ok(Json(analysis).into_response())
 }

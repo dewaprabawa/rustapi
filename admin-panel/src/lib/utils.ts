@@ -5,7 +5,6 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-
 export const normalizeDate = (date: any): Date | null => {
   if (!date) return null;
   try {
@@ -23,4 +22,18 @@ export const normalizeDate = (date: any): Date | null => {
   } catch (e) {
     return null;
   }
+};
+
+export const getId = (id: any): string => {
+  if (!id) return Math.random().toString(36).substring(7);
+  if (typeof id === 'string') return id;
+  if (typeof id === 'object' && id !== null) {
+    return id.$oid || JSON.stringify(id);
+  }
+  return String(id);
+};
+
+export const formatError = (err: any): string => {
+  if (typeof err === 'string') return err;
+  return err.response?.data?.error || err.message || "An unknown error occurred";
 };

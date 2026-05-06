@@ -2,7 +2,7 @@ import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Mic, Search, CheckCircle, AlertCircle, Star, Users } from "lucide-react"
 import { getSpeakingSessions } from "../services/api"
-import { cn } from "../lib/utils"
+import { cn, getId } from "../lib/utils"
 import { format } from "date-fns"
 
 export default function SpeakingMonitor() {
@@ -102,7 +102,7 @@ export default function SpeakingMonitor() {
 
               return (
                 <button
-                  key={session._id}
+                  key={getId(session._id)}
                   onClick={() => setSelectedSession(session)}
                   className={cn(
                     "w-full text-left p-3 rounded-xl transition-colors border",

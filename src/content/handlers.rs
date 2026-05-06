@@ -963,8 +963,26 @@ async fn call_gemini(api_key: &str, prompt: &str) -> Result<String, AppError> {
         let status = res.status();
         let body = res.text().await.unwrap_or_default();
         eprintln!("Gemini API error {}: {}", status, body);
+        
         if status == axum::http::StatusCode::TOO_MANY_REQUESTS {
-            return Err(AppError::TooManyRequests("Gemini API quota exceeded. Please wait a moment or switch to a different provider.".to_string()));
+            // Try to extract a specific retry message from the JSON body
+            let error_json: serde_json::Value = serde_json::from_str(&body).unwrap_or(serde_json::json!({}));
+            let msg = error_json["error"]["message"].as_str().unwrap_or("Gemini API quota exceeded.");
+            
+            // Look for retry delay in details
+            let retry_msg = if let Some(details) = error_json["error"]["details"].as_array() {
+                let delay = details.iter().find(|d| d["@type"] == "type.googleapis.com/google.rpc.RetryInfo")
+                    .and_then(|d| d["retryDelay"].as_str());
+                if let Some(d) = delay {
+                    format!(" {}. Please wait {} before retrying.", msg, d)
+                } else {
+                    format!(" {}. Please wait a moment or switch to a different provider.", msg)
+                }
+            } else {
+                format!(" {}. Please wait a moment or switch to a different provider.", msg)
+            };
+            
+            return Err(AppError::TooManyRequests(retry_msg));
         }
         return Err(AppError::InternalServerError);
     }

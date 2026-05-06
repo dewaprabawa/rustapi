@@ -84,7 +84,7 @@ pub mod optional_bson_datetime {
 
 /// Serde helper for required DateTime<Utc> that gracefully handles corrupted BSON data.
 /// Falls back to epoch if the field isn't a proper BSON DateTime.
-mod resilient_bson_datetime {
+pub mod resilient_bson_datetime {
     use chrono::{DateTime, Utc};
     use serde::{self, Deserialize, Deserializer, Serialize, Serializer};
     use bson;

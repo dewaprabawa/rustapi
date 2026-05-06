@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Bell, Check, Clock, ExternalLink } from "lucide-react";
 import { Link } from "react-router-dom";
-import { cn, normalizeDate } from "../lib/utils";
+import { cn, normalizeDate, getId } from "../lib/utils";
 import { getAdminNotifications, markAdminNotificationRead } from "../services/api";
 
 interface Notification {
@@ -110,7 +110,7 @@ export default function NotificationPopover() {
               <div className="divide-y divide-slate-50">
                 {notifications.map((notif) => (
                   <div 
-                    key={notif._id}
+                    key={getId(notif._id)}
                     className={cn(
                       "p-4 hover:bg-slate-50/80 transition-colors group relative",
                       !notif.is_read && "bg-blue-50/30"

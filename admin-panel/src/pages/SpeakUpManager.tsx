@@ -1,8 +1,26 @@
 import { useState, useRef } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { Plus, Mic, TextCursorInput, Settings2, X, Target, Info, Trash2, Loader2, Waves, ChevronRight, Sparkles, Play, BarChart3, Volume2, CircleStop, RotateCcw } from "lucide-react"
-import { getSpeakUpContent, createSpeakUpContent, updateSpeakUpContent, deleteSpeakUpContent, aiGenerateSpeakUp } from "../services/api"
-import { cn } from "../lib/utils"
+import { Plus, Mic, TextCursorInput, Settings2, X, Target, Info, Trash2, Loader2, Waves, ChevronRight, Sparkles, Play, BarChart3, Volume2, CircleStop, RotateCcw, Check } from "lucide-react"
+import { getSpeakUpContent, createSpeakUpContent, updateSpeakUpContent, deleteSpeakUpContent, aiGenerateSpeakUp, analyzeSpeakUpTest } from "../services/api"
+import { cn, getId, formatError } from "../lib/utils"
+
+const SUGGESTED_TOPICS = [
+  "Check-in Greeting",
+  "Room Service Request",
+  "Complaint Handling",
+  "Directions to Facilities",
+  "Restaurant Reservation",
+  "Checkout Process",
+  "Local Recommendations",
+  "Housekeeping Request",
+  "Bell Desk Assistance",
+  "Spa Appointment",
+  "Airport Shuttle Inquiry",
+  "Breakfast Buffet Info",
+  "Concierge Booking",
+  "Emergency Procedures",
+  "Wi-Fi Connectivity Help"
+]
 
 export default function SpeakUpManager() {
   const queryClient = useQueryClient()
@@ -15,10 +33,14 @@ export default function SpeakUpManager() {
   const [simExpStep, setSimExpStep] = useState(0)
   const [simResults, setSimResults] = useState<any>(null)
   const simTimerRef = useRef<any>(null)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const audioChunksRef = useRef<Blob[]>([])
   
   const [formData, setFormData] = useState({
     title: "",
+    title_id: "",
     transcript: "",
+    transcript_id: "",
     content_type: "shadowing",
     difficulty: "Beginner",
     target_wpm: 120,
@@ -31,10 +53,6 @@ export default function SpeakUpManager() {
     queryFn: getSpeakUpContent,
   })
 
-  const getItemId = (item: any) => {
-    if (!item?._id) return ""
-    return typeof item._id === 'object' ? item._id.$oid : item._id
-  }
 
   const filteredContents = contents?.filter((c: any) => c.content_type === activeTab) || []
 
@@ -66,11 +84,29 @@ export default function SpeakUpManager() {
     onSuccess: (data: any) => {
       setFormData({
         ...formData,
-        title: data.title,
+        title: data.title || formData.title,
+        title_id: data.title_id || "",
         transcript: data.transcript,
+        transcript_id: data.transcript_id || "",
         target_wpm: data.target_wpm || 120,
         steps: Array.isArray(data.steps) ? data.steps.join('\n') : ""
       })
+    },
+    onError: (err: any) => {
+      alert(`AI Error: ${formatError(err)}`)
+    }
+  })
+
+  const analyzeMutation = useMutation({
+    mutationFn: ({ contentId, audioBlob }: { contentId: string, audioBlob: Blob }) => 
+      analyzeSpeakUpTest(contentId, audioBlob),
+    onSuccess: (data: any) => {
+      setSimResults(data)
+      setSimPhase('results')
+    },
+    onError: (err: any) => {
+      alert(`Analysis Error: ${formatError(err)}`)
+      setSimPhase('idle')
     }
   })
 
@@ -91,7 +127,9 @@ export default function SpeakUpManager() {
     setEditingItem(null)
     setFormData({
       title: "",
+      title_id: "",
       transcript: "",
+      transcript_id: "",
       content_type: activeTab,
       difficulty: "Beginner",
       target_wpm: 120,
@@ -104,7 +142,9 @@ export default function SpeakUpManager() {
     setEditingItem(item)
     setFormData({
       title: item.title,
+      title_id: item.title_id || "",
       transcript: item.transcript,
+      transcript_id: item.transcript_id || "",
       content_type: item.content_type,
       difficulty: item.difficulty,
       target_wpm: item.target_wpm || 120,
@@ -122,7 +162,7 @@ export default function SpeakUpManager() {
     }
     
     if (editingItem) {
-      updateMutation.mutate({ id: getItemId(editingItem), data: payload })
+      updateMutation.mutate({ id: getId(editingItem), data: payload })
     } else {
       createMutation.mutate(payload)
     }
@@ -146,12 +186,21 @@ export default function SpeakUpManager() {
   }
 
   const startListening = () => {
+    if (simTimerRef.current) clearInterval(simTimerRef.current)
     setSimPhase('listening')
     setSimHighlight(-1)
-    const words = simItem.transcript.split(/\s+/)
+    
+    const transcript = simItem?.transcript || ""
+    const words = transcript.trim().split(/\s+/)
+    if (words.length === 0 || !transcript) {
+       setTimeout(() => setSimPhase('idle'), 600)
+       return
+    }
+
     let i = 0
-    const wpm = simItem.target_wpm || 120
+    const wpm = Math.max(1, simItem.target_wpm || 120)
     const msPerWord = 60000 / wpm
+    
     simTimerRef.current = setInterval(() => {
       if (i >= words.length) {
         clearInterval(simTimerRef.current)
@@ -163,33 +212,58 @@ export default function SpeakUpManager() {
     }, msPerWord)
   }
 
-  const startRecording = () => {
-    setSimPhase('recording')
-    setSimHighlight(-1)
-    const words = simItem.transcript.split(/\s+/)
-    setTimeout(() => {
-      setSimPhase('analyzing')
-      setTimeout(() => {
-        const wpm = simItem.target_wpm || 120
-        const simWpm = wpm * (0.7 + Math.random() * 0.5)
-        const pronScore = 55 + Math.random() * 40
-        const hesCount = Math.floor(Math.random() * 4)
-        const fluency = Math.max(0, Math.min(100, 100 * Math.min(1, simWpm / wpm) - hesCount * 10))
-        setSimResults({
-          pace_wpm: Math.round(simWpm),
-          pronunciation_score: Math.round(pronScore),
-          fluency_score: Math.round(fluency),
-          hesitations: hesCount,
-          word_count: words.length,
-          feedback: fluency > 80
-            ? "Excellent fluency! Your pace and accuracy are on point. 🎉"
-            : fluency > 60
-            ? "Good effort! Try speaking a bit more naturally next time."
-            : "Keep practicing! Focus on the rhythmic flow of the sentence."
+  const startRecording = async () => {
+    if (simTimerRef.current) clearInterval(simTimerRef.current)
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      
+      // Determine supported mime type
+      let mimeType = 'audio/webm'
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        mimeType = 'audio/ogg'
+      }
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        mimeType = '' // Let browser decide
+      }
+
+      const mediaRecorder = mimeType 
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream)
+
+      mediaRecorderRef.current = mediaRecorder
+      audioChunksRef.current = []
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data)
+        }
+      }
+
+      mediaRecorder.onstop = () => {
+        const finalMime = mediaRecorder.mimeType || 'audio/wav'
+        const audioBlob = new Blob(audioChunksRef.current, { type: finalMime })
+        setSimPhase('analyzing')
+        analyzeMutation.mutate({ 
+          contentId: getId(simItem), 
+          audioBlob 
         })
-        setSimPhase('results')
-      }, 2000)
-    }, 4000)
+        stream.getTracks().forEach(track => track.stop())
+      }
+
+      mediaRecorder.start()
+      setSimPhase('recording')
+      setSimHighlight(-1)
+    } catch (err) {
+      console.error("Recording error:", err)
+      alert("Could not access microphone. Please ensure you have granted permission.")
+      setSimPhase('idle')
+    }
+  }
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      mediaRecorderRef.current.stop()
+    }
   }
 
   const startExpansionSim = () => {
@@ -272,7 +346,7 @@ export default function SpeakUpManager() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {filteredContents.map((item: any) => (
-            <div key={getItemId(item)} className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 hover:shadow-md transition-all group relative">
+            <div key={getId(item)} className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 hover:shadow-md transition-all group relative">
                <div className="absolute top-4 right-4 flex gap-2">
                 <button 
                   onClick={() => openSimulation(item)}
@@ -290,7 +364,7 @@ export default function SpeakUpManager() {
                 <button 
                   onClick={() => {
                     if (window.confirm("Delete this drill?")) {
-                      deleteMutation.mutate(getItemId(item))
+                      deleteMutation.mutate(getId(item))
                     }
                   }}
                   className="p-2 bg-slate-50 text-slate-400 hover:text-red-600 rounded-xl transition-colors border border-slate-100 hover:border-red-200"
@@ -313,11 +387,13 @@ export default function SpeakUpManager() {
                     <span className="text-[10px] font-black uppercase tracking-widest text-blue-500">{item.target_wpm} WPM Goal</span>
                   </div>
                   <h3 className="font-bold text-slate-800 text-lg">{item.title}</h3>
+                  {item.title_id && <p className="text-xs text-slate-500 font-medium">{item.title_id}</p>}
                 </div>
               </div>
 
               <div className="bg-slate-50 rounded-2xl p-4 mb-4">
                 <p className="text-slate-600 text-sm italic font-medium">"{item.transcript}"</p>
+                {item.transcript_id && <p className="text-xs text-slate-400 mt-2 italic font-medium">({item.transcript_id})</p>}
               </div>
 
               {item.steps && item.steps.length > 0 && (
@@ -366,40 +442,96 @@ export default function SpeakUpManager() {
 
             <form onSubmit={handleSubmit} className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
               <div className="grid grid-cols-2 gap-6">
-                <div className="col-span-2">
-                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Title / Topic</label>
+                <div className="col-span-2 sm:col-span-1">
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Title (English)</label>
                   <div className="flex gap-2">
-                    <input 
-                      required
-                      value={formData.title}
-                      onChange={e => setFormData({...formData, title: e.target.value})}
-                      className="flex-1 px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-4 focus:ring-blue-500/10 outline-none transition-all font-bold text-slate-700"
-                      placeholder="e.g. Check-in Greeting"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleAiGenerate}
-                      disabled={aiMutation.isPending}
-                      className="px-6 bg-amber-50 text-amber-600 border border-amber-200 rounded-2xl hover:bg-amber-100 transition-all flex items-center gap-2 font-bold text-sm whitespace-nowrap shadow-sm shadow-amber-200/20"
-                    >
-                      {aiMutation.isPending ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Sparkles className="h-4 w-4" />
-                      )}
-                      AI Magic
-                    </button>
+                    <div className="flex-1 relative">
+                      <input 
+                        required
+                        list="hospitality-topics"
+                        value={formData.title}
+                        onChange={e => setFormData({...formData, title: e.target.value})}
+                        className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-4 focus:ring-blue-500/10 outline-none transition-all font-bold text-slate-700"
+                        placeholder="Select or type..."
+                      />
+                      <datalist id="hospitality-topics">
+                        {SUGGESTED_TOPICS.map(topic => (
+                          <option key={topic} value={topic} />
+                        ))}
+                      </datalist>
+                    </div>
                   </div>
                 </div>
 
-                <div className="col-span-2">
-                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Full Transcript</label>
+                <div className="col-span-2 sm:col-span-1">
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Title (Indonesian)</label>
+                  <input 
+                    value={formData.title_id}
+                    onChange={e => setFormData({...formData, title_id: e.target.value})}
+                    className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-4 focus:ring-blue-500/10 outline-none transition-all font-bold text-slate-700"
+                    placeholder="Translation..."
+                  />
+                </div>
+
+                <div className="col-span-2 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={handleAiGenerate}
+                    disabled={aiMutation.isPending}
+                    className={cn(
+                      "px-8 py-3 rounded-2xl transition-all flex items-center gap-2 font-bold text-sm shadow-sm",
+                      aiMutation.isPending 
+                        ? "bg-slate-100 text-slate-400 border-slate-200" 
+                        : "bg-amber-50 text-amber-600 border border-amber-200 hover:bg-amber-100 shadow-amber-200/20"
+                    )}
+                  >
+                    {aiMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-4 w-4" />
+                    )}
+                    {aiMutation.isPending ? "Generating Content..." : "Generate with AI Magic"}
+                  </button>
+                </div>
+
+                <div className="col-span-2 sm:col-span-1">
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="block text-xs font-black text-slate-400 uppercase tracking-widest">Transcript (English)</label>
+                    {aiMutation.isSuccess && (
+                      <span className="text-[10px] font-bold text-green-500 flex items-center gap-1 animate-pulse">
+                        <Check className="h-3 w-3" /> English Ready
+                      </span>
+                    )}
+                  </div>
                   <textarea 
                     required
                     value={formData.transcript}
                     onChange={e => setFormData({...formData, transcript: e.target.value})}
-                    className="w-full px-5 py-4 bg-slate-50 border border-slate-100 rounded-2xl focus:ring-4 focus:ring-blue-500/10 outline-none transition-all min-h-[100px] font-medium text-slate-600"
-                    placeholder="Enter the complete sentence or paragraph..."
+                    className={cn(
+                      "w-full px-5 py-4 bg-slate-50 border rounded-2xl focus:ring-4 focus:ring-blue-500/10 outline-none transition-all min-h-[120px] font-medium text-slate-600 text-sm",
+                      aiMutation.isSuccess ? "border-green-200 bg-green-50/10" : "border-slate-100"
+                    )}
+                    placeholder="English sentence..."
+                  />
+                </div>
+
+                <div className="col-span-2 sm:col-span-1">
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="block text-xs font-black text-slate-400 uppercase tracking-widest">Transcript (Indonesian)</label>
+                    {aiMutation.isSuccess && (
+                      <span className="text-[10px] font-bold text-green-500 flex items-center gap-1 animate-pulse">
+                        <Check className="h-3 w-3" /> Translation Ready
+                      </span>
+                    )}
+                  </div>
+                  <textarea 
+                    value={formData.transcript_id}
+                    onChange={e => setFormData({...formData, transcript_id: e.target.value})}
+                    className={cn(
+                      "w-full px-5 py-4 bg-slate-50 border rounded-2xl focus:ring-4 focus:ring-blue-500/10 outline-none transition-all min-h-[120px] font-medium text-slate-600 text-sm",
+                      aiMutation.isSuccess ? "border-green-200 bg-green-50/10" : "border-slate-100"
+                    )}
+                    placeholder="Indonesian translation..."
                   />
                 </div>
 
@@ -595,15 +727,18 @@ export default function SpeakUpManager() {
 
               {simPhase === 'recording' && (
                 <div className="text-center py-3">
-                  <div className="inline-flex items-center gap-3 px-6 py-3 bg-rose-500/20 border border-rose-500/30 rounded-2xl animate-pulse">
-                    <CircleStop className="h-5 w-5 text-rose-400" />
-                    <span className="text-rose-300 font-bold text-sm">Recording your voice...</span>
+                  <button 
+                    onClick={stopRecording}
+                    className="inline-flex items-center gap-3 px-6 py-3 bg-rose-500/20 border border-rose-500/30 rounded-2xl hover:bg-rose-500/30 transition-all cursor-pointer group animate-pulse"
+                  >
+                    <CircleStop className="h-5 w-5 text-rose-400 group-hover:scale-110 transition-transform" />
+                    <span className="text-rose-300 font-bold text-sm">Stop Recording</span>
                     <div className="flex gap-0.5">
                       {[0,1,2,3,4,5].map(i => (
                         <div key={i} className="w-0.5 bg-rose-400 rounded-full animate-pulse" style={{ height: `${6 + Math.random() * 16}px`, animationDelay: `${i * 0.1}s` }} />
                       ))}
                     </div>
-                  </div>
+                  </button>
                 </div>
               )}
 
@@ -634,12 +769,14 @@ export default function SpeakUpManager() {
                   {/* Hesitations */}
                   <div className="flex items-center gap-3 bg-white/5 rounded-xl px-4 py-3 border border-white/10">
                     <BarChart3 className="h-4 w-4 text-slate-400 flex-shrink-0" />
-                    <span className="text-sm text-slate-300">{simResults.hesitations} hesitation{simResults.hesitations !== 1 ? 's' : ''} detected</span>
+                    <span className="text-sm text-slate-300">
+                      {Array.isArray(simResults.hesitations) ? simResults.hesitations.length : simResults.hesitations} hesitation{simResults.hesitations?.length !== 1 ? 's' : ''} detected
+                    </span>
                   </div>
 
                   {/* Feedback */}
                   <div className="bg-gradient-to-r from-violet-500/10 to-blue-500/10 border border-violet-500/20 rounded-2xl p-4">
-                    <p className="text-sm text-slate-200 font-medium">{simResults.feedback}</p>
+                    <p className="text-sm text-slate-200 font-medium">{simResults.feedback_text || simResults.feedback}</p>
                   </div>
 
                   {/* Retry */}

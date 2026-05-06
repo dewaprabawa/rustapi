@@ -3,7 +3,7 @@ import { Users, BookOpen, BrainCircuit, Activity, Sparkles, MessageSquare, Plus,
 import { getDashboardStats, getUsers } from "../services/api"
 import { Link } from "react-router-dom"
 import { formatDistanceToNow } from "date-fns"
-import { normalizeDate } from "../lib/utils"
+import { normalizeDate, getId } from "../lib/utils"
 
 interface DashboardUser {
   _id: any
@@ -164,7 +164,7 @@ export default function Dashboard() {
             ) : (
               <div className="space-y-2">
                 {recentUsers?.data?.map((user: DashboardUser) => (
-                  <div key={user._id?.$oid || user._id} className="flex items-center p-4 rounded-2xl hover:bg-slate-50 transition-all border border-transparent hover:border-slate-100 cursor-pointer group">
+                  <div key={getId(user._id)} className="flex items-center p-4 rounded-2xl hover:bg-slate-50 transition-all border border-transparent hover:border-slate-100 cursor-pointer group">
                     <div className="h-12 w-12 rounded-full bg-slate-100 border-2 border-white shadow-sm flex items-center justify-center text-slate-600 mr-4 group-hover:scale-110 transition-transform">
                       {user.profile_image_url ? (
                         <img src={user.profile_image_url} alt={user.name} className="h-full w-full rounded-full object-cover" />

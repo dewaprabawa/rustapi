@@ -374,3 +374,12 @@ export const deleteSpeakUpContent = (id: string) =>
 
 export const aiGenerateSpeakUp = (data: { topic: string; content_type: string; difficulty: string }) =>
   api.post("/speakup/ai-generate", data).then(r => r.data)
+
+export const analyzeSpeakUpTest = (contentId: string, audioBlob: Blob) => {
+  const formData = new FormData()
+  formData.append("audio", audioBlob, "recording.wav")
+  formData.append("content_id", contentId)
+  return api.post("/speakup/test-analyze", formData, {
+    headers: { "Content-Type": "multipart/form-data" }
+  }).then(r => r.data)
+}
