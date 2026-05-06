@@ -372,5 +372,5 @@ export const updateSpeakUpContent = (id: string, data: any) =>
 export const deleteSpeakUpContent = (id: string) =>
   api.delete(`/speakup/content/${id}`).then(r => r.data)
 
-export const aiGenerateSpeakUp = (data: { topic: string; type: string; difficulty: string }) =>
+export const aiGenerateSpeakUp = (data: { topic: string; content_type: string; difficulty: string }) =>
   api.post("/speakup/ai-generate", data).then(r => r.data)

@@ -33,18 +33,52 @@ pub async fn speakup_ai_generate_content(
 ) -> Result<axum::response::Response, AppError> {
     let db = state.db.database("rustapi");
     
-    // Get Gemini Key
+    // Get all active LLM API keys (multi-provider fallback)
     let key_col: Collection<crate::content::models::LlmApiKey> = db.collection("llm_api_keys");
-    let key_doc = key_col.find_one(doc! { "provider": "google", "is_active": true }).await?
-        .ok_or(AppError::InternalServerError)?;
+    let cursor = key_col.find(doc! { "is_active": true }).await?;
+    let active_keys: Vec<crate::content::models::LlmApiKey> = {
+        use futures::TryStreamExt;
+        cursor.try_collect().await?
+    };
+
+    if active_keys.is_empty() {
+        return Err(AppError::BadRequest("No active LLM API key found. Please activate an API key in API Key Management.".to_string()));
+    }
     
     let prompt = crate::ai::service::build_speakup_prompt(&payload.topic, &payload.content_type, &payload.difficulty);
     
-    // Call Gemini (Simplified for now - using a helper from ai::handlers if available, or direct call)
-    // For now, let's assume we have a generic call_gemini in ai::service
-    let result_json = crate::ai::handlers::call_gemini_generic(&key_doc.api_key, &prompt).await?;
+    // Try each active key until one succeeds
+    let mut last_error = None;
+    for key in &active_keys {
+        match crate::ai::service::call_llm_for_course(key, &prompt).await {
+            Ok(resp) => {
+                // Parse the LLM response text into JSON
+                let cleaned = resp.text.trim();
+                let cleaned = if cleaned.starts_with("```") {
+                    let start = cleaned.find('\n').map(|i| i + 1).unwrap_or(0);
+                    let end = cleaned.rfind("```").unwrap_or(cleaned.len());
+                    &cleaned[start..end]
+                } else {
+                    cleaned
+                };
+                
+                let result_json: serde_json::Value = serde_json::from_str(cleaned.trim())
+                    .map_err(|e| {
+                        eprintln!("SpeakUp AI: Failed to parse LLM JSON: {:?}", e);
+                        eprintln!("Raw response (first 500 chars): {}", &cleaned[..cleaned.len().min(500)]);
+                        AppError::BadRequest(format!("AI returned invalid JSON: {}", e))
+                    })?;
+                
+                return Ok(Json(result_json).into_response());
+            }
+            Err(e) => {
+                eprintln!("⚠️ SpeakUp AI: Provider ({}) failed: {:?}", key.provider, e);
+                last_error = Some(e);
+            }
+        }
+    }
     
-    Ok(Json(result_json).into_response())
+    Err(last_error.unwrap_or(AppError::InternalServerError))
 }
 
 /// POST /speakup/content
