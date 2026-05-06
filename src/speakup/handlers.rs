@@ -45,7 +45,16 @@ pub async fn speakup_ai_generate_content(
         return Err(AppError::BadRequest("No active LLM API key found. Please activate an API key in API Key Management.".to_string()));
     }
     
-    let prompt = crate::ai::service::build_speakup_prompt(&payload.topic, &payload.content_type, &payload.difficulty);
+    let prompt_col: Collection<crate::content::models::AIPromptConfig> = db.collection("ai_prompts");
+    let entity_type = payload.content_type.clone();
+    let custom_prompt = prompt_col.find_one(doc! { "entity_type": &entity_type }).await.ok().flatten();
+    let prompt = if let Some(p) = custom_prompt {
+        p.prompt_template
+            .replace("{context}", &payload.topic)
+            .replace("{difficulty}", &payload.difficulty)
+    } else {
+        crate::ai::service::build_speakup_prompt(&payload.topic, &payload.content_type, &payload.difficulty)
+    };
     
     // Try each active key until one succeeds
     let mut last_error = None;

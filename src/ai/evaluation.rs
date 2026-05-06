@@ -175,8 +175,15 @@ pub async fn generate_speaking_scenario(
     let key = key_col.find_one(doc! { "provider": "gemini", "is_active": true }).await?
         .ok_or(AppError::InternalServerError)?;
 
-    let prompt = format!(
-        r#"You are an expert curriculum designer for hospitality English training.
+    let prompt_col: Collection<crate::content::models::AIPromptConfig> = state.db.database("rustapi").collection("ai_prompts");
+    let custom_prompt = prompt_col.find_one(doc! { "entity_type": "scenario" }).await.ok().flatten();
+    let prompt = if let Some(p) = custom_prompt {
+        p.prompt_template
+            .replace("{context}", topic)
+            .replace("{level}", level)
+    } else {
+        format!(
+            r#"You are an expert curriculum designer for hospitality English training.
 Generate a realistic, high-quality speaking practice scenario based on this topic: "{}"
 The target student level is: {}
 
@@ -192,8 +199,9 @@ Return ONLY a JSON object with this exact structure:
   "target_vocabulary": ["word1", "word2", "word3", "word4", "word5"]
 }}
 "#,
-        topic, level
-    );
+            topic, level
+        )
+    };
 
     let response_text = call_gemini_pub(&key.api_key, &prompt).await?;
     let cleaned = response_text.trim();

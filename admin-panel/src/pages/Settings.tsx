@@ -425,7 +425,10 @@ function AiPromptsPanel() {
     course: "Generate a JSON object for a new English learning course for the {context}. The JSON must have exactly these keys: \"title\", \"title_id\" (Indonesian title), \"description\", \"description_id\" (Indonesian description). Make description a clean plain text summary.",
     module: "Generate a JSON object for a new learning module within a {context} English course. The JSON must have exactly these keys: \"title\", \"title_id\" (Indonesian title), \"description\", \"description_id\" (Indonesian description). Make description a clean plain text summary.",
     lesson: "Generate a JSON object for a new lesson within a {context} English course. The JSON must have exactly these 4 keys:\n1. \"title\": A catchy title.\n2. \"title_id\": Indonesian title.\n3. \"content\": MUST be a single PLAIN TEXT string using MARKDOWN. DO NOT use nested JSON objects. Include ## Headers, **bold**, and lists.\n4. \"content_id\": Indonesian translation of the markdown content.",
-    game: "Generate a JSON object for a hospitality English mini-game. Context: {context}. Keys: \"title\", \"instructions\" (plain text), \"data_json\" (exercise object). Structure data_json based on game type (SCENE_MATCHER, WORD_SCRAMBLE, MATCHING, etc.) with exactly 5 items."
+    game: "Generate a JSON object for a hospitality English mini-game. Context: {context}. Keys: \"title\", \"instructions\" (plain text), \"data_json\" (exercise object). Structure data_json based on game type (SCENE_MATCHER, WORD_SCRAMBLE, MATCHING, etc.) with exactly 5 items.",
+    scenario: "You are an expert curriculum designer for hospitality English training.\nGenerate a realistic, high-quality speaking practice scenario based on this topic: \"{context}\"\nThe target student level is: {level}\n\n## Format Requirement\nReturn ONLY a JSON object with this exact structure:\n{\n  \"title\": \"Clear scenario title\",\n  \"description\": \"Short 1-sentence description of the learning goal\",\n  \"role_ai\": \"The persona for the AI coach (e.g. Grumpy Guest)\",\n  \"role_user\": \"The persona for the student (e.g. Front Desk Receptionist)\",\n  \"initial_message\": \"The very first line the AI says to start the roleplay\",\n  \"context\": \"Hidden instructions for the AI: details about the situation, the AI's mood, and what it wants from the student. Keep it professional but engaging.\",\n  \"target_vocabulary\": [\"word1\", \"word2\", \"word3\", \"word4\", \"word5\"]\n}",
+    shadowing: "You are an expert English language curriculum designer.\nGenerate a SpeakUp drill for the topic: '{context}'.\nContent Type: shadowing\nDifficulty: {difficulty}\n\nReturn a JSON object with:\n- title: A catchy title\n- transcript: The full target sentence or paragraph (natural and useful for hospitality)\n- target_wpm: Recommended speed (Beginner: 80-100, Inter: 120-140, Advanced: 160+)\n\nIMPORTANT: Return ONLY the JSON object, no markdown, no explanation.",
+    expansion: "You are an expert English language curriculum designer.\nGenerate a SpeakUp drill for the topic: '{context}'.\nContent Type: expansion\nDifficulty: {difficulty}\n\nReturn a JSON object with:\n- title: A catchy title\n- transcript: The full target sentence or paragraph (natural and useful for hospitality)\n- steps: An array of strings building the sentence clause-by-clause (3-5 steps)\n- target_wpm: Recommended speed (Beginner: 80-100, Inter: 120-140, Advanced: 160+)\n\nIMPORTANT: Return ONLY the JSON object, no markdown, no explanation."
   }
 
   const currentPromptObj = prompts.find((p: any) => p.entity_type === selectedEntity)
@@ -448,11 +451,11 @@ function AiPromptsPanel() {
         <h3 className="text-lg font-bold">AI Generation Prompts</h3>
       </div>
       <p className="text-sm text-slate-500">
-        Customize the prompts sent to the AI when generating content. Use <code className="bg-slate-100 px-1 py-0.5 rounded text-indigo-600">{`{context}`}</code> as a placeholder for the context string (e.g., "hospitality industry", "front desk"). Ensure the requested JSON structure remains intact.
+        Customize the prompts sent to the AI when generating content. Use <code className="bg-slate-100 px-1 py-0.5 rounded text-indigo-600">{`{context}`}</code> as a placeholder for the context string (e.g., "hospitality industry", "front desk"). For some tools, <code className="bg-slate-100 px-1 py-0.5 rounded text-indigo-600">{`{level}`}</code> or <code className="bg-slate-100 px-1 py-0.5 rounded text-indigo-600">{`{difficulty}`}</code> is also available. Ensure the requested JSON structure remains intact.
       </p>
 
-      <div className="flex space-x-2">
-        {['course', 'module', 'lesson', 'game'].map(entity => (
+      <div className="flex flex-wrap gap-2">
+        {['course', 'module', 'lesson', 'game', 'scenario', 'shadowing', 'expansion'].map(entity => (
           <button
             key={entity}
             onClick={() => {
