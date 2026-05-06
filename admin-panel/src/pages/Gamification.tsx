@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { useState } from "react"
-import { Gamepad2, Trophy, Star, Zap, Save, Loader2, Trash2, Pencil, Sparkles } from "lucide-react"
+import { useState, useRef } from "react"
+import { Gamepad2, Trophy, Star, Zap, Save, Loader2, Trash2, Pencil, Sparkles, Play, X, RotateCcw, Check, ArrowRight, Volume2 } from "lucide-react"
 import { getGamificationConfig, updateGamificationConfig, getGames, createGame, deleteGame, getLessons, uploadAsset, updateGame, aiGenerateContent } from "../services/api"
 import { cn } from "../lib/utils"
 
@@ -161,6 +161,7 @@ function GamesPanel({ games, isLoading }: { games: any[]; isLoading: boolean }) 
   const [editingGameId, setEditingGameId] = useState<string | null>(null)
   const [isUploading, setIsUploading] = useState(false)
   const [isGeneratingAI, setIsGeneratingAI] = useState(false)
+  const [simGame, setSimGame] = useState<any>(null)
 
   const handleAIGenerate = async () => {
     setIsGeneratingAI(true)
@@ -307,6 +308,13 @@ function GamesPanel({ games, isLoading }: { games: any[]; isLoading: boolean }) 
                     <Gamepad2 className="h-5 w-5" />
                   </div>
                   <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={() => setSimGame(game)}
+                      className="p-1.5 text-violet-400 hover:text-violet-600 hover:bg-violet-50 rounded-lg transition-colors"
+                      title="Simulate game"
+                    >
+                      <Play className="h-4 w-4" />
+                    </button>
                     <button
                       onClick={() => {
                         setEditingGameId(gid)
@@ -506,6 +514,330 @@ function GamesPanel({ games, isLoading }: { games: any[]; isLoading: boolean }) 
           </div>
         </div>
       )}
+
+      {/* ========== Game Simulation Modal ========== */}
+      {simGame && (
+        <GameSimulator game={simGame} onClose={() => setSimGame(null)} />
+      )}
+    </div>
+  )
+}
+
+// ========== Game Simulator Component ==========
+function GameSimulator({ game, onClose }: { game: any; onClose: () => void }) {
+  const data = game.data_json || {}
+  const [selected, setSelected] = useState<string | null>(null)
+  const [answered, setAnswered] = useState(false)
+  const [scrambleInput, setScrambleInput] = useState("")
+  const [matchedPairs, setMatchedPairs] = useState<number[]>([])
+  const [matchLeft, setMatchLeft] = useState<number | null>(null)
+  const [simPhase, setSimPhase] = useState<'play' | 'correct' | 'wrong' | 'done'>('play')
+  const [xpEarned, setXpEarned] = useState(0)
+
+  const reset = () => {
+    setSelected(null)
+    setAnswered(false)
+    setScrambleInput("")
+    setMatchedPairs([])
+    setMatchLeft(null)
+    setSimPhase('play')
+    setXpEarned(0)
+  }
+
+  const checkAnswer = (answer: string, correct: string) => {
+    setSelected(answer)
+    setAnswered(true)
+    if (answer.toLowerCase() === correct.toLowerCase()) {
+      setSimPhase('correct')
+      setXpEarned(game.xp_reward || 20)
+    } else {
+      setSimPhase('wrong')
+    }
+  }
+
+  const gameTypeLabel: Record<string, string> = {
+    SCENE_MATCHER: "🎬 Scene Matcher",
+    WORD_SCRAMBLE: "🔤 Word Scramble",
+    MATCHING: "🔗 Matching",
+    FILL_IN_THE_BLANK: "📝 Fill in the Blank",
+    RESPECT_MASTER: "🎩 Respect Master",
+    VOICE_STAR: "🎤 Voice Star",
+  }
+
+  const renderGame = () => {
+    switch (game.game_type) {
+      case "SCENE_MATCHER":
+      case "RESPECT_MASTER": {
+        const q = data.question || data.scenario || "What would you say?"
+        const opts = data.options || []
+        const correct = data.correct || opts[0] || ""
+        return (
+          <div className="space-y-4">
+            {data.emoji && <div className="text-4xl text-center mb-2">{data.emoji}</div>}
+            <p className="text-slate-200 font-medium text-center text-base">{q}</p>
+            <div className="space-y-2">
+              {opts.map((opt: string, i: number) => (
+                <button
+                  key={i}
+                  onClick={() => !answered && checkAnswer(opt, correct)}
+                  disabled={answered}
+                  className={cn(
+                    "w-full text-left px-5 py-3.5 rounded-xl font-medium text-sm transition-all border",
+                    answered && opt.toLowerCase() === correct.toLowerCase()
+                      ? "bg-green-500/20 border-green-500/40 text-green-300"
+                      : answered && selected === opt
+                      ? "bg-rose-500/20 border-rose-500/40 text-rose-300"
+                      : "bg-white/5 border-white/10 text-slate-300 hover:bg-white/10 hover:border-white/20"
+                  )}
+                >
+                  <span className="mr-3 text-xs font-black text-slate-500">{String.fromCharCode(65 + i)}</span>
+                  {opt}
+                  {answered && opt.toLowerCase() === correct.toLowerCase() && (
+                    <Check className="inline h-4 w-4 ml-2 text-green-400" />
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        )
+      }
+
+      case "WORD_SCRAMBLE": {
+        const word = (data.word || "HOTEL").toUpperCase()
+        const hint = data.hint || "Unscramble the word"
+        const shuffled = word.split("").sort(() => Math.random() - 0.5).join("")
+        const isCorrect = scrambleInput.toUpperCase() === word
+        return (
+          <div className="space-y-5 text-center">
+            <p className="text-slate-400 text-sm italic">"{hint}"</p>
+            <div className="flex justify-center gap-2 flex-wrap">
+              {shuffled.split("").map((ch, i) => (
+                <div
+                  key={i}
+                  onClick={() => !answered && setScrambleInput(prev => prev + ch)}
+                  className="h-12 w-12 bg-violet-500/20 border border-violet-500/30 rounded-xl flex items-center justify-center text-lg font-black text-violet-300 cursor-pointer hover:bg-violet-500/30 transition-all"
+                >
+                  {ch}
+                </div>
+              ))}
+            </div>
+            <div className="bg-white/5 border border-white/10 rounded-xl px-5 py-3 min-h-[48px]">
+              <span className="text-lg font-bold text-white tracking-widest">{scrambleInput || "..."}</span>
+            </div>
+            <div className="flex gap-2 justify-center">
+              <button onClick={() => setScrambleInput("")} className="px-4 py-2 bg-white/10 rounded-xl text-sm font-medium text-slate-300 hover:bg-white/15 transition-all">
+                Clear
+              </button>
+              <button
+                onClick={() => { setAnswered(true); if (isCorrect) { setSimPhase('correct'); setXpEarned(game.xp_reward || 20); } else { setSimPhase('wrong'); } }}
+                disabled={!scrambleInput}
+                className="px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-xl text-sm font-bold text-white disabled:opacity-40 transition-all"
+              >
+                Check
+              </button>
+            </div>
+          </div>
+        )
+      }
+
+      case "MATCHING": {
+        const pairs: { left: string; right: string }[] = data.pairs || []
+        if (pairs.length === 0) return <p className="text-slate-400 text-center">No pairs data</p>
+        const allMatched = matchedPairs.length === pairs.length
+        if (allMatched && simPhase === 'play') { setSimPhase('correct'); setXpEarned(game.xp_reward || 20); }
+        return (
+          <div className="space-y-3">
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest text-center mb-3">Match the pairs</p>
+            {pairs.map((pair, i) => (
+              <div key={i} className="flex items-center gap-3">
+                <button
+                  onClick={() => setMatchLeft(i)}
+                  disabled={matchedPairs.includes(i)}
+                  className={cn(
+                    "flex-1 px-4 py-3 rounded-xl text-sm font-medium border transition-all text-left",
+                    matchedPairs.includes(i)
+                      ? "bg-green-500/15 border-green-500/30 text-green-400"
+                      : matchLeft === i
+                      ? "bg-blue-500/20 border-blue-500/40 text-blue-300"
+                      : "bg-white/5 border-white/10 text-slate-300 hover:bg-white/10"
+                  )}
+                >
+                  {pair.left}
+                </button>
+                <ArrowRight className="h-4 w-4 text-slate-600 flex-shrink-0" />
+                <button
+                  onClick={() => {
+                    if (matchLeft !== null && matchLeft === i) {
+                      setMatchedPairs(prev => [...prev, i])
+                      setMatchLeft(null)
+                    } else if (matchLeft !== null) {
+                      // Wrong match — flash
+                      setMatchLeft(null)
+                    }
+                  }}
+                  disabled={matchedPairs.includes(i)}
+                  className={cn(
+                    "flex-1 px-4 py-3 rounded-xl text-sm font-medium border transition-all text-left",
+                    matchedPairs.includes(i)
+                      ? "bg-green-500/15 border-green-500/30 text-green-400"
+                      : "bg-white/5 border-white/10 text-slate-300 hover:bg-white/10"
+                  )}
+                >
+                  {pair.right}
+                </button>
+              </div>
+            ))}
+          </div>
+        )
+      }
+
+      case "FILL_IN_THE_BLANK": {
+        const sentence = data.sentence || "Good afternoon, ____ to the Grand Hotel."
+        const opts = data.options || []
+        const correct = data.correct || opts[0] || ""
+        const parts = sentence.split("____")
+        return (
+          <div className="space-y-5">
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-5 text-center">
+              <p className="text-base font-medium text-slate-200 leading-relaxed">
+                {parts[0]}
+                <span className={cn(
+                  "inline-block px-3 py-1 mx-1 rounded-lg font-bold border-b-2 min-w-[80px]",
+                  answered && selected?.toLowerCase() === correct.toLowerCase()
+                    ? "text-green-400 border-green-500 bg-green-500/10"
+                    : answered
+                    ? "text-rose-400 border-rose-500 bg-rose-500/10"
+                    : "text-amber-400 border-amber-500/50 bg-amber-500/10"
+                )}>
+                  {selected || "______"}
+                </span>
+                {parts[1] || ""}
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {opts.map((opt: string, i: number) => (
+                <button
+                  key={i}
+                  onClick={() => !answered && checkAnswer(opt, correct)}
+                  disabled={answered}
+                  className={cn(
+                    "px-4 py-3 rounded-xl font-medium text-sm border transition-all",
+                    answered && opt.toLowerCase() === correct.toLowerCase()
+                      ? "bg-green-500/20 border-green-500/40 text-green-300"
+                      : answered && selected === opt
+                      ? "bg-rose-500/20 border-rose-500/40 text-rose-300"
+                      : "bg-white/5 border-white/10 text-slate-300 hover:bg-white/10"
+                  )}
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
+          </div>
+        )
+      }
+
+      case "VOICE_STAR": {
+        const script = data.script || "Good morning, welcome to the Grand Hotel!"
+        return (
+          <div className="space-y-5 text-center">
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+              <p className="text-lg font-medium text-slate-200 italic leading-relaxed">"{script}"</p>
+            </div>
+            <p className="text-xs text-slate-500">Read the sentence aloud</p>
+            {simPhase === 'play' ? (
+              <button
+                onClick={() => {
+                  setSimPhase('done')
+                  setTimeout(() => {
+                    setSimPhase('correct')
+                    setXpEarned(game.xp_reward || 20)
+                  }, 3000)
+                }}
+                className="mx-auto h-20 w-20 rounded-full bg-rose-600 hover:bg-rose-500 flex items-center justify-center shadow-lg shadow-rose-600/30 transition-all hover:scale-105"
+              >
+                <Volume2 className="h-8 w-8 text-white" />
+              </button>
+            ) : simPhase === 'done' ? (
+              <div className="flex flex-col items-center gap-2">
+                <div className="h-20 w-20 rounded-full bg-rose-500/20 border-2 border-rose-500/40 flex items-center justify-center animate-pulse">
+                  <Volume2 className="h-8 w-8 text-rose-400" />
+                </div>
+                <span className="text-rose-300 text-sm font-bold">Listening...</span>
+              </div>
+            ) : null}
+          </div>
+        )
+      }
+
+      default:
+        return <p className="text-slate-400 text-center text-sm">No simulator available for this game type.<br/>Data: <code className="text-xs">{JSON.stringify(data).slice(0, 200)}</code></p>
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div onClick={onClose} className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" />
+      <div className="relative w-full max-w-lg bg-gradient-to-b from-slate-900 to-slate-800 rounded-[2rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 text-white">
+        {/* Header */}
+        <div className="p-6 pb-3 flex justify-between items-start">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-violet-400 mb-1">
+              📱 Game Simulation
+            </p>
+            <h3 className="text-lg font-bold">{game.title || "Untitled Game"}</h3>
+            <div className="flex items-center gap-3 mt-1">
+              <span className="text-[10px] font-bold text-teal-400 uppercase tracking-wider">{gameTypeLabel[game.game_type] || game.game_type}</span>
+              <span className="h-1 w-1 rounded-full bg-slate-600" />
+              <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1"><Zap className="h-2.5 w-2.5" />{game.xp_reward || 0} XP</span>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+            <X className="h-5 w-5 text-slate-400" />
+          </button>
+        </div>
+
+        {/* Instructions */}
+        {game.instructions && simPhase === 'play' && (
+          <div className="px-6 pb-3">
+            <p className="text-xs text-slate-400 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5">{game.instructions}</p>
+          </div>
+        )}
+
+        {/* Game area */}
+        <div className="px-6 pb-6">
+          {(simPhase === 'correct' || simPhase === 'wrong') ? (
+            <div className="text-center space-y-4 py-4 animate-in fade-in duration-300">
+              <div className={cn(
+                "h-20 w-20 rounded-full mx-auto flex items-center justify-center",
+                simPhase === 'correct' ? "bg-green-500/20 border-2 border-green-500/40" : "bg-rose-500/20 border-2 border-rose-500/40"
+              )}>
+                {simPhase === 'correct'
+                  ? <Check className="h-10 w-10 text-green-400" />
+                  : <X className="h-10 w-10 text-rose-400" />
+                }
+              </div>
+              <p className={cn("text-xl font-black", simPhase === 'correct' ? "text-green-400" : "text-rose-400")}>
+                {simPhase === 'correct' ? "Correct! 🎉" : "Not quite! 😅"}
+              </p>
+              {xpEarned > 0 && (
+                <div className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500/15 border border-amber-500/25 rounded-xl">
+                  <Zap className="h-4 w-4 text-amber-400" />
+                  <span className="text-amber-300 font-bold text-sm">+{xpEarned} XP</span>
+                </div>
+              )}
+              <button
+                onClick={reset}
+                className="w-full py-3 bg-white/10 hover:bg-white/15 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all border border-white/10 mt-2"
+              >
+                <RotateCcw className="h-4 w-4" /> Play Again
+              </button>
+            </div>
+          ) : (
+            renderGame()
+          )}
+        </div>
+      </div>
     </div>
   )
 }
