@@ -533,6 +533,26 @@ function GameSimulator({ game, onClose }: { game: any; onClose: () => void }) {
   const [matchLeft, setMatchLeft] = useState<number | null>(null)
   const [simPhase, setSimPhase] = useState<'play' | 'correct' | 'wrong' | 'done'>('play')
   const [xpEarned, setXpEarned] = useState(0)
+  // Enhanced game session state
+  const [timer, setTimer] = useState(0)
+  const [score, setScore] = useState(0)
+  const [streak, setStreak] = useState(0)
+  const [qIndex, setQIndex] = useState(0)
+  const [totalAnswered, setTotalAnswered] = useState(0)
+  const [totalCorrect, setTotalCorrect] = useState(0)
+  const timerRef = useRef<any>(null)
+
+  // Questions array support
+  const questions = Array.isArray(data.questions) ? data.questions : (data.question ? [data] : [data])
+  const currentQ = questions[qIndex] || data
+
+  // Start timer on mount
+  useState(() => {
+    timerRef.current = setInterval(() => setTimer(t => t + 1), 1000)
+    return () => clearInterval(timerRef.current)
+  })
+
+  const formatTime = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`
 
   const reset = () => {
     setSelected(null)
@@ -542,16 +562,44 @@ function GameSimulator({ game, onClose }: { game: any; onClose: () => void }) {
     setMatchLeft(null)
     setSimPhase('play')
     setXpEarned(0)
+    setTimer(0)
+    setScore(0)
+    setStreak(0)
+    setQIndex(0)
+    setTotalAnswered(0)
+    setTotalCorrect(0)
   }
 
   const checkAnswer = (answer: string, correct: string) => {
     setSelected(answer)
     setAnswered(true)
-    if (answer.toLowerCase() === correct.toLowerCase()) {
-      setSimPhase('correct')
-      setXpEarned(game.xp_reward || 20)
+    setTotalAnswered(t => t + 1)
+    const isRight = answer.toLowerCase() === correct.toLowerCase()
+    if (isRight) {
+      const streakBonus = streak >= 2 ? 5 * streak : 0
+      const baseXp = Math.round((game.xp_reward || 20) / Math.max(questions.length, 1))
+      setScore(s => s + baseXp + streakBonus)
+      setStreak(s => s + 1)
+      setTotalCorrect(t => t + 1)
+      // Auto-advance for multi-question
+      if (questions.length > 1 && qIndex < questions.length - 1) {
+        setTimeout(() => {
+          setQIndex(q => q + 1)
+          setSelected(null)
+          setAnswered(false)
+        }, 1200)
+      } else {
+        setXpEarned(score + baseXp + streakBonus)
+        setTimeout(() => setSimPhase('correct'), 800)
+      }
     } else {
-      setSimPhase('wrong')
+      setStreak(0)
+      if (questions.length <= 1) {
+        setTimeout(() => setSimPhase('wrong'), 800)
+      } else {
+        // Allow retry on multi-question after delay
+        setTimeout(() => { setSelected(null); setAnswered(false) }, 1500)
+      }
     }
   }
 
@@ -568,9 +616,9 @@ function GameSimulator({ game, onClose }: { game: any; onClose: () => void }) {
     switch (game.game_type) {
       case "SCENE_MATCHER":
       case "RESPECT_MASTER": {
-        const q = data.question || data.scenario || "What would you say?"
-        const opts = data.options || []
-        const correct = data.correct || opts[0] || ""
+        const q = currentQ.question || currentQ.scenario || "What would you say?"
+        const opts = currentQ.options || []
+        const correct = currentQ.correct || opts[0] || ""
         return (
           <div className="space-y-4">
             {data.emoji && <div className="text-4xl text-center mb-2">{data.emoji}</div>}
@@ -603,8 +651,8 @@ function GameSimulator({ game, onClose }: { game: any; onClose: () => void }) {
       }
 
       case "WORD_SCRAMBLE": {
-        const word = (data.word || "HOTEL").toUpperCase()
-        const hint = data.hint || "Unscramble the word"
+        const word = (currentQ.word || "HOTEL").toUpperCase()
+        const hint = currentQ.hint || "Unscramble the word"
         const shuffled = word.split("").sort(() => Math.random() - 0.5).join("")
         const isCorrect = scrambleInput.toUpperCase() === word
         return (
@@ -641,7 +689,7 @@ function GameSimulator({ game, onClose }: { game: any; onClose: () => void }) {
       }
 
       case "MATCHING": {
-        const pairs: { left: string; right: string }[] = data.pairs || []
+        const pairs: { left: string; right: string }[] = currentQ.pairs || []
         if (pairs.length === 0) return <p className="text-slate-400 text-center">No pairs data</p>
         const allMatched = matchedPairs.length === pairs.length
         if (allMatched && simPhase === 'play') { setSimPhase('correct'); setXpEarned(game.xp_reward || 20); }
@@ -692,9 +740,9 @@ function GameSimulator({ game, onClose }: { game: any; onClose: () => void }) {
       }
 
       case "FILL_IN_THE_BLANK": {
-        const sentence = data.sentence || "Good afternoon, ____ to the Grand Hotel."
-        const opts = data.options || []
-        const correct = data.correct || opts[0] || ""
+        const sentence = currentQ.sentence || "Good afternoon, ____ to the Grand Hotel."
+        const opts = currentQ.options || []
+        const correct = currentQ.correct || opts[0] || ""
         const parts = sentence.split("____")
         return (
           <div className="space-y-5">
@@ -738,7 +786,7 @@ function GameSimulator({ game, onClose }: { game: any; onClose: () => void }) {
       }
 
       case "VOICE_STAR": {
-        const script = data.script || "Good morning, welcome to the Grand Hotel!"
+        const script = currentQ.script || "Good morning, welcome to the Grand Hotel!"
         return (
           <div className="space-y-5 text-center">
             <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
@@ -779,23 +827,49 @@ function GameSimulator({ game, onClose }: { game: any; onClose: () => void }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div onClick={onClose} className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" />
       <div className="relative w-full max-w-lg bg-gradient-to-b from-slate-900 to-slate-800 rounded-[2rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 text-white">
-        {/* Header */}
+        {/* Header HUD */}
         <div className="p-6 pb-3 flex justify-between items-start">
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-violet-400 mb-1">
-              📱 Game Simulation
+          <div className="flex-1">
+            <p className="text-[10px] font-black uppercase tracking-widest text-violet-400 mb-1 flex items-center gap-2">
+              📱 Live Preview {timer > 0 && <span className="text-slate-400 font-mono font-medium">{formatTime(timer)}</span>}
             </p>
-            <h3 className="text-lg font-bold">{game.title || "Untitled Game"}</h3>
+            <h3 className="text-lg font-bold truncate max-w-[280px]">{game.title || "Untitled Game"}</h3>
             <div className="flex items-center gap-3 mt-1">
               <span className="text-[10px] font-bold text-teal-400 uppercase tracking-wider">{gameTypeLabel[game.game_type] || game.game_type}</span>
               <span className="h-1 w-1 rounded-full bg-slate-600" />
-              <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1"><Zap className="h-2.5 w-2.5" />{game.xp_reward || 0} XP</span>
+              <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1">
+                <Zap className="h-2.5 w-2.5" />
+                Score: {score}
+              </span>
+              {streak > 1 && (
+                <>
+                  <span className="h-1 w-1 rounded-full bg-slate-600" />
+                  <span className="text-[10px] font-bold text-rose-400 uppercase tracking-wider flex items-center gap-1">
+                    🔥 {streak} Streak
+                  </span>
+                </>
+              )}
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors flex-shrink-0">
             <X className="h-5 w-5 text-slate-400" />
           </button>
         </div>
+
+        {/* Multi-question progress bar */}
+        {questions.length > 1 && simPhase === 'play' && (
+          <div className="px-6 mb-4">
+            <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-blue-500 rounded-full transition-all duration-500"
+                style={{ width: `${((qIndex) / questions.length) * 100}%` }}
+              />
+            </div>
+            <p className="text-[10px] text-slate-400 text-right mt-1 font-medium">
+              Question {qIndex + 1} of {questions.length}
+            </p>
+          </div>
+        )}
 
         {/* Instructions */}
         {game.instructions && simPhase === 'play' && (
