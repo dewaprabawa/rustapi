@@ -538,8 +538,6 @@ function GameSimulator({ game, onClose }: { game: any; onClose: () => void }) {
   const [score, setScore] = useState(0)
   const [streak, setStreak] = useState(0)
   const [qIndex, setQIndex] = useState(0)
-  const [totalAnswered, setTotalAnswered] = useState(0)
-  const [totalCorrect, setTotalCorrect] = useState(0)
   const timerRef = useRef<any>(null)
 
   // Questions array support
@@ -566,21 +564,17 @@ function GameSimulator({ game, onClose }: { game: any; onClose: () => void }) {
     setScore(0)
     setStreak(0)
     setQIndex(0)
-    setTotalAnswered(0)
-    setTotalCorrect(0)
   }
 
   const checkAnswer = (answer: string, correct: string) => {
     setSelected(answer)
     setAnswered(true)
-    setTotalAnswered(t => t + 1)
     const isRight = answer.toLowerCase() === correct.toLowerCase()
     if (isRight) {
       const streakBonus = streak >= 2 ? 5 * streak : 0
       const baseXp = Math.round((game.xp_reward || 20) / Math.max(questions.length, 1))
       setScore(s => s + baseXp + streakBonus)
       setStreak(s => s + 1)
-      setTotalCorrect(t => t + 1)
       // Auto-advance for multi-question
       if (questions.length > 1 && qIndex < questions.length - 1) {
         setTimeout(() => {
@@ -659,7 +653,7 @@ function GameSimulator({ game, onClose }: { game: any; onClose: () => void }) {
           <div className="space-y-5 text-center">
             <p className="text-slate-400 text-sm italic">"{hint}"</p>
             <div className="flex justify-center gap-2 flex-wrap">
-              {shuffled.split("").map((ch, i) => (
+              {shuffled.split("").map((ch: string, i: number) => (
                 <div
                   key={i}
                   onClick={() => !answered && setScrambleInput(prev => prev + ch)}

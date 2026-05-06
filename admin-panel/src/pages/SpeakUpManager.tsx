@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from "react"
+import { useState, useRef } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { Plus, Mic, TextCursorInput, Settings2, X, Target, Info, Trash2, Loader2, Waves, ChevronRight, Sparkles, Play, Square, BarChart3, Volume2, CircleStop, RotateCcw } from "lucide-react"
+import { Plus, Mic, TextCursorInput, Settings2, X, Target, Info, Trash2, Loader2, Waves, ChevronRight, Sparkles, Play, BarChart3, Volume2, CircleStop, RotateCcw } from "lucide-react"
 import { getSpeakUpContent, createSpeakUpContent, updateSpeakUpContent, deleteSpeakUpContent, aiGenerateSpeakUp } from "../services/api"
 import { cn } from "../lib/utils"
 
