@@ -2,6 +2,7 @@ import { Outlet, Link, useLocation, useNavigate } from "react-router-dom"
 import { LayoutDashboard, BookOpen, Users, BrainCircuit, Settings, LogOut, Trophy, CreditCard, Bell, Sparkles, Mic, Activity } from "lucide-react"
 import { cn, normalizeDate } from "../lib/utils"
 import { useAuth } from "../contexts/AuthContext"
+import NotificationPopover from "../components/NotificationPopover"
 
 export default function AdminLayout() {
   const location = useLocation()
@@ -92,9 +93,7 @@ export default function AdminLayout() {
             {location.pathname === '/' ? 'Dashboard' : location.pathname.split('/')[1].replace('-', ' ')}
           </h1>
           <div className="flex items-center space-x-3">
-            <button className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors relative">
-              <Bell className="h-5 w-5" />
-            </button>
+            <NotificationPopover />
             <div className="h-9 w-9 rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 border border-blue-200/50 flex items-center justify-center text-blue-700 font-bold text-sm shadow-sm overflow-hidden">
               {admin?.profile_image_url ? (
                 <img 

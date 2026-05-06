@@ -251,6 +251,12 @@ export const updateMonetizationConfig = (data: any) =>
 export const sendNotification = (data: any) =>
   api.post("/notifications", data).then(r => r.data)
 
+export const getAdminNotifications = (page = 1, limit = 20) =>
+  api.get("/notifications", { params: { page, limit } }).then(r => r.data)
+
+export const markAdminNotificationRead = (id: string) =>
+  api.put(`/notifications/${id}/read`).then(r => r.data)
+
 // ============ Assets ============
 export const uploadAsset = (file: File) => {
   const formData = new FormData()

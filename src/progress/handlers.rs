@@ -116,6 +116,24 @@ pub async fn add_xp(
             doc! { "user_id": user_id },
             doc! { "$set": { "level": new_level } }
         ).await?;
+
+        // Notify user and admins about level up
+        let db_clone = state.db.clone();
+        let user_name = user.name.clone().unwrap_or_else(|| "User".to_string());
+        tokio::spawn(async move {
+            crate::notification::create_and_push_notification(
+                &db_clone,
+                Some(user_id),
+                "Level Up! ⬆️",
+                &format!("Congratulations! You've reached Level {}.", new_level),
+            ).await;
+
+            crate::notification::notify_admins(
+                &db_clone,
+                "User Leveled Up 📈",
+                &format!("User {} reached Level {}.", user_name, new_level),
+            ).await;
+        });
     }
 
     Ok(Json(XPResponse {
@@ -189,12 +207,22 @@ pub async fn submit_quiz(
         // Send Notification (saves to DB + sends FCM push)
         let db_clone = state.db.clone();
         let message = format!("Congratulations on passing the quiz! You earned {} XP.", xp_earned);
+        let user_name = user.name.clone().unwrap_or_else(|| "User".to_string());
+        let quiz_title = quiz.title.clone();
         tokio::spawn(async move {
+            // Notify User
             crate::notification::create_and_push_notification(
                 &db_clone,
                 Some(user_id),
                 "Quiz Passed! 🏆",
                 &message,
+            ).await;
+
+            // Notify Admin
+            crate::notification::notify_admins(
+                &db_clone,
+                "User Passed Quiz 🎓",
+                &format!("User {} passed the quiz: {}.", user_name, quiz_title),
             ).await;
         });
     }

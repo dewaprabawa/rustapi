@@ -69,12 +69,22 @@ pub async fn register(
 
     // Send welcome notification (saves to DB + sends FCM push)
     let db_clone = state.db.clone();
+    let name_str = user_with_id.name.clone().unwrap_or_else(|| "New User".to_string());
+    let email_str = user_with_id.email.clone();
     tokio::spawn(async move {
+        // Notify user
         crate::notification::create_and_push_notification(
             &db_clone,
             Some(inserted_id),
             "Welcome to Hospitality English Learning! 🎉",
             "We're excited to have you here. Start by exploring our courses and lessons to improve your hospitality English skills.",
+        ).await;
+
+        // Notify admins
+        crate::notification::notify_admins(
+            &db_clone,
+            "New User Registered 🆕",
+            &format!("User {} ({}) has just registered.", name_str, email_str),
         ).await;
     });
 

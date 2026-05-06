@@ -235,6 +235,7 @@ pub struct Notification {
     #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
     pub id: Option<ObjectId>,
     pub user_id: Option<ObjectId>, // If None, it's a broadcast to all users
+    pub admin_id: Option<ObjectId>, // If set, it's for an admin
     pub title: String,
     pub message: String,
     pub is_read: bool,

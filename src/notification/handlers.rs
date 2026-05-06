@@ -76,6 +76,7 @@ pub async fn create_and_push_notification(
     let notification = Notification {
         id: None,
         user_id,
+        admin_id: None,
         title: title.to_string(),
         message: message.to_string(),
         is_read: false,
@@ -128,6 +129,35 @@ pub async fn create_and_push_notification(
     }
 }
 
+/// Helper: notifies ALL active admins by creating a notification record for each.
+pub async fn notify_admins(
+    db: &mongodb::Client,
+    title: &str,
+    message: &str,
+) {
+    let notif_col: Collection<Notification> =
+        db.database("rustapi").collection("notifications");
+    let admin_col: Collection<Admin> =
+        db.database("rustapi").collection("admins");
+
+    if let Ok(mut cursor) = admin_col.find(doc! { "is_active": true }).await {
+        while let Ok(Some(admin)) = cursor.try_next().await {
+            let notification = Notification {
+                id: None,
+                user_id: None,
+                admin_id: admin.id,
+                title: title.to_string(),
+                message: message.to_string(),
+                is_read: false,
+                created_at: Utc::now(),
+            };
+            if let Err(e) = notif_col.insert_one(notification).await {
+                println!("Failed to notify admin {}: {:?}", admin.email, e);
+            }
+        }
+    }
+}
+
 // ==================== Admin Endpoints ====================
 
 /// POST /admin/notifications (Admin only)
@@ -147,6 +177,7 @@ pub async fn send_notification(
     let notification = Notification {
         id: None,
         user_id,
+        admin_id: None,
         title: payload.title.clone(),
         message: payload.message.clone(),
         is_read: false,
@@ -224,8 +255,10 @@ pub async fn list_notifications(
     let limit = params.limit.unwrap_or(20).min(100);
     let skip = (page - 1) * limit as u64;
 
-    // Filter by either user_id or broadcast (user_id is null)
+    // Filter by either user_id or broadcast (user_id is null), 
+    // but exclude notifications specifically for admins.
     let filter = doc! {
+        "admin_id": mongodb::bson::Bson::Null,
         "$or": [
             { "user_id": user.id.unwrap() },
             { "user_id": mongodb::bson::Bson::Null },
@@ -271,4 +304,58 @@ pub async fn mark_notification_read(
     }
 
     Ok(Json(serde_json::json!({"message": "Notification marked as read"})))
+}
+
+/// GET /admin/notifications/me (Admin)
+pub async fn list_admin_notifications(
+    State(state): State<Arc<AppState>>,
+    admin: Admin,
+    Query(params): Query<PaginationParams>,
+) -> Result<impl IntoResponse, AppError> {
+    let collection: Collection<Notification> = state.db.database("rustapi").collection("notifications");
+
+    let page = params.page.unwrap_or(1).max(1);
+    let limit = params.limit.unwrap_or(20).min(100);
+    let skip = (page - 1) * limit as u64;
+
+    let filter = doc! { "admin_id": admin.id.unwrap() };
+
+    let total = collection.count_documents(filter.clone()).await? as u64;
+
+    let options = FindOptions::builder()
+        .skip(skip)
+        .limit(limit)
+        .sort(doc! { "created_at": -1 })
+        .build();
+
+    let cursor = collection.find(filter).with_options(options).await?;
+    let notifications: Vec<Notification> = cursor.try_collect().await?;
+
+    Ok(Json(PaginatedResponse {
+        data: notifications,
+        page,
+        limit,
+        total,
+    }))
+}
+
+/// PUT /admin/notifications/:id/read (Admin)
+pub async fn mark_admin_notification_read(
+    State(state): State<Arc<AppState>>,
+    admin: Admin,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, AppError> {
+    let notification_id = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound("Not found".to_string()))?;
+    let collection: Collection<Notification> = state.db.database("rustapi").collection("notifications");
+
+    let result = collection.update_one(
+        doc! { "_id": notification_id, "admin_id": admin.id.unwrap() },
+        doc! { "$set": { "is_read": true } }
+    ).await?;
+
+    if result.matched_count == 0 {
+        return Err(AppError::NotFound("Not found".to_string()));
+    }
+
+    Ok(Json(serde_json::json!({"message": "Admin notification marked as read"})))
 }

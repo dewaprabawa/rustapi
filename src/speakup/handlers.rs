@@ -199,6 +199,18 @@ pub async fn speakup_analyze_attempt(
         created_at: Utc::now(),
     };
     session_col.insert_one(session).await?;
+    
+    // Notify admins about the new activity
+    let db_clone = state.db.clone();
+    let user_name = user.name.clone().unwrap_or_else(|| "User".to_string());
+    let score = analysis.overall_score;
+    tokio::spawn(async move {
+        crate::notification::notify_admins(
+            &db_clone,
+            "New SpeakUp Activity 🎙️",
+            &format!("User {} completed a SpeakUp session with a score of {}%.", user_name, score),
+        ).await;
+    });
 
     Ok(Json(analysis).into_response())
 }

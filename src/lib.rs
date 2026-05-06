@@ -39,6 +39,7 @@ use crate::interview::session_handlers::*;
 use crate::monetization::handlers::*;
 use crate::notification::handlers::{
     list_notifications, mark_notification_read, send_notification,
+    list_admin_notifications, mark_admin_notification_read,
 };
 use crate::progress::handlers::*;
 use crate::rating::handlers::*;
@@ -184,7 +185,8 @@ pub async fn create_app() -> Router {
             get(get_monetization_config).put(update_monetization_config),
         )
         // Notifications
-        .route("/notifications", post(send_notification))
+        .route("/notifications", get(list_admin_notifications).post(send_notification))
+        .route("/notifications/:id/read", put(mark_admin_notification_read))
         // Assets
         .route("/assets/upload", post(upload_asset))
         // LLM API Key Management
