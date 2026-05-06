@@ -105,7 +105,9 @@ export default function SpeakUpManager() {
       setSimPhase('results')
     },
     onError: (err: any) => {
-      alert(`Analysis Error: ${formatError(err)}`)
+      console.error("Analysis failure detail:", err)
+      const errorMsg = err.response?.data?.message || err.message || "Unknown analysis error"
+      alert(`Analysis Failed: ${errorMsg}\n\nPlease check if your audio was recorded correctly and if the Deepgram API key is configured.`)
       setSimPhase('idle')
     }
   })
@@ -187,29 +189,48 @@ export default function SpeakUpManager() {
 
   const startListening = () => {
     if (simTimerRef.current) clearInterval(simTimerRef.current)
-    setSimPhase('listening')
-    setSimHighlight(-1)
     
     const transcript = simItem?.transcript || ""
     const words = transcript.trim().split(/\s+/)
     if (words.length === 0 || !transcript) {
-       setTimeout(() => setSimPhase('idle'), 600)
+       setSimPhase('idle')
        return
     }
 
-    let i = 0
-    const wpm = Math.max(1, simItem.target_wpm || 120)
-    const msPerWord = 60000 / wpm
-    
-    simTimerRef.current = setInterval(() => {
-      if (i >= words.length) {
-        clearInterval(simTimerRef.current)
-        setTimeout(() => setSimPhase('idle'), 600)
-        return
-      }
-      setSimHighlight(i)
-      i++
-    }, msPerWord)
+    const startHighlighter = () => {
+      let i = 0
+      const wpm = Math.max(1, simItem.target_wpm || 120)
+      const msPerWord = 60000 / wpm
+      
+      simTimerRef.current = setInterval(() => {
+        if (i >= words.length) {
+          clearInterval(simTimerRef.current)
+          setTimeout(() => setSimPhase('idle'), 600)
+          return
+        }
+        setSimHighlight(i)
+        i++
+      }, msPerWord)
+    }
+
+    setSimPhase('listening')
+    setSimHighlight(-1)
+
+    // Play actual audio if available
+    if (simItem?.audio_url) {
+      const audio = new Audio(simItem.audio_url)
+      audio.onplay = startHighlighter
+      audio.play().catch(e => {
+        console.error("Playback error:", e)
+        startHighlighter()
+      })
+    } else {
+      // Fallback to Browser TTS
+      const utterance = new SpeechSynthesisUtterance(transcript)
+      utterance.onstart = startHighlighter
+      utterance.rate = 0.9
+      window.speechSynthesis.speak(utterance)
+    }
   }
 
   const startRecording = async () => {

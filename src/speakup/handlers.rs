@@ -264,7 +264,15 @@ pub async fn speakup_analyze_attempt(
     let cid_str = content_id.ok_or(AppError::BadRequest("Missing content_id".to_string()))?;
     let cid = mongodb::bson::oid::ObjectId::parse_str(&cid_str).map_err(|_| AppError::BadRequest("Invalid content_id".to_string()))?;
 
-    let analysis = perform_speakup_analysis_logic(state.clone(), cid, audio_bytes, mime_type).await?;
+    println!("🎙️ Starting SpeakUp analysis for content: {}", cid_str);
+    println!("📦 Audio size: {} bytes, MIME: {}", audio_bytes.len(), mime_type);
+
+    let analysis = perform_speakup_analysis_logic(state.clone(), cid, audio_bytes, mime_type).await.map_err(|e| {
+        println!("❌ Analysis logic failed: {:?}", e);
+        e
+    })?;
+
+    println!("✅ Analysis complete. Score: {}", analysis.fluency_score);
 
     // Save Session
     let db = state.db.database("rustapi");
@@ -322,7 +330,15 @@ pub async fn speakup_admin_test_analyze(
     let cid_str = content_id.ok_or(AppError::BadRequest("Missing content_id".to_string()))?;
     let cid = mongodb::bson::oid::ObjectId::parse_str(&cid_str).map_err(|_| AppError::BadRequest("Invalid content_id".to_string()))?;
 
-    let analysis = perform_speakup_analysis_logic(state, cid, audio_bytes, mime_type).await?;
+    println!("🧪 [Admin Test] Starting SpeakUp analysis for content: {}", cid_str);
+    println!("📦 Audio size: {} bytes, MIME: {}", audio_bytes.len(), mime_type);
+
+    let analysis = perform_speakup_analysis_logic(state, cid, audio_bytes, mime_type).await.map_err(|e| {
+        println!("❌ Admin Test analysis failed: {:?}", e);
+        e
+    })?;
+
+    println!("✅ Admin Test analysis complete. Score: {}", analysis.fluency_score);
 
     // For admin tests, we don't necessarily need to save to speakup_sessions
     // but returning the analysis is enough for the UI to show "real" behavior.
