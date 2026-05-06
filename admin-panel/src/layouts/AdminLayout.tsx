@@ -13,8 +13,6 @@ import {
   Sparkles, 
   Mic, 
   Activity,
-  Menu,
-  ChevronLeft,
   PanelLeftClose,
   PanelLeftOpen
 } from "lucide-react"
