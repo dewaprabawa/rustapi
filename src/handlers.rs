@@ -11,6 +11,7 @@ use std::sync::Arc;
 use serde_json::json;
 use jsonwebtoken::{decode_header, decode, DecodingKey, Validation, Algorithm};
 use serde::Deserialize;
+use crate::notification;
 
 pub struct AppState {
     pub db: Client,
@@ -73,7 +74,7 @@ pub async fn register(
     let email_str = user_with_id.email.clone();
     tokio::spawn(async move {
         // Notify user
-        crate::notification::create_and_push_notification(
+        notification::create_and_push_notification(
             &db_clone,
             Some(inserted_id),
             "Welcome to Hospitality English Learning! 🎉",
@@ -81,7 +82,7 @@ pub async fn register(
         ).await;
 
         // Notify admins
-        crate::notification::notify_admins(
+        notification::notify_admins(
             &db_clone,
             "New User Registered 🆕",
             &format!("User {} ({}) has just registered.", name_str, email_str),
