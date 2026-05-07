@@ -102,6 +102,7 @@ pub async fn create_app() -> Router {
         .route("/content/:id", get(speakup_handlers::speakup_get_content).put(speakup_handlers::speakup_update_content).delete(speakup_handlers::speakup_delete_content))
         .route("/analyze", post(speakup_handlers::speakup_analyze_attempt))
         .route("/test-analyze", post(speakup_handlers::speakup_admin_test_analyze))
+        .route("/test-listen", post(speakup_handlers::speakup_admin_test_listen))
         .route("/ai-generate", post(speakup_handlers::speakup_ai_generate_content));
 
     // ============ Admin Routes (protected by Admin extractor) ============

@@ -19,6 +19,12 @@ use chrono::Utc;
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
+pub struct SpeakUpTestListenRequest {
+    pub content_id: String,
+    pub step_index: Option<usize>,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct AiGenerateSpeakUpRequest {
     pub topic: String,
     pub content_type: String,
@@ -206,6 +212,7 @@ pub async fn speakup_get_content(
 async fn perform_speakup_analysis_logic(
     state: Arc<AppState>,
     cid: mongodb::bson::oid::ObjectId,
+    step_index: Option<usize>,
     audio_bytes: Vec<u8>,
     mime_type: String,
 ) -> Result<crate::speakup::models::SpeakUpAnalysis, AppError> {
@@ -214,6 +221,25 @@ async fn perform_speakup_analysis_logic(
     let content_col: Collection<SpeakUpContent> = db.collection("speakup_content");
     let content = content_col.find_one(doc! { "_id": cid }).await?
         .ok_or(AppError::NotFound("Content not found".to_string()))?;
+
+    let target_text = match content.content_type {
+        crate::speakup::models::SpeakUpType::Expansion => {
+            if let Some(steps) = &content.steps {
+                if let Some(idx) = step_index {
+                    steps.get(idx).cloned().unwrap_or_default()
+                } else {
+                    steps.join(" ")
+                }
+            } else {
+                content.transcript.clone()
+            }
+        }
+        _ => content.transcript.clone(),
+    };
+
+    if target_text.trim().is_empty() {
+        return Err(AppError::BadRequest("Target text is empty for analysis".to_string()));
+    }
 
     // 2. Get Deepgram Key
     let config_col: Collection<crate::voice::models::VoiceConfig> = db.collection("voice_configs");
@@ -231,7 +257,7 @@ async fn perform_speakup_analysis_logic(
     // 4. Analyze via FluencyEngine
     let analysis = FluencyEngine::analyze(
         transcript_res,
-        &content.transcript,
+        &target_text,
         content.target_wpm,
     ).await?;
 
@@ -246,6 +272,7 @@ pub async fn speakup_analyze_attempt(
 ) -> Result<axum::response::Response, AppError> {
     let mut audio_data = None;
     let mut content_id = None;
+    let mut step_index = None;
     let mut mime_type = "audio/wav".to_string();
 
     while let Some(field) = multipart.next_field().await.map_err(|_| AppError::InternalServerError)? {
@@ -256,6 +283,13 @@ pub async fn speakup_analyze_attempt(
             }
             Some("content_id") => {
                 content_id = Some(field.text().await.map_err(|_| AppError::InternalServerError)?);
+            }
+            Some("step_index") => {
+                if let Ok(idx_str) = field.text().await {
+                    if let Ok(idx) = idx_str.parse::<usize>() {
+                        step_index = Some(idx);
+                    }
+                }
             }
             _ => {}
         }
@@ -268,7 +302,7 @@ pub async fn speakup_analyze_attempt(
     println!("🎙️ Starting SpeakUp analysis for content: {}", cid_str);
     println!("📦 Audio size: {} bytes, MIME: {}", audio_bytes.len(), mime_type);
 
-    let analysis = perform_speakup_analysis_logic(state.clone(), cid, audio_bytes, mime_type).await.map_err(|e| {
+    let analysis = perform_speakup_analysis_logic(state.clone(), cid, step_index, audio_bytes, mime_type).await.map_err(|e| {
         println!("❌ Analysis logic failed: {:?}", e);
         e
     })?;
@@ -312,6 +346,7 @@ pub async fn speakup_admin_test_analyze(
 ) -> Result<axum::response::Response, AppError> {
     let mut audio_data = None;
     let mut content_id = None;
+    let mut step_index = None;
     let mut mime_type = "audio/wav".to_string();
 
     while let Some(field) = multipart.next_field().await.map_err(|_| AppError::InternalServerError)? {
@@ -322,6 +357,13 @@ pub async fn speakup_admin_test_analyze(
             }
             Some("content_id") => {
                 content_id = Some(field.text().await.map_err(|_| AppError::InternalServerError)?);
+            }
+            Some("step_index") => {
+                if let Ok(idx_str) = field.text().await {
+                    if let Ok(idx) = idx_str.parse::<usize>() {
+                        step_index = Some(idx);
+                    }
+                }
             }
             _ => {}
         }
@@ -334,7 +376,7 @@ pub async fn speakup_admin_test_analyze(
     println!("🧪 [Admin Test] Starting SpeakUp analysis for content: {}", cid_str);
     println!("📦 Audio size: {} bytes, MIME: {}", audio_bytes.len(), mime_type);
 
-    let analysis = perform_speakup_analysis_logic(state, cid, audio_bytes, mime_type).await.map_err(|e| {
+    let analysis = perform_speakup_analysis_logic(state, cid, step_index, audio_bytes, mime_type).await.map_err(|e| {
         println!("❌ Admin Test analysis failed: {:?}", e);
         e
     })?;
@@ -345,4 +387,54 @@ pub async fn speakup_admin_test_analyze(
     // but returning the analysis is enough for the UI to show "real" behavior.
 
     Ok(Json(analysis).into_response())
+}
+
+/// POST /admin/speakup/test-listen
+pub async fn speakup_admin_test_listen(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+    Json(payload): Json<SpeakUpTestListenRequest>,
+) -> Result<axum::response::Response, AppError> {
+    let cid = mongodb::bson::oid::ObjectId::parse_str(&payload.content_id)
+        .map_err(|_| AppError::BadRequest("Invalid content_id".to_string()))?;
+
+    let db = state.db.database("rustapi");
+    let content_col: Collection<SpeakUpContent> = db.collection("speakup_content");
+    let content = content_col.find_one(doc! { "_id": cid }).await?
+        .ok_or(AppError::NotFound("Content not found".to_string()))?;
+
+    let target_text = match content.content_type {
+        crate::speakup::models::SpeakUpType::Expansion => {
+            if let Some(steps) = &content.steps {
+                if let Some(idx) = payload.step_index {
+                    steps.get(idx).cloned().unwrap_or_default()
+                } else {
+                    steps.join(" ")
+                }
+            } else {
+                content.transcript.clone()
+            }
+        }
+        _ => content.transcript.clone(),
+    };
+
+    if target_text.trim().is_empty() {
+        return Err(AppError::BadRequest("Target text is empty for listening".to_string()));
+    }
+
+    let config_col: Collection<crate::voice::models::VoiceConfig> = db.collection("voice_configs");
+    let config = config_col.find_one(doc! {}).await?.ok_or(AppError::InternalServerError)?;
+
+    let tts = crate::voice::elevenlabs::ElevenLabsTTS::new(config.elevenlabs_api_key);
+    use crate::voice::traits::TextToSpeech;
+    let audio_bytes = tts.synthesize(&target_text, &config.elevenlabs_voice_id).await.map_err(|e| {
+        eprintln!("TTS failed: {:?}", e);
+        AppError::InternalServerError
+    })?;
+
+    Ok((
+        StatusCode::OK,
+        [(axum::http::header::CONTENT_TYPE, "audio/mpeg")],
+        audio_bytes,
+    ).into_response())
 }
