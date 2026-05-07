@@ -570,9 +570,7 @@ function GameSimulator({ game, onClose }: { game: any; onClose: () => void }) {
   const [crosswordGrid, setCrosswordGrid] = useState<Record<string, string>>({})
   const [guessedLetters, setGuessedLetters] = useState<string[]>([])
   const [incorrectGuesses, setIncorrectGuesses] = useState(0)
-  const [catItems, setCatItems] = useState<Record<string, string[]>>({})
   const [chainInput, setChainInput] = useState("")
-  const [snapMatch, setSnapMatch] = useState<boolean | null>(null)
   const [rpgHealth, setRpgHealth] = useState({ player: 100, monster: 100 })
   const timerRef = useRef<any>(null)
 
@@ -606,9 +604,7 @@ function GameSimulator({ game, onClose }: { game: any; onClose: () => void }) {
     setCrosswordGrid({})
     setGuessedLetters([])
     setIncorrectGuesses(0)
-    setCatItems({})
     setChainInput("")
-    setSnapMatch(null)
     setRpgHealth({ player: 100, monster: 100 })
   }
 
@@ -902,10 +898,10 @@ function GameSimulator({ game, onClose }: { game: any; onClose: () => void }) {
               {builtPhrase.length === 0 && <span className="text-slate-600 text-xs italic">Tap tiles below...</span>}
             </div>
             <div className="flex flex-wrap gap-2 justify-center">
-              {tiles.map((tile, i) => {
+              {tiles.map((tile: string, i: number) => {
                 // Handle multiple same tiles correctly
-                const countInBuilt = builtPhrase.filter(t => t === tile).length
-                const countInTiles = tiles.filter(t => t === tile).length
+                const countInBuilt = builtPhrase.filter((t: string) => t === tile).length
+                const countInTiles = tiles.filter((t: string) => t === tile).length
                 const isUsed = countInBuilt >= countInTiles
                 return (
                   <button
@@ -1124,7 +1120,7 @@ function GameSimulator({ game, onClose }: { game: any; onClose: () => void }) {
         const word = (data.word || "HOSPITALITY").toUpperCase()
         const hint = data.hint || "Industry name"
         const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("")
-        const displayWord = word.split("").map(l => guessedLetters.includes(l) ? l : "_")
+        const displayWord = word.split("").map((l: string) => guessedLetters.includes(l) ? l : "_")
         const isWin = !displayWord.includes("_")
         const isLoss = incorrectGuesses >= 6
 
@@ -1133,7 +1129,7 @@ function GameSimulator({ game, onClose }: { game: any; onClose: () => void }) {
             <p className="text-slate-400 text-sm italic">Hint: {hint}</p>
             <div className="text-4xl font-black tracking-[0.5em] text-white my-8">{displayWord.join("")}</div>
             <div className="flex flex-wrap justify-center gap-1.5 max-w-sm mx-auto">
-              {letters.map(l => (
+              {letters.map((l: string) => (
                 <button
                   key={l}
                   disabled={guessedLetters.includes(l) || isWin || isLoss}
@@ -1528,7 +1524,6 @@ function GameSimulator({ game, onClose }: { game: any; onClose: () => void }) {
       }
 
       case "SHADOW_READING": {
-        const text = data.text || "Welcome to the Grand Hotel. How can I help you today?"
         return (
           <div className="space-y-8">
             <div className="bg-white/5 p-8 rounded-3xl border border-white/10 text-center relative overflow-hidden">
