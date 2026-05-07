@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Sparkles, Loader2, Plus, Search, BookOpen, Trash2, ChevronRight, Globe, Volume2, Save, X, MessageSquare } from 'lucide-react'
 import { cn } from '../lib/utils'
-import { generateVocabSet, saveVocabSet, getVocabSets, getVocabSetWords, getConversationRequests, generateConversationScenario, testTts, deleteVocabSet, deleteVocabWord } from '../services/api'
+import { generateVocabSet, saveVocabSet, getVocabSets, getVocabSetWords, getConversationRequests, generateConversationScenario, testTts, deleteVocabSet, deleteVocabWord, getMasterData } from '../services/api'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 interface GeneratedWord {
@@ -59,6 +59,16 @@ export default function VocabForge() {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
   const [isBuilderOpen, setIsBuilderOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<'library' | 'requests'>('library')
+  const [hospitalityTopics, setHospitalityTopics] = useState<string[]>([])
+
+  useEffect(() => {
+    getMasterData("hospitality_topics")
+      .then(data => {
+        if (data?.options) setHospitalityTopics(data.options)
+      })
+      .catch(console.error)
+  }, [])
+
   const [libraryTab, setLibraryTab] = useState<'vocabulary' | 'phrasal_verbs'>('vocabulary')
   const [selectedSet, setSelectedSet] = useState<VocabSet | null>(null)
   const [selectedWords, setSelectedWords] = useState<(GeneratedWord & { _id?: any })[]>([])
@@ -609,18 +619,9 @@ export default function VocabForge() {
                   </div>
                 </div>
                   <datalist id="hospitality-topics">
-                    <option value="Front Desk Check-in" />
-                    <option value="Housekeeping Tools & Supplies" />
-                    <option value="Restaurant Orders & Menu" />
-                    <option value="Handling Guest Complaints" />
-                    <option value="Hotel Directions & Facilities" />
-                    <option value="Concierge Recommendations" />
-                    <option value="Room Service Orders" />
-                    <option value="Spa & Wellness Services" />
-                    <option value="Event Catering & Banquets" />
-                    <option value="Airport Transfer & Valet" />
-                    <option value="Bartending & Drinks" />
-                    <option value="Emergency & Security" />
+                    {hospitalityTopics.map(topic => (
+                      <option key={topic} value={topic} />
+                    ))}
                   </datalist>
                 
                 <div className="grid grid-cols-3 gap-4">

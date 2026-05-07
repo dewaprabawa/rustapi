@@ -1,7 +1,7 @@
 use crate::auth::hash_password;
 use crate::content::models::{
     ContentCategory, ContentLevel, Course, CourseStatus, Dialogue, DialogueLine, LlmApiKey, Lesson, Module,
-    Quiz, QuizQuestion, SkillType, TargetAge, Visibility, Vocabulary,
+    Quiz, QuizQuestion, SkillType, TargetAge, Visibility, Vocabulary, MasterData,
 };
 use crate::game::models::{GameContent, GameType};
 use crate::models::{Admin, Role};
@@ -10,6 +10,43 @@ use crate::vocab::models::{VocabSet, VocabWord, VocabDialogueLine};
 use crate::speakup::models::{SpeakUpContent, SpeakUpType};
 use chrono::Utc;
 use mongodb::{Client, Collection, bson::doc};
+
+pub async fn seed_master_data(client: &Client) {
+    let db = client.database("rustapi");
+    let col: Collection<MasterData> = db.collection("master_data");
+
+    let count = col.count_documents(doc! {}).await.unwrap_or(0);
+
+    if count == 0 {
+        println!("📊 Seeding Master Data...");
+
+        let data = vec![
+            MasterData {
+                id: None,
+                category: "hospitality_topics".to_string(),
+                options: vec![
+                    "Front Desk Check-in".to_string(),
+                    "Housekeeping Tools & Supplies".to_string(),
+                    "Restaurant Orders & Menu".to_string(),
+                    "Handling Guest Complaints".to_string(),
+                    "Hotel Directions & Facilities".to_string(),
+                    "Concierge Recommendations".to_string(),
+                    "Room Service Orders".to_string(),
+                    "Spa & Wellness Services".to_string(),
+                    "Event Catering & Banquets".to_string(),
+                    "Airport Transfer & Valet".to_string(),
+                    "Bartending & Drinks".to_string(),
+                    "Emergency & Security".to_string(),
+                ],
+                updated_at: Utc::now(),
+            },
+        ];
+
+        col.insert_many(data).await.expect("Failed to seed master data");
+        println!("✅ Master Data seeded successfully!");
+    }
+}
+
 
 /// Seeds the default admin account if none exists.
 /// Credentials: admin@app.com / admin123

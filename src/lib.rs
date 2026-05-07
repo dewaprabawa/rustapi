@@ -20,7 +20,7 @@ pub mod voice;
 
 use crate::admin::handlers::{
     admin_login, admin_me, delete_user, get_user, list_users, upload_asset, get_dashboard_stats, update_user,
-    update_admin_me,
+    update_admin_me, list_master_data, get_master_data, update_master_data,
 };
 use crate::ai::handlers::{
     fulfill_conversation_request, generate_course, generate_vocab, get_credit_usage,
@@ -78,6 +78,9 @@ pub async fn create_app() -> Router {
 
     // Seed default admin on startup
     seed_admin(&client).await;
+
+    // Seed default master data
+    crate::seed::seed_master_data(&client).await;
 
     // Seed default learning content
     crate::seed::seed_content(&client).await;
@@ -228,6 +231,9 @@ pub async fn create_app() -> Router {
             "/conversation-requests/:id/generate",
             post(fulfill_conversation_request),
         )
+        // Master Data
+        .route("/master-data", get(list_master_data))
+        .route("/master-data/:category", get(get_master_data).put(update_master_data))
         // Voice Config
         .route(
             "/voice/config",

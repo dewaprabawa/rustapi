@@ -1,30 +1,23 @@
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { Plus, Mic, TextCursorInput, Settings2, X, Target, Info, Trash2, Loader2, Waves, ChevronRight, Sparkles, Play, BarChart3, Volume2, CircleStop, RotateCcw, Check } from "lucide-react"
-import { getSpeakUpContent, createSpeakUpContent, updateSpeakUpContent, deleteSpeakUpContent, aiGenerateSpeakUp, analyzeSpeakUpTest } from "../services/api"
+import { getSpeakUpContent, createSpeakUpContent, updateSpeakUpContent, deleteSpeakUpContent, aiGenerateSpeakUp, analyzeSpeakUpTest, testSpeakUpListen, getMasterData } from "../services/api"
 import { cn, getId, formatError } from "../lib/utils"
 
-const SUGGESTED_TOPICS = [
-  "Check-in Greeting",
-  "Room Service Request",
-  "Complaint Handling",
-  "Directions to Facilities",
-  "Restaurant Reservation",
-  "Checkout Process",
-  "Local Recommendations",
-  "Housekeeping Request",
-  "Bell Desk Assistance",
-  "Spa Appointment",
-  "Airport Shuttle Inquiry",
-  "Breakfast Buffet Info",
-  "Concierge Booking",
-  "Emergency Procedures",
-  "Wi-Fi Connectivity Help"
-]
 
 export default function SpeakUpManager() {
   const queryClient = useQueryClient()
   const [activeTab, setActiveTab] = useState<"shadowing" | "expansion">("shadowing")
+  const [hospitalityTopics, setHospitalityTopics] = useState<string[]>([])
+
+  useEffect(() => {
+    getMasterData("hospitality_topics")
+      .then(data => {
+        if (data?.options) setHospitalityTopics(data.options)
+      })
+      .catch(console.error)
+  }, [])
+
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<any>(null)
   const [simItem, setSimItem] = useState<any>(null)
@@ -187,7 +180,7 @@ export default function SpeakUpManager() {
     setSimResults(null)
   }
 
-  const startListening = () => {
+  const startListening = async () => {
     if (simTimerRef.current) clearInterval(simTimerRef.current)
     
     const transcript = simItem?.transcript || ""
@@ -197,6 +190,9 @@ export default function SpeakUpManager() {
        return
     }
 
+    setSimPhase('listening')
+    setSimHighlight(-1)
+
     const startHighlighter = () => {
       let i = 0
       const wpm = Math.max(1, simItem.target_wpm || 120)
@@ -205,7 +201,8 @@ export default function SpeakUpManager() {
       simTimerRef.current = setInterval(() => {
         if (i >= words.length) {
           clearInterval(simTimerRef.current)
-          setTimeout(() => setSimPhase('idle'), 600)
+          // Don't auto-reset to idle immediately, let user see the final state for a bit
+          setTimeout(() => setSimPhase('idle'), 1000)
           return
         }
         setSimHighlight(i)
@@ -213,19 +210,22 @@ export default function SpeakUpManager() {
       }, msPerWord)
     }
 
-    setSimPhase('listening')
-    setSimHighlight(-1)
-
-    // Play actual audio if available
-    if (simItem?.audio_url) {
-      const audio = new Audio(simItem.audio_url)
+    try {
+      // Priority 1: Use backend TTS for real voice
+      const audioBlob = await testSpeakUpListen({ 
+        content_id: getId(simItem),
+        step_index: simItem.content_type === 'expansion' ? simExpStep : undefined
+      })
+      const audioUrl = URL.createObjectURL(audioBlob)
+      const audio = new Audio(audioUrl)
       audio.onplay = startHighlighter
       audio.play().catch(e => {
         console.error("Playback error:", e)
         startHighlighter()
       })
-    } else {
-      // Fallback to Browser TTS
+    } catch (err) {
+      console.warn("Backend TTS failed, falling back to browser TTS:", err)
+      // Fallback: Browser TTS
       const utterance = new SpeechSynthesisUtterance(transcript)
       utterance.onstart = startHighlighter
       utterance.rate = 0.9
@@ -476,7 +476,7 @@ export default function SpeakUpManager() {
                         placeholder="Select or type..."
                       />
                       <datalist id="hospitality-topics">
-                        {SUGGESTED_TOPICS.map(topic => (
+                        {hospitalityTopics.map(topic => (
                           <option key={topic} value={topic} />
                         ))}
                       </datalist>
@@ -772,7 +772,7 @@ export default function SpeakUpManager() {
               )}
 
               {simPhase === 'results' && simResults && (
-                <div className="space-y-4 animate-in fade-in duration-500">
+                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                   {/* Score rings */}
                   <div className="grid grid-cols-3 gap-3">
                     {[
@@ -780,33 +780,86 @@ export default function SpeakUpManager() {
                       { label: 'Pronunciation', value: simResults.pronunciation_score, color: 'text-blue-400', bg: 'bg-blue-500/10 border-blue-500/20' },
                       { label: 'Pace', value: simResults.pace_wpm, color: 'text-violet-400', bg: 'bg-violet-500/10 border-violet-500/20', suffix: ' wpm' },
                     ].map((s, i) => (
-                      <div key={i} className={cn("rounded-2xl border p-4 text-center", s.bg)}>
-                        <p className={cn("text-2xl font-black", s.color)}>{s.value}{s.suffix || '%'}</p>
+                      <div key={i} className={cn("rounded-2xl border p-4 text-center transition-all hover:scale-105", s.bg)}>
+                        <p className={cn("text-2xl font-black", s.color)}>{Math.round(s.value)}{s.suffix || '%'}</p>
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-1">{s.label}</p>
                       </div>
                     ))}
                   </div>
 
-                  {/* Hesitations */}
-                  <div className="flex items-center gap-3 bg-white/5 rounded-xl px-4 py-3 border border-white/10">
-                    <BarChart3 className="h-4 w-4 text-slate-400 flex-shrink-0" />
-                    <span className="text-sm text-slate-300">
-                      {Array.isArray(simResults.hesitations) ? simResults.hesitations.length : simResults.hesitations} hesitation{simResults.hesitations?.length !== 1 ? 's' : ''} detected
-                    </span>
+                  {/* Real Feedback: Transcription Comparison */}
+                  <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3 flex items-center gap-2">
+                      <Mic className="h-3 w-3" /> Real-time Transcription
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {simResults.word_timings && simResults.word_timings.length > 0 ? (
+                        simResults.word_timings.map((wt: any, i: number) => (
+                          <div key={i} className="group relative">
+                             <span 
+                              className={cn(
+                                "px-2 py-1 rounded-lg text-sm font-medium transition-all cursor-default",
+                                wt.confidence > 0.8 ? "bg-green-500/20 text-green-300" : "bg-rose-500/20 text-rose-300"
+                              )}
+                            >
+                              {wt.word}
+                            </span>
+                            <div className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-slate-800 text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none border border-white/10 z-10">
+                              Conf: {Math.round(wt.confidence * 100)}%
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-slate-500 text-sm italic">No transcription available. Try speaking more clearly.</p>
+                      )}
+                    </div>
                   </div>
 
-                  {/* Feedback */}
-                  <div className="bg-gradient-to-r from-violet-500/10 to-blue-500/10 border border-violet-500/20 rounded-2xl p-4">
-                    <p className="text-sm text-slate-200 font-medium">{simResults.feedback_text || simResults.feedback}</p>
+                  {/* Hesitations & Meta */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex items-center gap-3 bg-white/5 rounded-2xl px-4 py-3 border border-white/10">
+                      <BarChart3 className="h-4 w-4 text-slate-400 flex-shrink-0" />
+                      <span className="text-xs text-slate-300 font-medium">
+                        {Array.isArray(simResults.hesitations) ? simResults.hesitations.length : simResults.hesitations || 0} hesitations
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 bg-white/5 rounded-2xl px-4 py-3 border border-white/10">
+                      <Target className="h-4 w-4 text-slate-400 flex-shrink-0" />
+                      <span className="text-xs text-slate-300 font-medium">
+                        Target: {simItem.target_wpm} wpm
+                      </span>
+                    </div>
                   </div>
 
-                  {/* Retry */}
-                  <button
-                    onClick={() => { setSimPhase('idle'); setSimResults(null); setSimHighlight(-1); }}
-                    className="w-full py-3 bg-white/10 hover:bg-white/15 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all border border-white/10"
-                  >
-                    <RotateCcw className="h-4 w-4" /> Try Again
-                  </button>
+                  {/* Feedback Text */}
+                  <div className="bg-gradient-to-br from-blue-500/20 via-violet-500/20 to-teal-500/20 border border-white/10 rounded-2xl p-5 relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 p-3 opacity-20">
+                      <Sparkles className="h-12 w-12 text-white" />
+                    </div>
+                    <p className="text-sm text-slate-200 font-medium relative z-10 leading-relaxed">
+                      {simResults.feedback_text || simResults.feedback || "Drill complete! Keep practicing to improve your consistency."}
+                    </p>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex gap-3 pt-2">
+                    <button 
+                      onClick={() => {
+                        setSimPhase('idle');
+                        setSimResults(null);
+                        setSimHighlight(-1);
+                      }}
+                      className="flex-1 py-4 bg-white/10 hover:bg-white/20 border border-white/10 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all"
+                    >
+                      <RotateCcw className="h-4 w-4" /> Try Again
+                    </button>
+                    <button 
+                      onClick={closeSimulation}
+                      className="flex-1 py-4 bg-blue-600 hover:bg-blue-500 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20 transition-all"
+                    >
+                      Done
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

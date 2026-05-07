@@ -32,7 +32,6 @@ export default function AdminLayout() {
     { name: "AI Generator", path: "/ai-generator", icon: Sparkles },
     { name: "Users", path: "/users", icon: Users },
     { name: "AI Scenarios", path: "/scenarios", icon: BrainCircuit },
-    { name: "Voice & Speech", path: "/voice-config", icon: Mic },
     { name: "Speaking Monitor", path: "/speaking-monitor", icon: Activity },
     { name: "SpeakUp Fluency", path: "/speakup", icon: Mic },
     { name: "Gamification", path: "/gamification", icon: Trophy },

@@ -408,6 +408,21 @@ pub struct AIPromptConfig {
     pub updated_at: DateTime<Utc>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct MasterData {
+    #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
+    pub id: Option<ObjectId>,
+    pub category: String, // e.g. "hospitality_topics"
+    pub options: Vec<String>,
+    #[serde(with = "mongodb::bson::serde_helpers::chrono_datetime_as_bson_datetime")]
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateMasterDataRequest {
+    pub options: Vec<String>,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct UpdatePromptRequest {
     pub prompt_template: String,

@@ -1,12 +1,28 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { useState } from "react"
-import { BrainCircuit, Scale, Save, Loader2, RefreshCw, Key, Trash, Check, Plus, MessageSquare, Edit, RotateCcw, Camera } from "lucide-react"
-import { getAiConfigs, updateAiConfig, getEvaluationWeights, updateEvaluationWeights, getApiKeys, createApiKey, deleteApiKey, activateApiKey, getAiPrompts, updateAiPrompt, updateAdminMe, uploadAsset } from "../services/api"
+import { useState, useEffect } from "react"
+import { BrainCircuit, Scale, Save, Loader2, RefreshCw, Key, Trash, Check, Plus, MessageSquare, Edit, RotateCcw, Camera, Mic, Volume2, Play } from "lucide-react"
+import { 
+  getAiConfigs, 
+  updateAiConfig, 
+  getEvaluationWeights, 
+  updateEvaluationWeights, 
+  getApiKeys, 
+  createApiKey, 
+  deleteApiKey, 
+  activateApiKey, 
+  getAiPrompts, 
+  updateAiPrompt, 
+  updateAdminMe, 
+  uploadAsset,
+  getVoiceConfig,
+  updateVoiceConfig,
+  testTts
+} from "../services/api"
 import { cn, normalizeDate } from "../lib/utils"
 import { useAuth } from "../contexts/AuthContext"
 
 export default function Settings() {
-  const [activeTab, setActiveTab] = useState<"profile" | "api_keys" | "ai" | "ai_prompts" | "evaluation">("profile")
+  const [activeTab, setActiveTab] = useState<"profile" | "api_keys" | "ai" | "ai_prompts" | "evaluation" | "voice" | "master_data">("profile")
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -15,25 +31,351 @@ export default function Settings() {
           <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Settings</h2>
           <p className="text-slate-500 text-sm mt-1">AI engine configuration and evaluation criteria.</p>
         </div>
-        <div className="flex bg-slate-100/50 p-1 rounded-xl">
-          {(["profile", "api_keys", "ai", "ai_prompts", "evaluation"] as const).map((tab) => (
+        <div className="flex bg-slate-100/50 p-1 rounded-xl overflow-x-auto max-w-full">
+          {(["profile", "api_keys", "ai", "ai_prompts", "evaluation", "voice", "master_data"] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={cn(
-                "px-5 py-2 text-sm font-medium rounded-lg transition-all duration-200",
+                "px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 whitespace-nowrap",
                 activeTab === tab
                   ? "bg-white text-blue-700 shadow-sm"
                   : "text-slate-500 hover:text-slate-700"
               )}
             >
-              {tab === "profile" ? "My Profile" : tab === "api_keys" ? "API Keys" : tab === "ai" ? "AI Config" : tab === "ai_prompts" ? "AI Prompts" : "Evaluation Weights"}
+              {tab === "profile" ? "My Profile" : 
+               tab === "api_keys" ? "API Keys" : 
+               tab === "ai" ? "AI Config" : 
+               tab === "ai_prompts" ? "AI Prompts" : 
+               tab === "evaluation" ? "Evaluation Weights" : 
+               tab === "voice" ? "Voice Engine" :
+               "Master Data"}
             </button>
           ))}
         </div>
       </div>
 
-      {activeTab === "profile" ? <ProfilePanel /> : activeTab === "api_keys" ? <ApiKeysManagerPanel /> : activeTab === "ai" ? <AiConfigPanel /> : activeTab === "ai_prompts" ? <AiPromptsPanel /> : <EvaluationWeightsPanel />}
+      {activeTab === "profile" && <ProfilePanel />}
+      {activeTab === "api_keys" && <ApiKeysManagerPanel />}
+      {activeTab === "ai" && <AiConfigPanel />}
+      {activeTab === "ai_prompts" && <AiPromptsPanel />}
+      {activeTab === "evaluation" && <EvaluationWeightsPanel />}
+      {activeTab === "voice" && <VoiceConfigPanel />}
+      {activeTab === "master_data" && <MasterDataPanel />}
+    </div>
+  )
+}
+
+function MasterDataPanel() {
+  const queryClient = useQueryClient()
+  const { data: masterDataList, isLoading } = useQuery({
+    queryKey: ['master-data'],
+    queryFn: () => import("../services/api").then(m => m.listMasterData())
+  })
+
+  const [editingCategory, setEditingCategory] = useState<string | null>(null)
+  const [optionsText, setOptionsText] = useState("")
+
+  const updateMutation = useMutation({
+    mutationFn: ({ category, options }: { category: string, options: string[] }) => 
+      import("../services/api").then(m => m.updateMasterData(category, options)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['master-data'] })
+      setEditingCategory(null)
+    },
+    onError: () => alert("Failed to update master data")
+  })
+
+  if (isLoading) return <div className="p-12 flex justify-center"><Loader2 className="h-8 w-8 animate-spin text-slate-300" /></div>
+
+  return (
+    <div className="space-y-6 animate-in slide-in-from-bottom-4">
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8">
+        <div className="mb-8">
+          <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+            <RefreshCw className="h-5 w-5 text-blue-500" />
+            Global Master Data
+          </h3>
+          <p className="text-slate-500 text-sm mt-1">
+            Manage global dropdown options and shared identifiers across the platform.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 gap-6">
+          {(masterDataList || []).map((item: any) => (
+            <div key={item.category} className="border border-slate-100 rounded-2xl p-6 bg-slate-50/30">
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <h4 className="font-bold text-slate-800 capitalize">{item.category.replace(/_/g, ' ')}</h4>
+                  <p className="text-xs text-slate-400 mt-0.5">Key: {item.category}</p>
+                </div>
+                {editingCategory !== item.category ? (
+                  <button 
+                    onClick={() => {
+                      setEditingCategory(item.category)
+                      setOptionsText(item.options.join('\n'))
+                    }}
+                    className="text-xs font-bold text-blue-600 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-all"
+                  >
+                    Edit Options
+                  </button>
+                ) : (
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => setEditingCategory(null)}
+                      className="text-xs font-bold text-slate-500 hover:bg-slate-100 px-3 py-1.5 rounded-lg transition-all"
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      onClick={() => {
+                        const options = optionsText.split('\n').map(s => s.trim()).filter(s => s.length > 0)
+                        updateMutation.mutate({ category: item.category, options })
+                      }}
+                      disabled={updateMutation.isPending}
+                      className="text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg transition-all shadow-sm shadow-blue-200"
+                    >
+                      {updateMutation.isPending ? "Saving..." : "Save Changes"}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {editingCategory === item.category ? (
+                <textarea 
+                  className="w-full min-h-[150px] p-4 text-sm font-mono bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all outline-none"
+                  value={optionsText}
+                  onChange={e => setOptionsText(e.target.value)}
+                  placeholder="Enter one option per line..."
+                />
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {item.options.map((opt: string, i: number) => (
+                    <span key={i} className="px-3 py-1 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-600">
+                      {opt}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+
+function VoiceConfigPanel() {
+  const queryClient = useQueryClient()
+  const [formData, setFormData] = useState({
+    stt_provider: "deepgram",
+    tts_provider: "elevenlabs",
+    elevenlabs_voice_id: "",
+    deepgram_api_key: "",
+    elevenlabs_api_key: "",
+    language: "en-US",
+  })
+  const [testText, setTestText] = useState("Hello, welcome to the Hospitality English learning platform. I will be your AI coach today.")
+  const [isPlaying, setIsPlaying] = useState(false)
+
+  const { data: config, isLoading } = useQuery({
+    queryKey: ['voice-config'],
+    queryFn: getVoiceConfig,
+  })
+
+  useEffect(() => {
+    if (config) {
+      setFormData({
+        stt_provider: config.stt_provider || "deepgram",
+        tts_provider: config.tts_provider || "elevenlabs",
+        elevenlabs_voice_id: config.elevenlabs_voice_id || "",
+        deepgram_api_key: config.deepgram_api_key || "",
+        elevenlabs_api_key: config.elevenlabs_api_key || "",
+        language: config.language || "en-US",
+      })
+    }
+  }, [config])
+
+  const saveMutation = useMutation({
+    mutationFn: (data: any) => updateVoiceConfig(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['voice-config'] })
+      alert("Voice configuration saved successfully!")
+    },
+    onError: () => {
+      alert("Failed to save configuration.")
+    }
+  })
+
+  const testTtsMutation = useMutation({
+    mutationFn: (data: any) => testTts(data),
+    onSuccess: (blob) => {
+      const url = URL.createObjectURL(blob)
+      const audio = new Audio(url)
+      setIsPlaying(true)
+      audio.play()
+      audio.onended = () => setIsPlaying(false)
+    },
+    onError: (err: any) => {
+      alert(`Test TTS failed. ${err?.response?.data || ''}`)
+    }
+  })
+
+  const handleSave = () => {
+    saveMutation.mutate(formData)
+  }
+
+  const handleTestTts = () => {
+    if (!formData.elevenlabs_api_key && formData.tts_provider === 'elevenlabs') {
+      alert("Please save an API key first before testing.")
+      return
+    }
+    testTtsMutation.mutate({ text: testText, voice_id: formData.elevenlabs_voice_id })
+  }
+
+  if (isLoading) {
+    return (
+      <div className="bg-white rounded-2xl p-12 flex items-center justify-center border border-slate-100">
+        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6 animate-in slide-in-from-bottom-4">
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8">
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+              <Volume2 className="h-5 w-5 text-indigo-500" />
+              Voice Abstraction Layer
+            </h3>
+            <p className="text-slate-500 text-sm mt-1">
+              Configure STT (Speech-to-Text) and TTS (Text-to-Speech) providers for the speaking engine.
+            </p>
+          </div>
+          <button
+            onClick={handleSave}
+            disabled={saveMutation.isPending}
+            className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-xl shadow-sm transition-all disabled:opacity-50"
+          >
+            {saveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            Save Voice Config
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* STT Config */}
+          <div className="space-y-5">
+            <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
+              <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
+                <Mic className="h-5 w-5" />
+              </div>
+              <div>
+                <h4 className="font-semibold text-slate-800">Speech-to-Text (STT)</h4>
+                <p className="text-[11px] text-slate-500 uppercase font-bold tracking-wider">Pronunciation Engine</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">Active Provider</label>
+                <select
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-slate-50 focus:ring-2 focus:ring-blue-500/20 transition-all outline-none"
+                  value={formData.stt_provider}
+                  onChange={e => setFormData({ ...formData, stt_provider: e.target.value })}
+                >
+                  <option value="deepgram">Deepgram Nova-2 (Default)</option>
+                  <option value="whisper">OpenAI Whisper (Fallback)</option>
+                  <option value="gcp">Google Cloud STT</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">Provider API Key</label>
+                <input
+                  type="password"
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-slate-50 focus:ring-2 focus:ring-blue-500/20 transition-all outline-none font-mono"
+                  placeholder="Deepgram / OpenAI API Key..."
+                  value={formData.deepgram_api_key}
+                  onChange={e => setFormData({ ...formData, deepgram_api_key: e.target.value })}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* TTS Config */}
+          <div className="space-y-5">
+            <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
+              <div className="p-2 bg-emerald-50 rounded-lg text-emerald-600">
+                <Volume2 className="h-5 w-5" />
+              </div>
+              <div>
+                <h4 className="font-semibold text-slate-800">Text-to-Speech (TTS)</h4>
+                <p className="text-[11px] text-slate-500 uppercase font-bold tracking-wider">AI Coach Responses</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">Active Provider</label>
+                <select
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-slate-50 focus:ring-2 focus:ring-blue-500/20 transition-all outline-none"
+                  value={formData.tts_provider}
+                  onChange={e => setFormData({ ...formData, tts_provider: e.target.value })}
+                >
+                  <option value="elevenlabs">ElevenLabs (Default)</option>
+                  <option value="gcp">Google Cloud TTS</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">Provider API Key</label>
+                <input
+                  type="password"
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-slate-50 focus:ring-2 focus:ring-blue-500/20 transition-all outline-none font-mono"
+                  placeholder="ElevenLabs API Key..."
+                  value={formData.elevenlabs_api_key}
+                  onChange={e => setFormData({ ...formData, elevenlabs_api_key: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">Default Voice ID</label>
+                <input
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-slate-50 focus:ring-2 focus:ring-blue-500/20 transition-all outline-none font-mono"
+                  placeholder="e.g. ErXwobaYiN019PkySvjV"
+                  value={formData.elevenlabs_voice_id}
+                  onChange={e => setFormData({ ...formData, elevenlabs_voice_id: e.target.value })}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Test Section */}
+          <div className="lg:col-span-2 mt-4 pt-6 border-t border-slate-100">
+            <h4 className="font-semibold text-slate-800 mb-4">Test Voice Engine</h4>
+            <div className="flex gap-4 items-center">
+              <textarea
+                className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 transition-all outline-none min-h-[80px]"
+                value={testText}
+                onChange={e => setTestText(e.target.value)}
+                placeholder="Type something to test TTS..."
+              />
+              <button
+                onClick={handleTestTts}
+                disabled={testTtsMutation.isPending || isPlaying}
+                className="shrink-0 flex items-center justify-center h-14 w-14 bg-indigo-50 text-indigo-600 rounded-2xl hover:bg-indigo-100 hover:scale-105 transition-all shadow-sm"
+              >
+                {testTtsMutation.isPending ? <Loader2 className="h-6 w-6 animate-spin" /> : 
+                 isPlaying ? <Volume2 className="h-6 w-6 animate-pulse" /> : 
+                 <Play className="h-6 w-6 ml-1" />}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

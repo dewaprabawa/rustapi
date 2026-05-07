@@ -13,6 +13,61 @@ use bson::oid::ObjectId;
 use mongodb::options::FindOptions;
 use futures::TryStreamExt;
 use chrono::Utc;
+use crate::content::models::{MasterData, UpdateMasterDataRequest};
+
+/// GET /admin/master-data
+pub async fn list_master_data(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+) -> Result<impl IntoResponse, AppError> {
+    let col = state.db.database("rustapi").collection::<MasterData>("master_data");
+    let cursor = col.find(doc! {}).await?;
+    let data: Vec<MasterData> = cursor.try_collect().await?;
+    Ok(Json(data))
+}
+
+/// GET /admin/master-data/:category
+pub async fn get_master_data(
+    State(state): State<Arc<AppState>>,
+    Path(category): Path<String>,
+) -> Result<impl IntoResponse, AppError> {
+    let col = state.db.database("rustapi").collection::<MasterData>("master_data");
+    let data = col.find_one(doc! { "category": &category }).await?;
+    
+    match data {
+        Some(d) => Ok(Json(d)),
+        None => {
+            // Return default empty if not found, or error. 
+            // The user wants "master data", so let's return 404 to indicate it needs setup.
+            Err(AppError::NotFound(format!("Master data category '{}' not found", category)))
+        }
+    }
+}
+
+/// PUT /admin/master-data/:category
+pub async fn update_master_data(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+    Path(category): Path<String>,
+    Json(payload): Json<UpdateMasterDataRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    let col = state.db.database("rustapi").collection::<MasterData>("master_data");
+    
+    let options = mongodb::options::UpdateOptions::builder().upsert(true).build();
+    col.update_one(
+        doc! { "category": &category },
+        doc! { 
+            "$set": { 
+                "options": &payload.options,
+                "updated_at": bson::DateTime::now()
+            },
+            "$setOnInsert": { "category": &category }
+        }
+    ).with_options(options).await?;
+
+    Ok(StatusCode::OK)
+}
+
 
 /// POST /admin/login
 /// ... (rest of imports and handlers)

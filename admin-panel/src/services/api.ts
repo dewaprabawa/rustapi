@@ -383,3 +383,16 @@ export const analyzeSpeakUpTest = (contentId: string, audioBlob: Blob) => {
     headers: { "Content-Type": "multipart/form-data" }
   }).then(r => r.data)
 }
+
+export const testSpeakUpListen = (data: { content_id: string; step_index?: number }) =>
+  api.post("/speakup/test-listen", data, { responseType: 'blob' }).then(r => r.data)
+
+// Master Data
+export const getMasterData = (category: string) => 
+  api.get(`/master-data/${category}`).then(r => r.data)
+
+export const updateMasterData = (category: string, options: string[]) => 
+  api.put(`/master-data/${category}`, { options }).then(r => r.data)
+
+export const listMasterData = () => 
+  api.get("/master-data").then(r => r.data)
