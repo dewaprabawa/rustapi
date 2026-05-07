@@ -1552,7 +1552,7 @@ function GameSimulator({ game, onClose }: { game: any; onClose: () => void }) {
             </div>
             <div className="text-center py-4">
               <button 
-                onClick={() => { setSnapMatch(true); setSimPhase('correct'); }}
+                onClick={() => { setSimPhase('correct'); }}
                 className="h-24 w-24 bg-blue-600 rounded-full font-black text-2xl shadow-xl shadow-blue-600/40 active:scale-95 transition-transform"
               >
                 SNAP!
