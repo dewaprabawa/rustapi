@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useState, useRef } from "react"
-import { Gamepad2, Trophy, Star, Zap, Save, Loader2, Trash2, Pencil, Sparkles, Play, X, RotateCcw, Check, ArrowRight, Volume2 } from "lucide-react"
+import { Gamepad2, Trophy, Star, Zap, Save, Loader2, Trash2, Pencil, Sparkles, Play, X, RotateCcw, Check, ArrowRight, Volume2, Mic } from "lucide-react"
 import { getGamificationConfig, updateGamificationConfig, getGames, createGame, deleteGame, getLessons, uploadAsset, updateGame, aiGenerateContent } from "../services/api"
 import { cn } from "../lib/utils"
 
@@ -407,6 +407,32 @@ function GamesPanel({ games, isLoading }: { games: any[]; isLoading: boolean }) 
                       <option value="WORD_SCRAMBLE">Word Scramble</option>
                       <option value="MATCHING">Matching</option>
                       <option value="FILL_IN_THE_BLANK">Fill in the Blank</option>
+                      <option value="PHRASE_BUILDER">Phrase Builder (Tiles)</option>
+                      <option value="LISTENING">Listening Challenge</option>
+                      <option value="PRONUNCIATION">Pronunciation Game</option>
+                      <option value="STORY_MODE">Story Mode</option>
+                      <option value="WORD_SEARCH">Word Search</option>
+                      <option value="CROSSWORD">Crossword</option>
+                      <option value="HANGMAN">Hangman</option>
+                      <option value="TRUE_FALSE">True or False</option>
+                      <option value="WORD_ASSOCIATION">Word Association</option>
+                      <option value="CATEGORIZATION">Categorization</option>
+                      <option value="SYNONYM_ANTONYM">Synonym / Antonym</option>
+                      <option value="DIALOGUE_SIM">Dialogue Simulation</option>
+                      <option value="EMOJI_TO_WORD">Emoji to Word</option>
+                      <option value="WORD_CHAIN">Word Chain</option>
+                      <option value="PICTURE_DESCRIPTION">Picture Description</option>
+                      <option value="ERROR_CORRECTION">Error Correction</option>
+                      <option value="RAPID_FIRE">Rapid Fire</option>
+                      <option value="IDIOM_GUESSING">Idiom Guessing</option>
+                      <option value="RHYME_GAME">Rhyme Game</option>
+                      <option value="VOCABULARY_RPG">Vocabulary RPG</option>
+                      <option value="DEBATE_MODE">Debate Mode</option>
+                      <option value="SHADOW_READING">Shadow Reading</option>
+                      <option value="WORD_SNAP">Word Snap</option>
+                      <option value="TONGUE_TWISTER">Tongue Twister</option>
+                      <option value="NEWS_HEADLINE">News Headline</option>
+                      <option value="SONG_LYRICS">Song Lyrics</option>
                     </select>
                   </div>
                   <div>
@@ -538,6 +564,16 @@ function GameSimulator({ game, onClose }: { game: any; onClose: () => void }) {
   const [score, setScore] = useState(0)
   const [streak, setStreak] = useState(0)
   const [qIndex, setQIndex] = useState(0)
+  const [builtPhrase, setBuiltPhrase] = useState<string[]>([])
+  const [storyStep, setStoryStep] = useState(0)
+  const [foundWords, setFoundWords] = useState<string[]>([])
+  const [crosswordGrid, setCrosswordGrid] = useState<Record<string, string>>({})
+  const [guessedLetters, setGuessedLetters] = useState<string[]>([])
+  const [incorrectGuesses, setIncorrectGuesses] = useState(0)
+  const [catItems, setCatItems] = useState<Record<string, string[]>>({})
+  const [chainInput, setChainInput] = useState("")
+  const [snapMatch, setSnapMatch] = useState<boolean | null>(null)
+  const [rpgHealth, setRpgHealth] = useState({ player: 100, monster: 100 })
   const timerRef = useRef<any>(null)
 
   // Questions array support
@@ -564,6 +600,16 @@ function GameSimulator({ game, onClose }: { game: any; onClose: () => void }) {
     setScore(0)
     setStreak(0)
     setQIndex(0)
+    setBuiltPhrase([])
+    setStoryStep(0)
+    setFoundWords([])
+    setCrosswordGrid({})
+    setGuessedLetters([])
+    setIncorrectGuesses(0)
+    setCatItems({})
+    setChainInput("")
+    setSnapMatch(null)
+    setRpgHealth({ player: 100, monster: 100 })
   }
 
   const checkAnswer = (answer: string, correct: string) => {
@@ -604,6 +650,32 @@ function GameSimulator({ game, onClose }: { game: any; onClose: () => void }) {
     FILL_IN_THE_BLANK: "📝 Fill in the Blank",
     RESPECT_MASTER: "🎩 Respect Master",
     VOICE_STAR: "🎤 Voice Star",
+    PHRASE_BUILDER: "🧩 Phrase Builder",
+    LISTENING: "👂 Listening Challenge",
+    PRONUNCIATION: "🗣️ Pronunciation",
+    STORY_MODE: "📖 Story Mode",
+    WORD_SEARCH: "🔍 Word Search",
+    CROSSWORD: "📝 Crossword",
+    HANGMAN: "😵 Hangman",
+    TRUE_FALSE: "✅ True or False",
+    WORD_ASSOCIATION: "🧠 Word Association",
+    CATEGORIZATION: "📁 Categorization",
+    SYNONYM_ANTONYM: "⚖️ Synonym / Antonym",
+    DIALOGUE_SIM: "💬 Dialogue Simulation",
+    EMOJI_TO_WORD: "🧩 Emoji to Word",
+    WORD_CHAIN: "🔗 Word Chain",
+    PICTURE_DESCRIPTION: "🖼️ Picture Description",
+    ERROR_CORRECTION: "🛠️ Error Correction",
+    RAPID_FIRE: "🔥 Rapid Fire",
+    IDIOM_GUESSING: "🎭 Idiom Guessing",
+    RHYME_GAME: "🎵 Rhyme Game",
+    VOCABULARY_RPG: "⚔️ Vocabulary RPG",
+    DEBATE_MODE: "🗣️ Debate Mode",
+    SHADOW_READING: "👥 Shadow Reading",
+    WORD_SNAP: "⚡ Word Snap",
+    TONGUE_TWISTER: "👅 Tongue Twister",
+    NEWS_HEADLINE: "📰 News Headline",
+    SONG_LYRICS: "🎶 Song Lyrics",
   }
 
   const renderGame = () => {
@@ -800,14 +872,769 @@ function GameSimulator({ game, onClose }: { game: any; onClose: () => void }) {
               >
                 <Volume2 className="h-8 w-8 text-white" />
               </button>
-            ) : simPhase === 'done' ? (
-              <div className="flex flex-col items-center gap-2">
-                <div className="h-20 w-20 rounded-full bg-rose-500/20 border-2 border-rose-500/40 flex items-center justify-center animate-pulse">
-                  <Volume2 className="h-8 w-8 text-rose-400" />
-                </div>
-                <span className="text-rose-300 text-sm font-bold">Listening...</span>
+            ) : (
+              <div className="flex flex-col items-center gap-2 animate-pulse">
+                <Loader2 className="h-10 w-10 text-rose-500 animate-spin" />
+                <p className="text-xs text-slate-500 font-medium">Analyzing voice...</p>
               </div>
-            ) : null}
+            )}
+          </div>
+        )
+      }
+
+      case "PHRASE_BUILDER": {
+        const sentence = currentQ.sentence || "I would like to check in"
+        const tiles = currentQ.tiles || sentence.split(" ").sort(() => Math.random() - 0.5)
+        const isCorrect = builtPhrase.join(" ") === sentence
+        return (
+          <div className="space-y-6">
+            <p className="text-slate-400 text-sm text-center italic">Arrange the tiles to form the sentence</p>
+            <div className="min-h-[100px] p-4 bg-white/5 border border-white/10 rounded-2xl flex flex-wrap gap-2 justify-center content-center relative">
+              {builtPhrase.map((tile, i) => (
+                <button
+                  key={i}
+                  onClick={() => !answered && setBuiltPhrase(prev => prev.filter((_, idx) => idx !== i))}
+                  className="px-3 py-2 bg-blue-500/20 border border-blue-500/40 rounded-xl text-sm font-bold text-blue-300 animate-in zoom-in-50 duration-200"
+                >
+                  {tile}
+                </button>
+              ))}
+              {builtPhrase.length === 0 && <span className="text-slate-600 text-xs italic">Tap tiles below...</span>}
+            </div>
+            <div className="flex flex-wrap gap-2 justify-center">
+              {tiles.map((tile, i) => {
+                // Handle multiple same tiles correctly
+                const countInBuilt = builtPhrase.filter(t => t === tile).length
+                const countInTiles = tiles.filter(t => t === tile).length
+                const isUsed = countInBuilt >= countInTiles
+                return (
+                  <button
+                    key={i}
+                    disabled={answered || isUsed}
+                    onClick={() => setBuiltPhrase(prev => [...prev, tile])}
+                    className={cn(
+                      "px-4 py-2.5 rounded-xl text-sm font-bold transition-all border",
+                      isUsed 
+                        ? "opacity-10 bg-slate-800 border-slate-700 text-slate-500"
+                        : "bg-white/10 border-white/10 text-white hover:bg-white/20 active:scale-95"
+                    )}
+                  >
+                    {tile}
+                  </button>
+                )
+              })}
+            </div>
+            <div className="flex justify-center gap-4">
+               <button onClick={() => setBuiltPhrase([])} className="text-xs font-bold text-slate-500 hover:text-slate-300 transition-colors uppercase tracking-widest">Reset</button>
+               <button 
+                 onClick={() => {
+                   setAnswered(true)
+                   if (isCorrect) { setSimPhase('correct'); setXpEarned(game.xp_reward || 20); }
+                   else { setSimPhase('wrong') }
+                 }}
+                 disabled={builtPhrase.length === 0}
+                 className="px-10 py-3 bg-blue-600 hover:bg-blue-500 rounded-2xl text-sm font-black text-white shadow-lg shadow-blue-600/20 disabled:opacity-50 transition-all"
+               >
+                 Submit
+               </button>
+            </div>
+          </div>
+        )
+      }
+
+      case "LISTENING": {
+        const q = currentQ.question || "What did you hear?"
+        const opts = currentQ.options || []
+        const correct = currentQ.correct || opts[0] || ""
+        return (
+          <div className="space-y-6 text-center">
+            <button 
+              className="h-24 w-24 rounded-full bg-blue-600 hover:bg-blue-500 flex items-center justify-center mx-auto shadow-xl shadow-blue-600/20 active:scale-95 transition-all group"
+              onClick={() => {/* Mock play audio */}}
+            >
+              <Volume2 className="h-10 w-10 text-white group-hover:scale-110 transition-transform" />
+            </button>
+            <p className="text-slate-200 font-bold text-lg">{q}</p>
+            <div className="grid grid-cols-1 gap-3">
+              {opts.map((opt: string, i: number) => (
+                <button
+                  key={i}
+                  onClick={() => !answered && checkAnswer(opt, correct)}
+                  disabled={answered}
+                  className={cn(
+                    "w-full text-left px-5 py-4 rounded-2xl font-bold text-sm transition-all border",
+                    answered && opt.toLowerCase() === correct.toLowerCase()
+                      ? "bg-green-500/20 border-green-500/40 text-green-300"
+                      : answered && selected === opt
+                      ? "bg-rose-500/20 border-rose-500/40 text-rose-300"
+                      : "bg-white/5 border-white/10 text-slate-300 hover:bg-white/10 hover:border-white/20"
+                  )}
+                >
+                  <span className="mr-3 text-[10px] bg-white/10 px-1.5 py-0.5 rounded text-slate-400 font-black">{i + 1}</span>
+                  {opt}
+                </button>
+              ))}
+            </div>
+          </div>
+        )
+      }
+
+      case "STORY_MODE": {
+        const steps = data.steps || [
+          { text: "You are at the front desk. A guest arrives looking upset.", choices: [{ text: "Greet them warmly", next: 1 }, { text: "Ask what's wrong", next: 2 }] }
+        ]
+        const step = steps[storyStep] || steps[0]
+        return (
+          <div className="space-y-6">
+            <div className="bg-white/5 border border-white/10 rounded-[2rem] p-8 text-center relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-full h-1 bg-blue-500/30" />
+              <p className="text-lg font-medium text-slate-200 leading-relaxed italic">"{step.text}"</p>
+            </div>
+            <div className="space-y-3">
+              {step.choices?.map((choice: any, i: number) => (
+                <button
+                  key={i}
+                  onClick={() => {
+                    if (choice.is_correct === false) {
+                      setSimPhase('wrong')
+                    } else if (choice.next !== undefined) {
+                      setStoryStep(choice.next)
+                    } else {
+                      setSimPhase('correct')
+                      setXpEarned(game.xp_reward || 20)
+                    }
+                  }}
+                  className="w-full text-left px-6 py-4 rounded-2xl font-bold text-sm bg-white/5 border border-white/10 text-slate-300 hover:bg-blue-600 hover:border-blue-500 hover:text-white transition-all group"
+                >
+                  <span className="mr-4 text-xs text-slate-500 group-hover:text-blue-200">{i + 1}.</span>
+                  {choice.text}
+                </button>
+              ))}
+            </div>
+          </div>
+        )
+      }
+
+      case "WORD_SEARCH": {
+        const words = data.words || ["HOTEL", "LOBBY", "ROOM"]
+        return (
+          <div className="space-y-6">
+            <p className="text-slate-400 text-xs text-center uppercase tracking-widest font-black">Find {words.length} hidden words</p>
+            <div className="grid grid-cols-6 gap-1 bg-white/5 p-4 rounded-2xl border border-white/10">
+              {Array.from({ length: 36 }).map((_, i) => (
+                <div key={i} className="aspect-square flex items-center justify-center text-xs font-black text-slate-500 border border-white/5 rounded-lg">
+                  {String.fromCharCode(65 + Math.floor(Math.random() * 26))}
+                </div>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2 justify-center">
+              {words.map((word: string) => (
+                <button
+                  key={word}
+                  onClick={() => {
+                    if (!foundWords.includes(word)) {
+                      const newFound = [...foundWords, word]
+                      setFoundWords(newFound)
+                      if (newFound.length === words.length) {
+                        setSimPhase('correct')
+                        setXpEarned(game.xp_reward || 20)
+                      }
+                    }
+                  }}
+                  className={cn(
+                    "px-4 py-2 rounded-xl text-xs font-bold border transition-all",
+                    foundWords.includes(word)
+                      ? "bg-green-500/20 border-green-500/40 text-green-300"
+                      : "bg-white/10 border-white/10 text-slate-400 hover:text-white"
+                  )}
+                >
+                  {word}
+                </button>
+              ))}
+            </div>
+          </div>
+        )
+      }
+
+      case "CROSSWORD": {
+        const clues = data.clues || [
+          { clue: "Where you sleep in a hotel", answer: "ROOM", x: 0, y: 0, length: 4 }
+        ]
+        return (
+          <div className="space-y-6">
+             <div className="bg-white/5 border border-white/10 rounded-2xl p-6 text-center">
+               <p className="text-xs font-black text-blue-400 uppercase tracking-widest mb-2">Clue</p>
+               <p className="text-lg font-bold text-slate-200">"{clues[0].clue}"</p>
+             </div>
+             <div className="flex justify-center gap-2">
+                {Array.from({ length: clues[0].length }).map((_, i) => (
+                  <input
+                    key={i}
+                    maxLength={1}
+                    className="h-12 w-12 bg-white/10 border-2 border-white/10 rounded-xl text-center text-xl font-black text-white focus:border-blue-500 outline-none uppercase"
+                    onChange={(e) => {
+                      const newGrid = { ...crosswordGrid, [`${i}`]: e.target.value.toUpperCase() }
+                      setCrosswordGrid(newGrid)
+                      const built = Array.from({ length: clues[0].length }).map((_, idx) => newGrid[`${idx}`] || "").join("")
+                      if (built === clues[0].answer.toUpperCase()) {
+                        setSimPhase('correct')
+                        setXpEarned(game.xp_reward || 20)
+                      }
+                    }}
+                  />
+                ))}
+             </div>
+             <p className="text-center text-[10px] text-slate-500">Fill in the squares to solve</p>
+          </div>
+        )
+      }
+
+      case "PRONUNCIATION": {
+        const sentence = currentQ.sentence || "May I help you with your luggage?"
+        return (
+          <div className="space-y-6 text-center">
+            <div className="bg-white/5 border border-white/10 rounded-[2rem] p-8">
+              <p className="text-xl font-bold text-slate-200 leading-relaxed">"{sentence}"</p>
+            </div>
+            <div className="flex flex-col items-center gap-4">
+               <button 
+                 className={cn(
+                   "h-20 w-20 rounded-full flex items-center justify-center shadow-xl transition-all active:scale-95",
+                   simPhase === 'play' ? "bg-rose-600 hover:bg-rose-500 shadow-rose-600/20" : "bg-slate-700 animate-pulse"
+                 )}
+                 onClick={() => {
+                    setSimPhase('done')
+                    setTimeout(() => {
+                      setSimPhase('correct')
+                      setXpEarned(game.xp_reward || 20)
+                    }, 2500)
+                 }}
+               >
+                 <Mic className="h-8 w-8 text-white" />
+               </button>
+               <p className="text-xs text-slate-500 font-medium">
+                 {simPhase === 'play' ? "Tap to start recording" : "Analyzing your pronunciation..."}
+               </p>
+            </div>
+          </div>
+        )
+      }
+
+      case "HANGMAN": {
+        const word = (data.word || "HOSPITALITY").toUpperCase()
+        const hint = data.hint || "Industry name"
+        const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("")
+        const displayWord = word.split("").map(l => guessedLetters.includes(l) ? l : "_")
+        const isWin = !displayWord.includes("_")
+        const isLoss = incorrectGuesses >= 6
+
+        return (
+          <div className="space-y-6 text-center">
+            <p className="text-slate-400 text-sm italic">Hint: {hint}</p>
+            <div className="text-4xl font-black tracking-[0.5em] text-white my-8">{displayWord.join("")}</div>
+            <div className="flex flex-wrap justify-center gap-1.5 max-w-sm mx-auto">
+              {letters.map(l => (
+                <button
+                  key={l}
+                  disabled={guessedLetters.includes(l) || isWin || isLoss}
+                  onClick={() => {
+                    setGuessedLetters(prev => [...prev, l])
+                    if (!word.includes(l)) setIncorrectGuesses(g => g + 1)
+                  }}
+                  className={cn(
+                    "w-8 h-8 rounded-lg text-xs font-bold transition-all",
+                    guessedLetters.includes(l)
+                      ? word.includes(l) ? "bg-green-500/20 text-green-400" : "bg-rose-500/20 text-rose-400"
+                      : "bg-white/5 hover:bg-white/10 text-slate-400"
+                  )}
+                >
+                  {l}
+                </button>
+              ))}
+            </div>
+            <div className="text-rose-400 text-xs font-bold">Lives left: {6 - incorrectGuesses}</div>
+            {(isWin || isLoss) && (
+              <div className="animate-in fade-in zoom-in slide-in-from-bottom-4 duration-300">
+                <button 
+                  onClick={() => {
+                    if (isWin) { setScore(s => s + 50); setSimPhase('correct'); }
+                    else setSimPhase('wrong');
+                  }}
+                  className="px-6 py-2 bg-blue-600 rounded-xl font-bold"
+                >
+                  See Result
+                </button>
+              </div>
+            )}
+          </div>
+        )
+      }
+
+      case "TRUE_FALSE": {
+        const statements = data.statements || [{ text: "A concierge is a chef.", correct: false }]
+        const current = statements[qIndex % statements.length]
+        return (
+          <div className="space-y-8 text-center py-10">
+            <div className="bg-white/5 p-6 rounded-3xl border border-white/10">
+              <p className="text-xl font-bold text-white leading-relaxed">{current.text}</p>
+            </div>
+            <div className="flex justify-center gap-6">
+              <button 
+                onClick={() => checkAnswer("false", current.correct ? "true" : "false")}
+                className="group flex flex-col items-center gap-2"
+              >
+                <div className="h-20 w-20 rounded-full bg-rose-500/10 border-2 border-rose-500/20 flex items-center justify-center group-hover:bg-rose-500/20 group-hover:border-rose-500/40 transition-all">
+                  <X className="h-10 w-10 text-rose-500" />
+                </div>
+                <span className="text-sm font-bold text-rose-400">FALSE</span>
+              </button>
+              <button 
+                onClick={() => checkAnswer("true", current.correct ? "true" : "false")}
+                className="group flex flex-col items-center gap-2"
+              >
+                <div className="h-20 w-20 rounded-full bg-green-500/10 border-2 border-green-500/20 flex items-center justify-center group-hover:bg-green-500/20 group-hover:border-green-500/40 transition-all">
+                  <Check className="h-10 w-10 text-green-500" />
+                </div>
+                <span className="text-sm font-bold text-green-400">TRUE</span>
+              </button>
+            </div>
+          </div>
+        )
+      }
+
+      case "WORD_ASSOCIATION": {
+        const base = data.base_word || "HOTEL"
+        const associations = data.associations || ["Room", "Lobby", "Service"]
+        return (
+          <div className="space-y-6 text-center">
+            <div className="text-sm text-slate-400">What relates to:</div>
+            <div className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-violet-400">{base}</div>
+            <div className="flex flex-wrap justify-center gap-2">
+              {associations.map((word: string) => (
+                <button
+                  key={word}
+                  onClick={() => { setScore(s => s + 10); setSimPhase('correct'); }}
+                  className="px-4 py-2 bg-white/5 border border-white/10 rounded-full hover:bg-white/10 transition-all text-sm font-medium"
+                >
+                  {word}
+                </button>
+              ))}
+              <button onClick={() => setSimPhase('wrong')} className="px-4 py-2 bg-white/5 border border-white/10 rounded-full hover:bg-white/10 transition-all text-sm font-medium">Coffee</button>
+            </div>
+          </div>
+        )
+      }
+
+      case "CATEGORIZATION": {
+        const cats = data.categories || ["Staff", "Tools"]
+        const items = data.items || [{ text: "Waiter", category: "Staff" }, { text: "Tray", category: "Tools" }]
+        const currentItem = items[qIndex % items.length]
+        return (
+          <div className="space-y-8 text-center">
+            <div className="animate-bounce inline-block px-6 py-3 bg-white/10 border border-white/20 rounded-2xl text-xl font-bold text-white shadow-xl">
+              {currentItem.text}
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              {cats.map((cat: string) => (
+                <button
+                  key={cat}
+                  onClick={() => {
+                    if (cat === currentItem.category) { setScore(s => s + 20); setSimPhase('correct'); }
+                    else setSimPhase('wrong');
+                  }}
+                  className="h-32 bg-white/5 border-2 border-dashed border-white/10 rounded-3xl flex flex-col items-center justify-center gap-2 hover:bg-white/10 hover:border-blue-500/40 transition-all"
+                >
+                  <div className="h-10 w-10 bg-blue-500/20 rounded-xl flex items-center justify-center text-blue-400">
+                    <Star className="h-5 w-5" />
+                  </div>
+                  <span className="text-sm font-bold uppercase tracking-widest text-slate-300">{cat}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )
+      }
+
+      case "SYNONYM_ANTONYM": {
+        const word = data.word || "Large"
+        const type = data.type || "synonym"
+        const opts = data.options || ["Big", "Small"]
+        const correct = data.correct || "Big"
+        return (
+          <div className="space-y-6">
+            <div className="text-center space-y-2">
+              <p className="text-sm text-slate-400">Find the {type} for:</p>
+              <h2 className="text-3xl font-black text-white uppercase tracking-tight">{word}</h2>
+            </div>
+            <div className="grid grid-cols-1 gap-3">
+              {opts.map((opt: string) => (
+                <button
+                  key={opt}
+                  onClick={() => checkAnswer(opt, correct)}
+                  className="w-full py-4 px-6 bg-white/5 border border-white/10 rounded-2xl text-left font-bold hover:bg-white/10 hover:border-violet-500/40 transition-all flex justify-between items-center"
+                >
+                  <span>{opt}</span>
+                  <ArrowRight className="h-4 w-4 text-slate-500" />
+                </button>
+              ))}
+            </div>
+          </div>
+        )
+      }
+
+      case "DIALOGUE_SIM": {
+        const char = data.character || "Guest"
+        const scene = data.scenario || "Checking in at the front desk"
+        const lines = data.lines || [{ speaker: "Guest", text: "I have a reservation under Smith." }]
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center gap-4 bg-white/5 p-4 rounded-2xl">
+              <div className="h-12 w-12 bg-blue-600 rounded-full flex items-center justify-center text-xl font-bold">🤖</div>
+              <div>
+                <p className="text-[10px] font-black uppercase text-blue-400">AI Character</p>
+                <p className="font-bold text-white">{char}</p>
+              </div>
+            </div>
+            <p className="text-sm text-slate-400 italic">Scene: {scene}</p>
+            <div className="space-y-4">
+              {lines.map((l: any, i: number) => (
+                <div key={i} className="bg-white/10 p-4 rounded-2xl rounded-tl-none border-l-4 border-blue-500">
+                  <p className="text-[10px] font-bold text-blue-300 mb-1">{l.speaker}</p>
+                  <p className="text-sm text-white">{l.text}</p>
+                </div>
+              ))}
+              <div className="animate-pulse flex items-center gap-2 text-xs text-slate-500">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                AI is typing...
+              </div>
+            </div>
+            <button onClick={() => setSimPhase('done')} className="w-full py-3 bg-blue-600 rounded-xl font-bold">
+              Practice Response
+            </button>
+          </div>
+        )
+      }
+
+      case "EMOJI_TO_WORD": {
+        const emojis = data.emojis || "🛌🏨"
+        const answer = data.answer || "Hotel Room"
+        return (
+          <div className="space-y-8 text-center py-6">
+            <div className="text-7xl mb-8 animate-in zoom-in duration-500 drop-shadow-2xl">{emojis}</div>
+            <div className="grid grid-cols-2 gap-3">
+              {[answer, "Lobby Bar", "Swimming Pool", "Elevator"].sort().map(opt => (
+                <button
+                  key={opt}
+                  onClick={() => checkAnswer(opt, answer)}
+                  className="py-3 bg-white/5 border border-white/10 rounded-xl text-sm font-bold hover:bg-white/10 transition-all"
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
+          </div>
+        )
+      }
+
+      case "WORD_CHAIN": {
+        const start = data.start_word || "Apple"
+        return (
+          <div className="space-y-6 text-center">
+            <p className="text-sm text-slate-400">Start with the last letter of:</p>
+            <h2 className="text-4xl font-black text-white">{start}</h2>
+            <div className="text-xs text-blue-400 font-black tracking-widest uppercase">Last letter: {start.slice(-1).toUpperCase()}</div>
+            <div className="flex gap-2">
+              <input 
+                className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white font-bold"
+                placeholder={`Type a word starting with ${start.slice(-1)}...`}
+                value={chainInput}
+                onChange={e => setChainInput(e.target.value)}
+              />
+              <button 
+                onClick={() => {
+                  if (chainInput.toLowerCase().startsWith(start.slice(-1).toLowerCase())) setSimPhase('correct');
+                  else setSimPhase('wrong');
+                }}
+                className="px-6 bg-blue-600 rounded-xl font-bold"
+              >
+                GO
+              </button>
+            </div>
+          </div>
+        )
+      }
+
+      case "PICTURE_DESCRIPTION": {
+        const desc = data.image_description || "A luxury hotel lobby with a large chandelier"
+        const keywords = data.keywords || ["chandelier", "lobby", "luxury"]
+        return (
+          <div className="space-y-6">
+            <div className="h-48 bg-slate-700 rounded-3xl flex flex-col items-center justify-center border-2 border-dashed border-slate-600">
+              <span className="text-4xl mb-2">🖼️</span>
+              <p className="text-xs text-slate-500 uppercase font-bold tracking-widest">[ IMAGE PREVIEW ]</p>
+              <p className="text-[10px] text-slate-500 max-w-[200px] text-center mt-2">{desc}</p>
+            </div>
+            <div className="bg-white/5 p-4 rounded-2xl">
+              <p className="text-xs text-slate-400 mb-2">Target Keywords:</p>
+              <div className="flex flex-wrap gap-2">
+                {keywords.map((kw: string) => (
+                  <span key={kw} className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded text-[10px] font-bold uppercase">{kw}</span>
+                ))}
+              </div>
+            </div>
+            <textarea className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-sm" placeholder="Describe what you see in English..." rows={3} />
+            <button onClick={() => setSimPhase('correct')} className="w-full py-3 bg-blue-600 rounded-xl font-bold">Submit Description</button>
+          </div>
+        )
+      }
+
+      case "ERROR_CORRECTION": {
+        const inc = data.incorrect || "He don't like coffee."
+        const cor = data.correct || "He doesn't like coffee."
+        return (
+          <div className="space-y-6">
+            <div className="p-6 bg-rose-500/10 border border-rose-500/20 rounded-2xl">
+              <p className="text-xs font-black text-rose-500 uppercase mb-2">Find the error:</p>
+              <p className="text-lg font-bold text-white line-through opacity-60 italic">"{inc}"</p>
+            </div>
+            <div className="grid grid-cols-1 gap-3">
+              {[cor, "He doesn't likes coffee.", "He not like coffee."].map(opt => (
+                <button
+                  key={opt}
+                  onClick={() => checkAnswer(opt, cor)}
+                  className="w-full py-4 px-6 bg-white/5 border border-white/10 rounded-2xl text-left font-bold hover:bg-white/10 transition-all"
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
+          </div>
+        )
+      }
+
+      case "RAPID_FIRE": {
+        return (
+          <div className="space-y-8 text-center py-10">
+            <div className="text-sm font-black text-rose-500 uppercase tracking-[0.3em] animate-pulse">Get Ready!</div>
+            <div className="text-5xl font-black text-white scale-110 transition-transform">{["ROOM", "LOBBY", "STAFF", "GUEST"][qIndex % 4]}</div>
+            <div className="grid grid-cols-2 gap-4">
+              <button onClick={() => setSimPhase('correct')} className="py-4 bg-white/5 border-2 border-white/10 rounded-2xl font-bold hover:bg-white/10 hover:border-blue-500/40">Kamar</button>
+              <button onClick={() => setSimPhase('wrong')} className="py-4 bg-white/5 border-2 border-white/10 rounded-2xl font-bold hover:bg-white/10 hover:border-blue-500/40">Dapur</button>
+            </div>
+          </div>
+        )
+      }
+
+      case "IDIOM_GUESSING": {
+        const idiom = data.idiom || "Piece of cake"
+        const answer = data.answer || "Very easy"
+        return (
+          <div className="space-y-6 text-center">
+            <div className="h-40 bg-gradient-to-br from-amber-500/20 to-orange-500/20 rounded-3xl flex items-center justify-center text-7xl">🍰</div>
+            <h2 className="text-3xl font-black text-white">"{idiom}"</h2>
+            <div className="grid grid-cols-1 gap-2">
+              {[answer, "A slice of dessert", "A cooking challenge"].map(opt => (
+                <button
+                  key={opt}
+                  onClick={() => checkAnswer(opt, answer)}
+                  className="py-3 bg-white/5 border border-white/10 rounded-xl font-bold hover:bg-white/10 transition-all"
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
+          </div>
+        )
+      }
+
+      case "RHYME_GAME": {
+        const word = data.word || "Stay"
+        const answer = data.answer || "Day"
+        return (
+          <div className="space-y-6 text-center">
+            <p className="text-sm text-slate-400">What rhymes with:</p>
+            <h2 className="text-4xl font-black text-white uppercase">{word}</h2>
+            <div className="grid grid-cols-2 gap-4">
+              {[answer, "Sky", "Go", "Be"].map(opt => (
+                <button
+                  key={opt}
+                  onClick={() => checkAnswer(opt, answer)}
+                  className="py-4 bg-white/5 border border-white/10 rounded-2xl font-black text-xl hover:bg-white/10 hover:border-violet-500/40 transition-all"
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
+          </div>
+        )
+      }
+
+      case "VOCABULARY_RPG": {
+        const quest = data.quest || "Defeat the Dragon of Disinterest"
+        return (
+          <div className="space-y-6">
+            <div className="flex justify-between items-end px-2">
+              <div className="space-y-1">
+                <div className="flex justify-between text-[8px] font-black uppercase text-blue-400"><span>Hero</span><span>{rpgHealth.player}%</span></div>
+                <div className="h-2 w-24 bg-white/10 rounded-full overflow-hidden">
+                  <div className="h-full bg-blue-500 transition-all" style={{ width: `${rpgHealth.player}%` }} />
+                </div>
+                <div className="text-4xl">🛡️</div>
+              </div>
+              <div className="text-xs font-black text-slate-600">VS</div>
+              <div className="space-y-1 text-right">
+                <div className="flex justify-between text-[8px] font-black uppercase text-rose-400"><span>{rpgHealth.monster}%</span><span>Monster</span></div>
+                <div className="h-2 w-24 bg-white/10 rounded-full overflow-hidden">
+                  <div className="h-full bg-rose-500 transition-all" style={{ width: `${rpgHealth.monster}%` }} />
+                </div>
+                <div className="text-4xl">🐉</div>
+              </div>
+            </div>
+            <div className="bg-white/5 p-4 rounded-2xl border border-white/10 text-center">
+              <p className="text-xs text-slate-400 mb-2">{quest}</p>
+              <p className="font-bold text-white">"What is the plural of 'Child'?"</p>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={() => { setRpgHealth(h => ({ ...h, monster: h.monster - 25 })); if (rpgHealth.monster <= 25) setSimPhase('correct'); }} className="py-2 bg-blue-600 rounded-xl text-xs font-bold">Children</button>
+              <button onClick={() => { setRpgHealth(h => ({ ...h, player: h.player - 25 })); if (rpgHealth.player <= 25) setSimPhase('wrong'); }} className="py-2 bg-rose-600 rounded-xl text-xs font-bold">Childs</button>
+            </div>
+          </div>
+        )
+      }
+
+      case "DEBATE_MODE": {
+        const topic = data.topic || "Should hotels charge for Wi-Fi?"
+        const side = data.side || "Against"
+        return (
+          <div className="space-y-6">
+            <div className="bg-gradient-to-r from-violet-600 to-indigo-600 p-6 rounded-3xl shadow-xl">
+              <p className="text-[10px] font-black uppercase text-violet-200 mb-2 tracking-widest">Debate Topic</p>
+              <h3 className="text-lg font-bold text-white leading-tight">{topic}</h3>
+            </div>
+            <div className="flex items-center gap-3 bg-white/5 p-4 rounded-2xl">
+              <div className={cn("px-3 py-1 rounded-full text-[10px] font-black uppercase", side === "Against" ? "bg-rose-500/20 text-rose-400" : "bg-green-500/20 text-green-400")}>
+                Your Side: {side}
+              </div>
+            </div>
+            <p className="text-xs text-slate-400 italic">Record your argument using professional hospitality English. AI will score your range and fluency.</p>
+            <div className="flex justify-center py-4">
+              <div className="h-16 w-16 bg-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-blue-600/30">
+                <Volume2 className="h-8 w-8 text-white" />
+              </div>
+            </div>
+            <button onClick={() => setSimPhase('done')} className="w-full py-4 bg-white/10 hover:bg-white/15 rounded-2xl font-bold transition-all">Submit Argument</button>
+          </div>
+        )
+      }
+
+      case "SHADOW_READING": {
+        const text = data.text || "Welcome to the Grand Hotel. How can I help you today?"
+        return (
+          <div className="space-y-8">
+            <div className="bg-white/5 p-8 rounded-3xl border border-white/10 text-center relative overflow-hidden">
+              <div className="absolute top-0 left-0 h-1 bg-blue-500 animate-progress" style={{ width: '40%' }} />
+              <p className="text-2xl font-black text-white/40 leading-relaxed">
+                <span className="text-blue-400">Welcome to the</span> Grand Hotel...
+              </p>
+            </div>
+            <div className="flex flex-col items-center gap-4">
+              <div className="h-16 w-16 bg-rose-600 rounded-full flex items-center justify-center animate-pulse shadow-lg shadow-rose-600/30">
+                <div className="h-6 w-6 bg-white rounded-full" />
+              </div>
+              <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Recording Now</p>
+            </div>
+            <button onClick={() => setSimPhase('correct')} className="w-full py-3 bg-white/10 rounded-xl font-bold">Stop & Review</button>
+          </div>
+        )
+      }
+
+      case "WORD_SNAP": {
+        return (
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="h-40 bg-white/5 border-2 border-white/10 rounded-3xl flex items-center justify-center text-4xl shadow-inner">🛌</div>
+              <div className="h-40 bg-white/5 border-2 border-white/10 rounded-3xl flex items-center justify-center text-2xl font-black text-blue-400 shadow-inner">BED</div>
+            </div>
+            <div className="text-center py-4">
+              <button 
+                onClick={() => { setSnapMatch(true); setSimPhase('correct'); }}
+                className="h-24 w-24 bg-blue-600 rounded-full font-black text-2xl shadow-xl shadow-blue-600/40 active:scale-95 transition-transform"
+              >
+                SNAP!
+              </button>
+            </div>
+            <p className="text-[10px] text-center text-slate-500 font-bold uppercase tracking-widest">Tap when word matches image!</p>
+          </div>
+        )
+      }
+
+      case "TONGUE_TWISTER": {
+        const twister = data.text || "Six slippery snails slid slowly seaward."
+        return (
+          <div className="space-y-6 text-center">
+            <div className="p-8 bg-white/5 rounded-[2.5rem] border border-white/10 shadow-2xl relative">
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-violet-600 rounded-full text-[8px] font-black uppercase">Level: Hard</div>
+              <p className="text-2xl font-black text-white italic">"{twister}"</p>
+            </div>
+            <div className="flex justify-center gap-4 py-4">
+              <div className="h-14 w-14 bg-white/10 rounded-full flex items-center justify-center text-slate-400"><RotateCcw className="h-6 w-6" /></div>
+              <div className="h-14 w-14 bg-blue-600 rounded-full flex items-center justify-center text-white shadow-lg"><Play className="h-6 w-6" /></div>
+              <div className="h-14 w-14 bg-white/10 rounded-full flex items-center justify-center text-slate-400"><X className="h-6 w-6" /></div>
+            </div>
+            <button onClick={() => setSimPhase('correct')} className="w-full py-4 bg-violet-600 rounded-2xl font-bold shadow-lg shadow-violet-600/20">Check Pronunciation</button>
+          </div>
+        )
+      }
+
+      case "NEWS_HEADLINE": {
+        const headline = data.headline || "Hospitality sector ____ as international travel surges."
+        const answer = data.answer || "rebounds"
+        return (
+          <div className="space-y-6">
+            <div className="bg-white p-6 rounded-2xl shadow-2xl">
+              <div className="flex items-center gap-2 mb-4 border-b pb-2 border-slate-100">
+                <div className="h-6 w-6 bg-slate-900 rounded flex items-center justify-center text-[10px] font-bold text-white italic">T</div>
+                <span className="text-[10px] font-black text-slate-900 tracking-tight">The Hospitality Times</span>
+              </div>
+              <p className="text-lg font-black text-slate-900 leading-tight">"{headline}"</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {[answer, "falls", "closes", "waits"].map(opt => (
+                <button
+                  key={opt}
+                  onClick={() => checkAnswer(opt, answer)}
+                  className="py-3 bg-white/5 border border-white/10 rounded-xl font-bold hover:bg-white/10"
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
+          </div>
+        )
+      }
+
+      case "SONG_LYRICS": {
+        const lyrics = data.lyrics || "I'm checking in, checking out, and ____ the service."
+        const answer = data.answer || "loving"
+        return (
+          <div className="space-y-6">
+            <div className="bg-gradient-to-br from-slate-800 to-black p-6 rounded-3xl border border-white/10 relative">
+              <div className="absolute top-4 right-4 animate-spin-slow">🎵</div>
+              <p className="text-sm text-slate-400 mb-1 font-mono">0:45 / 3:20</p>
+              <p className="text-lg font-medium text-white italic leading-relaxed">"{lyrics}"</p>
+            </div>
+            <div className="flex gap-2">
+              <input 
+                className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white font-bold"
+                placeholder="Missing word..."
+                value={chainInput}
+                onChange={e => { 
+                  setChainInput(e.target.value);
+                  if (e.target.value.toLowerCase() === answer.toLowerCase()) setSimPhase('correct'); 
+                }}
+              />
+              <button className="px-6 bg-teal-600 rounded-xl font-bold">PLAY</button>
+            </div>
           </div>
         )
       }

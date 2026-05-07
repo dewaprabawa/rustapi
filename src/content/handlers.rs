@@ -1123,12 +1123,27 @@ pub async fn ai_generate_content(
              \"title\" (catchy game name), \
              \"instructions\" (PLAIN TEXT instructions), \
              \"data_json\" (a structured object containing the game exercise data). \
-             For SCENE_MATCHER: data_json has \"options\" array with {{\"scene\", \"formal\", \"casual\"}}.\
-             For WORD_SCRAMBLE: data_json has \"words\" array with {{\"word\", \"hint\", \"scrambled\"}}.\
-             For MATCHING: data_json has \"pairs\" array with {{\"en\", \"id\"}}.\
-             For FILL_IN_THE_BLANK: data_json has \"sentences\" array with {{\"text\", \"answer\", \"options\"}}.\
-             For RESPECT_MASTER: data_json has \"scenarios\" array with {{\"situation\", \"options\", \"correct\" index}}.\
-             Generate exactly 5 items. Content must be relevant to hospitality industry.", context
+             For HANGMAN: data_json has \"word\", \"hint\".\
+             For TRUE_FALSE: data_json has \"statements\" array with {{\"text\", \"correct\" (bool)}}.\
+             For WORD_ASSOCIATION: data_json has \"base_word\", \"associations\" array.\
+             For CATEGORIZATION: data_json has \"categories\" and \"items\" array with {{\"text\", \"category\"}}.\
+             For SYNONYM_ANTONYM: data_json has \"word\", \"type\" (synonym/antonym), \"options\", \"correct\".\
+             For DIALOGUE_SIM: data_json has \"character\", \"scenario\", \"lines\" array with {{\"speaker\", \"text\"}}.\
+             For EMOJI_TO_WORD: data_json has \"emojis\", \"answer\".\
+             For WORD_CHAIN: data_json has \"start_word\".\
+             For PICTURE_DESCRIPTION: data_json has \"image_description\", \"keywords\" array.\
+             For ERROR_CORRECTION: data_json has \"incorrect\", \"correct\", \"explanation\".\
+             For RAPID_FIRE: data_json has \"items\" array with {{\"en\", \"id\"}}.\
+             For IDIOM_GUESSING: data_json has \"idiom\", \"options\", \"correct\".\
+             For RHYME_GAME: data_json has \"word\", \"options\", \"correct\".\
+             For VOCABULARY_RPG: data_json has \"quest\", \"questions\" array with {{\"q\", \"a\"}}.\
+             For DEBATE_MODE: data_json has \"topic\", \"side\".\
+             For SHADOW_READING: data_json has \"text\".\
+             For WORD_SNAP: data_json has \"pairs\" array with {{\"en\", \"img_desc\"}}.\
+             For TONGUE_TWISTER: data_json has \"text\".\
+             For NEWS_HEADLINE: data_json has \"headline\", \"answer\", \"options\".\
+             For SONG_LYRICS: data_json has \"lyrics\", \"answer\", \"missing_word\".\
+             Generate relevant content. Content must be relevant to hospitality industry.", context
         ),
         _ => return Err(AppError::InternalServerError),
     };
