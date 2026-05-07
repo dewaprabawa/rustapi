@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
 use crate::handlers::AppError;
-use crate::content::handlers::call_gemini_pub;
 use crate::content::models::LlmApiKey;
+use crate::ai::service::call_llm_for_course;
+use futures::TryStreamExt;
 use mongodb::{Collection, bson::doc};
 use crate::handlers::AppState;
 use std::sync::Arc;
@@ -25,10 +26,15 @@ pub async fn evaluate_speaking_turn(
     conversation_history: &str,
     user_transcript: &str,
 ) -> Result<EvaluationResult, AppError> {
-    // 1. Get AI Key (prefer Gemini for cost efficiency in conversational loops)
+    // 1. Get AI Key (try all active keys)
     let key_col: Collection<LlmApiKey> = state.db.database("rustapi").collection("llm_api_keys");
-    let key = key_col.find_one(doc! { "provider": "gemini", "is_active": true }).await?
-        .ok_or(AppError::InternalServerError)?;
+    let cursor = key_col.find(doc! { "is_active": true }).await?;
+    let active_keys: Vec<LlmApiKey> = cursor.try_collect().await?;
+
+    if active_keys.is_empty() {
+        crate::notification::notify_admins(&state.db, "AI API Keys Empty", "No active LLM API keys found for evaluation. Please add or activate keys.").await;
+        return Err(AppError::BadRequest("No active LLM API key found.".to_string()));
+    }
 
     // 2. Build Prompt
     let vocab_list = target_vocab.join(", ");
@@ -72,7 +78,27 @@ Return ONLY a JSON object with this structure:
     );
 
     // 3. Call LLM
-    let response_text = call_gemini_pub(&key.api_key, &prompt).await?;
+    let mut last_error = None;
+    let mut response_text = String::new();
+    let mut success = false;
+    
+    for key in active_keys {
+        match call_llm_for_course(&key, &prompt).await {
+            Ok(resp) => {
+                response_text = resp.text;
+                success = true;
+                break;
+            }
+            Err(e) => {
+                last_error = Some(e);
+            }
+        }
+    }
+    
+    if !success {
+        crate::notification::notify_admins(&state.db, "AI API Keys Exhausted", "All active AI API keys failed during evaluation.").await;
+        return Err(last_error.unwrap_or(AppError::InternalServerError));
+    }
     
     // 4. Parse Result
     let cleaned = response_text.trim();
@@ -107,8 +133,13 @@ pub async fn generate_session_summary(
     full_transcript: &str,
 ) -> Result<SessionSummary, AppError> {
     let key_col: Collection<LlmApiKey> = state.db.database("rustapi").collection("llm_api_keys");
-    let key = key_col.find_one(doc! { "provider": "gemini", "is_active": true }).await?
-        .ok_or(AppError::InternalServerError)?;
+    let cursor = key_col.find(doc! { "is_active": true }).await?;
+    let active_keys: Vec<LlmApiKey> = cursor.try_collect().await?;
+
+    if active_keys.is_empty() {
+        crate::notification::notify_admins(&state.db, "AI API Keys Empty", "No active LLM API keys found for evaluation. Please add or activate keys.").await;
+        return Err(AppError::BadRequest("No active LLM API key found.".to_string()));
+    }
 
     let prompt = format!(
         r#"You are an expert English language coach. Analyze this full hospitality practice conversation.
@@ -139,7 +170,27 @@ Return ONLY a JSON object:
         scenario_context, full_transcript
     );
 
-    let response_text = call_gemini_pub(&key.api_key, &prompt).await?;
+    let mut last_error = None;
+    let mut response_text = String::new();
+    let mut success = false;
+    
+    for key in active_keys {
+        match call_llm_for_course(&key, &prompt).await {
+            Ok(resp) => {
+                response_text = resp.text;
+                success = true;
+                break;
+            }
+            Err(e) => {
+                last_error = Some(e);
+            }
+        }
+    }
+    
+    if !success {
+        crate::notification::notify_admins(&state.db, "AI API Keys Exhausted", "All active AI API keys failed during session summary.").await;
+        return Err(last_error.unwrap_or(AppError::InternalServerError));
+    }
     let cleaned = response_text.trim();
     let cleaned = if cleaned.starts_with("```") {
         let start = cleaned.find('\n').map(|i| i + 1).unwrap_or(0);
@@ -172,8 +223,13 @@ pub async fn generate_speaking_scenario(
     level: &str,
 ) -> Result<GeneratedScenario, AppError> {
     let key_col: Collection<LlmApiKey> = state.db.database("rustapi").collection("llm_api_keys");
-    let key = key_col.find_one(doc! { "provider": "gemini", "is_active": true }).await?
-        .ok_or(AppError::InternalServerError)?;
+    let cursor = key_col.find(doc! { "is_active": true }).await?;
+    let active_keys: Vec<LlmApiKey> = cursor.try_collect().await?;
+
+    if active_keys.is_empty() {
+        crate::notification::notify_admins(&state.db, "AI API Keys Empty", "No active LLM API keys found for generation. Please add or activate keys.").await;
+        return Err(AppError::BadRequest("No active LLM API key found.".to_string()));
+    }
 
     let prompt_col: Collection<crate::content::models::AIPromptConfig> = state.db.database("rustapi").collection("ai_prompts");
     let custom_prompt = prompt_col.find_one(doc! { "entity_type": "scenario" }).await.ok().flatten();
@@ -203,7 +259,27 @@ Return ONLY a JSON object with this exact structure:
         )
     };
 
-    let response_text = call_gemini_pub(&key.api_key, &prompt).await?;
+    let mut last_error = None;
+    let mut response_text = String::new();
+    let mut success = false;
+    
+    for key in active_keys {
+        match call_llm_for_course(&key, &prompt).await {
+            Ok(resp) => {
+                response_text = resp.text;
+                success = true;
+                break;
+            }
+            Err(e) => {
+                last_error = Some(e);
+            }
+        }
+    }
+    
+    if !success {
+        crate::notification::notify_admins(&state.db, "AI API Keys Exhausted", "All active AI API keys failed during scenario generation.").await;
+        return Err(last_error.unwrap_or(AppError::InternalServerError));
+    }
     let cleaned = response_text.trim();
     let cleaned = if cleaned.starts_with("```") {
         let start = cleaned.find('\n').map(|i| i + 1).unwrap_or(0);

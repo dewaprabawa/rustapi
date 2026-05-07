@@ -54,6 +54,7 @@ pub async fn generate_course(
     let active_keys: Vec<LlmApiKey> = cursor.try_collect().await?;
 
     if active_keys.is_empty() {
+        crate::notification::notify_admins(&state.db, "AI API Keys Empty", "No active LLM API keys found. Please add or activate keys in API Key Management.").await;
         return Err(AppError::BadRequest("No active LLM API key found. Please activate an API key in API Key Management.".to_string()));
     }
 
@@ -80,9 +81,13 @@ pub async fn generate_course(
         }
     }
 
-    let active_key = successful_key.ok_or_else(|| {
-        last_error.unwrap_or(AppError::InternalServerError)
-    })?;
+    let active_key = match successful_key {
+        Some(k) => k,
+        None => {
+            crate::notification::notify_admins(&state.db, "AI API Keys Exhausted", "All active AI API keys have reached their limit or failed. Please check credits and error logs.").await;
+            return Err(last_error.unwrap_or(AppError::InternalServerError));
+        }
+    };
     let llm_resp = llm_response.unwrap();
 
     // 5. Log the generation
@@ -170,6 +175,7 @@ pub async fn generate_vocab(
     let active_keys: Vec<LlmApiKey> = cursor.try_collect().await?;
 
     if active_keys.is_empty() {
+        crate::notification::notify_admins(&state.db, "AI API Keys Empty", "No active LLM API keys found. Please add or activate keys in API Key Management.").await;
         return Err(AppError::BadRequest("No active LLM API key found. Please activate an API key in API Key Management.".to_string()));
     }
 
@@ -195,9 +201,13 @@ pub async fn generate_vocab(
         }
     }
 
-    let active_key = successful_key.ok_or_else(|| {
-        last_error.unwrap_or(AppError::InternalServerError)
-    })?;
+    let active_key = match successful_key {
+        Some(k) => k,
+        None => {
+            crate::notification::notify_admins(&state.db, "AI API Keys Exhausted", "All active AI API keys have reached their limit or failed. Please check credits and error logs.").await;
+            return Err(last_error.unwrap_or(AppError::InternalServerError));
+        }
+    };
     let llm_resp = llm_response.unwrap();
 
     // 5. Log the generation
@@ -338,9 +348,37 @@ pub async fn fulfill_conversation_request(
 
     // 4. Call LLM
     let key_col: Collection<LlmApiKey> = db.collection("llm_api_keys");
-    let active_key = key_col.find_one(doc! { "is_active": true }).await?
-        .ok_or(AppError::BadRequest("No active LLM API key found. Please activate an API key in API Key Management.".to_string()))?;
-    let llm_response = call_llm_for_course(&active_key, &prompt).await?;
+    let cursor = key_col.find(doc! { "is_active": true }).await?;
+    let active_keys: Vec<LlmApiKey> = cursor.try_collect().await?;
+
+    if active_keys.is_empty() {
+        crate::notification::notify_admins(&state.db, "AI API Keys Empty", "No active LLM API keys found. Please add or activate keys in API Key Management.").await;
+        return Err(AppError::BadRequest("No active LLM API key found. Please activate an API key in API Key Management.".to_string()));
+    }
+
+    let mut last_error = None;
+    let mut llm_response = None;
+
+    for key in active_keys {
+        match call_llm_for_course(&key, &prompt).await {
+            Ok(resp) => {
+                llm_response = Some(resp);
+                break;
+            }
+            Err(e) => {
+                println!("⚠️ API Key ({}) failed for conversation scenario: {:?}", key.provider, e);
+                last_error = Some(e);
+            }
+        }
+    }
+
+    let llm_response = match llm_response {
+        Some(resp) => resp,
+        None => {
+            crate::notification::notify_admins(&state.db, "AI API Keys Exhausted", "All active AI API keys have reached their limit or failed. Please check credits and error logs.").await;
+            return Err(last_error.unwrap_or(AppError::InternalServerError));
+        }
+    };
 
     // 5. Update request status
     let now = mongodb::bson::DateTime::now();

@@ -42,6 +42,7 @@ pub async fn speakup_ai_generate_content(
     };
 
     if active_keys.is_empty() {
+        crate::notification::notify_admins(&state.db, "AI API Keys Empty", "No active LLM API keys found. Please add or activate keys in API Key Management.").await;
         return Err(AppError::BadRequest("No active LLM API key found. Please activate an API key in API Key Management.".to_string()));
     }
     
@@ -86,7 +87,7 @@ pub async fn speakup_ai_generate_content(
             }
         }
     }
-    
+    crate::notification::notify_admins(&state.db, "AI API Keys Exhausted", "All active AI API keys have reached their limit or failed. Please check credits and error logs.").await;
     Err(last_error.unwrap_or(AppError::InternalServerError))
 }
 
