@@ -13,6 +13,7 @@ pub mod progress;
 pub mod rating;
 pub mod seed;
 pub mod speaking;
+pub mod speaking_ai;
 pub mod speakup;
 pub mod swagger;
 pub mod vocab;
@@ -45,6 +46,9 @@ use crate::progress::handlers::*;
 use crate::rating::handlers::*;
 use crate::seed::seed_admin;
 use crate::speaking::handlers as speaking_handlers;
+use crate::speaking_ai::handlers::{
+    voice_chat, text_chat, transcribe_only, tts_only,
+};
 use crate::speakup::handlers as speakup_handlers;
 use crate::swagger::ApiDoc;
 use crate::voice::handlers::{
@@ -377,6 +381,11 @@ pub async fn create_app() -> Router {
         .nest("/voice", voice_routes)
         // SpeakUp (Public access)
         .nest("/speakup", speakup_routes)
+        // ── Speaking AI (mobile voice pipeline: STT → Groq → TTS) ──
+        .route("/speaking-ai/chat", post(voice_chat))
+        .route("/speaking-ai/text-chat", post(text_chat))
+        .route("/speaking-ai/transcribe", post(transcribe_only))
+        .route("/speaking-ai/tts", post(tts_only))
         .layer(cors)
         .with_state(state)
 }
