@@ -256,6 +256,10 @@ pub struct OnboardingRequest {
     pub tone: String,
     pub goal: String,
     pub weakness: Option<String>,
+    pub target: Option<String>,
+    pub duration: Option<String>,
+    pub pace: Option<String>,
+    pub avatar_emoji: Option<String>,
 }
 
 #[derive(utoipa::ToSchema, serde::Deserialize)]
@@ -269,6 +273,10 @@ pub struct Persona {
     pub tone: String,
     pub goal: String,
     pub weakness: Option<String>,
+    pub target: Option<String>,
+    pub duration: Option<String>,
+    pub pace: Option<String>,
+    pub avatar_emoji: Option<String>,
 }
 
 #[derive(utoipa::ToSchema, serde::Serialize)]

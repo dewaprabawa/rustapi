@@ -9,6 +9,14 @@ pub struct Persona {
     pub tone: String,    // friendly | casual | strict
     pub goal: String,
     pub weakness: Option<String>,
+    #[serde(default)]
+    pub target: Option<String>,      // e.g. "Guest Relations", "Band 7.0 - 7.5"
+    #[serde(default)]
+    pub duration: Option<String>,    // e.g. "8 Weeks"
+    #[serde(default)]
+    pub pace: Option<String>,        // e.g. "Intense — 20 mins"
+    #[serde(default)]
+    pub avatar_emoji: Option<String>, // e.g. "🧙"
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -135,6 +143,10 @@ pub struct OnboardingRequest {
     pub tone: String,
     pub goal: String,
     pub weakness: Option<String>,
+    pub target: Option<String>,
+    pub duration: Option<String>,
+    pub pace: Option<String>,
+    pub avatar_emoji: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

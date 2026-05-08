@@ -36,6 +36,10 @@ pub async fn register(
         tone: "friendly".to_string(),
         goal: "General".to_string(),
         weakness: None,
+        target: None,
+        duration: None,
+        pace: None,
+        avatar_emoji: None,
     };
 
     let new_user = User {
@@ -138,6 +142,10 @@ pub async fn update_onboarding(
         tone: payload.tone,
         goal: payload.goal,
         weakness: payload.weakness,
+        target: payload.target,
+        duration: payload.duration,
+        pace: payload.pace,
+        avatar_emoji: payload.avatar_emoji,
     };
 
     let result = collection.update_one(
@@ -255,6 +263,10 @@ pub async fn firebase_login(
                 tone: "friendly".to_string(),
                 goal: "General".to_string(),
                 weakness: None,
+                target: None,
+                duration: None,
+                pace: None,
+                avatar_emoji: None,
             };
 
             // Create random password since they log in via OAuth

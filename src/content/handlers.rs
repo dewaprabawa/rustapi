@@ -708,13 +708,21 @@ pub async fn delete_quiz(
 
 // ==================== PUBLIC CONTENT ENDPOINTS (for mobile app) ====================
 
-/// GET /courses — Public, published courses only
+/// GET /courses — Public, published courses only (optional ?category= filter)
 pub async fn public_list_courses(
     State(state): State<Arc<AppState>>,
+    Query(params): Query<std::collections::HashMap<String, String>>,
 ) -> Result<impl IntoResponse, AppError> {
     let collection: Collection<Course> = state.db.database("rustapi").collection("courses");
 
-    let cursor = collection.find(doc! { "is_published": true })
+    let mut filter = doc! { "is_published": true };
+    if let Some(category) = params.get("category") {
+        if !category.is_empty() {
+            filter.insert("category", category.to_lowercase());
+        }
+    }
+
+    let cursor = collection.find(filter)
         .sort(doc! { "order": 1 })
         .await?;
     let data: Vec<Course> = cursor.try_collect().await?;
