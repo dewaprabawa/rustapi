@@ -389,6 +389,534 @@ pub async fn speakup_admin_test_analyze(
     Ok(Json(analysis).into_response())
 }
 
+// ══════════════════════════════════════════════════════════════════════
+// MOBILE ENDPOINTS  (User-authenticated — no Admin extractor)
+// ══════════════════════════════════════════════════════════════════════
+
+/// GET /speakup/mobile/content
+/// List all SpeakUp drills available to the mobile student.
+/// Optional query params:  ?type=shadowing|expansion  &difficulty=A1|B1
+pub async fn mobile_list_speakup(
+    State(state): State<Arc<AppState>>,
+    _user: User,
+    axum::extract::Query(params): axum::extract::Query<MobileListQuery>,
+) -> Result<axum::response::Response, AppError> {
+    let collection: Collection<SpeakUpContent> =
+        state.db.database("rustapi").collection("speakup_content");
+
+    let mut filter = doc! {};
+    if let Some(t) = &params.content_type {
+        filter.insert("content_type", t.as_str());
+    }
+    if let Some(d) = &params.difficulty {
+        filter.insert("difficulty", d.as_str());
+    }
+
+    let mut cursor = collection
+        .find(filter)
+        .await
+        .map_err(|_| AppError::InternalServerError)?;
+
+    let mut results = Vec::new();
+    while let Some(item) = cursor.next().await {
+        if let Ok(c) = item {
+            results.push(c);
+        }
+    }
+
+    Ok(Json(results).into_response())
+}
+
+#[derive(Debug, Deserialize)]
+pub struct MobileListQuery {
+    #[serde(rename = "type")]
+    pub content_type: Option<String>,
+    pub difficulty: Option<String>,
+}
+
+/// POST /speakup/mobile/listen
+/// Returns base64 MP3 of the reference transcript (or a specific expansion step).
+/// Body (JSON):
+///   { "content_id": "...", "step_index": 0 }  // step_index optional
+///
+/// The mobile app plays this audio for the student to shadow/repeat.
+#[derive(Debug, Deserialize)]
+pub struct MobileListenRequest {
+    pub content_id: String,
+    pub step_index: Option<usize>,
+}
+
+pub async fn mobile_speakup_listen(
+    State(state): State<Arc<AppState>>,
+    _user: User,
+    Json(payload): Json<MobileListenRequest>,
+) -> Result<axum::response::Response, AppError> {
+    let cid = mongodb::bson::oid::ObjectId::parse_str(&payload.content_id)
+        .map_err(|_| AppError::BadRequest("Invalid content_id".to_string()))?;
+
+    let db = state.db.database("rustapi");
+    let content_col: Collection<SpeakUpContent> = db.collection("speakup_content");
+    let content = content_col
+        .find_one(doc! { "_id": cid })
+        .await?
+        .ok_or(AppError::NotFound("Content not found".to_string()))?;
+
+    // Determine which text to synthesize
+    let target_text = resolve_target_text(&content, payload.step_index);
+
+    if target_text.trim().is_empty() {
+        return Err(AppError::BadRequest(
+            "No text available for this content/step.".to_string(),
+        ));
+    }
+
+    // Load voice config
+    let config_col: Collection<crate::voice::models::VoiceConfig> =
+        db.collection("voice_configs");
+    let config = config_col
+        .find_one(doc! {})
+        .await?
+        .ok_or(AppError::InternalServerError)?;
+
+    // Synthesize via ElevenLabs
+    use crate::voice::traits::TextToSpeech;
+    let tts = crate::voice::elevenlabs::ElevenLabsTTS::new(config.elevenlabs_api_key.clone());
+    let audio_bytes = tts
+        .synthesize(&target_text, &config.elevenlabs_voice_id)
+        .await?;
+
+    // Return base64 JSON (mobile-friendly — avoids binary streaming issues)
+    use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+    Ok(Json(serde_json::json!({
+        "audio_base64": BASE64.encode(&audio_bytes),
+        "audio_mime": "audio/mpeg",
+        "text": target_text,
+        "content_type": format!("{:?}", content.content_type).to_lowercase(),
+        "target_wpm": content.target_wpm
+    }))
+    .into_response())
+}
+
+/// POST /speakup/mobile/attempt  (multipart)
+/// The student submits a voice recording.  The server:
+///   1. Transcribes via Deepgram
+///   2. Scores fluency via FluencyEngine
+///   3. Generates AI coaching feedback via Groq
+///   4. Saves session
+///   5. Returns full SpeakUpAnalysis + ai_feedback + corrective audio (base64)
+///
+/// Multipart fields:
+///   audio       : audio file bytes
+///   content_id  : ObjectId string
+///   step_index  : (optional) integer — for expansion drills
+pub async fn mobile_speakup_attempt(
+    State(state): State<Arc<AppState>>,
+    user: User,
+    mut multipart: Multipart,
+) -> Result<axum::response::Response, AppError> {
+    // Parse multipart
+    let mut audio_data: Option<Vec<u8>> = None;
+    let mut content_id: Option<String> = None;
+    let mut step_index: Option<usize> = None;
+    let mut mime_type = "audio/wav".to_string();
+
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|_| AppError::InternalServerError)?
+    {
+        match field.name() {
+            Some("audio") => {
+                mime_type = field
+                    .content_type()
+                    .unwrap_or("audio/wav")
+                    .to_string();
+                audio_data = Some(
+                    field
+                        .bytes()
+                        .await
+                        .map_err(|_| AppError::InternalServerError)?
+                        .to_vec(),
+                );
+            }
+            Some("content_id") => {
+                content_id =
+                    Some(field.text().await.map_err(|_| AppError::InternalServerError)?);
+            }
+            Some("step_index") => {
+                if let Ok(s) = field.text().await {
+                    step_index = s.parse::<usize>().ok();
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let audio_bytes =
+        audio_data.ok_or(AppError::BadRequest("Missing audio field".to_string()))?;
+    let cid_str =
+        content_id.ok_or(AppError::BadRequest("Missing content_id field".to_string()))?;
+    let cid = mongodb::bson::oid::ObjectId::parse_str(&cid_str)
+        .map_err(|_| AppError::BadRequest("Invalid content_id".to_string()))?;
+
+    // 1. Fluency analysis (STT via Deepgram + engine scoring)
+    let analysis =
+        perform_speakup_analysis_logic(state.clone(), cid, step_index, audio_bytes, mime_type)
+            .await?;
+
+    // 2. AI coaching feedback via Groq (key loaded from llm_api_keys DB)
+    let db = state.db.database("rustapi");
+    let ai_feedback = generate_groq_feedback(&analysis, step_index, &db).await;
+
+    // 3. Synthesize corrective audio of the feedback via ElevenLabs
+    let corrective_audio_b64 = {
+        let db = state.db.database("rustapi");
+        let config_col: Collection<crate::voice::models::VoiceConfig> =
+            db.collection("voice_configs");
+        match config_col.find_one(doc! {}).await {
+            Ok(Some(config)) if !config.elevenlabs_api_key.is_empty() => {
+                use crate::voice::traits::TextToSpeech;
+                let tts =
+                    crate::voice::elevenlabs::ElevenLabsTTS::new(config.elevenlabs_api_key);
+                match tts.synthesize(&ai_feedback, &config.elevenlabs_voice_id).await {
+                    Ok(audio) => {
+                        use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+                        Some(BASE64.encode(&audio))
+                    }
+                    Err(e) => {
+                        eprintln!("TTS for feedback failed: {:?}", e);
+                        None
+                    }
+                }
+            }
+            _ => None,
+        }
+    };
+
+    // 4. Save session
+    let db = state.db.database("rustapi");
+    let session_col: Collection<SpeakUpSession> = db.collection("speakup_sessions");
+    let session = SpeakUpSession {
+        id: None,
+        user_id: user.id.unwrap(),
+        content_id: cid,
+        analysis: analysis.clone(),
+        audio_recording_url: None,
+        created_at: Utc::now(),
+    };
+    session_col.insert_one(session).await?;
+
+    // 5. Return enriched response
+    Ok(Json(serde_json::json!({
+        "analysis": analysis,
+        "ai_feedback": ai_feedback,
+        "feedback_audio_base64": corrective_audio_b64,
+        "feedback_audio_mime": "audio/mpeg"
+    }))
+    .into_response())
+}
+
+/// POST /speakup/mobile/expansion/step  (multipart)
+/// Expansion drill: student submits audio for ONE step at a time.
+/// Returns per-step analysis + whether to advance to next step.
+///
+/// Multipart fields:
+///   audio       : audio file bytes
+///   content_id  : ObjectId string
+///   step_index  : integer (which step, 0-based)
+pub async fn mobile_expansion_step(
+    State(state): State<Arc<AppState>>,
+    user: User,
+    mut multipart: Multipart,
+) -> Result<axum::response::Response, AppError> {
+    let mut audio_data: Option<Vec<u8>> = None;
+    let mut content_id: Option<String> = None;
+    let mut step_index: Option<usize> = None;
+    let mut mime_type = "audio/wav".to_string();
+
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|_| AppError::InternalServerError)?
+    {
+        match field.name() {
+            Some("audio") => {
+                mime_type = field.content_type().unwrap_or("audio/wav").to_string();
+                audio_data = Some(
+                    field
+                        .bytes()
+                        .await
+                        .map_err(|_| AppError::InternalServerError)?
+                        .to_vec(),
+                );
+            }
+            Some("content_id") => {
+                content_id =
+                    Some(field.text().await.map_err(|_| AppError::InternalServerError)?);
+            }
+            Some("step_index") => {
+                if let Ok(s) = field.text().await {
+                    step_index = s.parse::<usize>().ok();
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let audio_bytes =
+        audio_data.ok_or(AppError::BadRequest("Missing audio field".to_string()))?;
+    let cid_str =
+        content_id.ok_or(AppError::BadRequest("Missing content_id field".to_string()))?;
+    let step_idx =
+        step_index.ok_or(AppError::BadRequest("Missing step_index field".to_string()))?;
+    let cid = mongodb::bson::oid::ObjectId::parse_str(&cid_str)
+        .map_err(|_| AppError::BadRequest("Invalid content_id".to_string()))?;
+
+    // Load content to know total steps
+    let content_col: Collection<SpeakUpContent> =
+        state.db.database("rustapi").collection("speakup_content");
+    let content = content_col
+        .find_one(doc! { "_id": cid })
+        .await?
+        .ok_or(AppError::NotFound("Content not found".to_string()))?;
+
+    let total_steps = content.steps.as_ref().map(|s| s.len()).unwrap_or(1);
+
+    // Analyse only this step
+    let analysis = perform_speakup_analysis_logic(
+        state.clone(),
+        cid,
+        Some(step_idx),
+        audio_bytes,
+        mime_type,
+    )
+    .await?;
+
+    // Decide whether student passed this step (score threshold: 60)
+    let passed = analysis.pronunciation_score >= 60.0;
+    let is_last_step = step_idx + 1 >= total_steps;
+    let next_step = if passed && !is_last_step {
+        Some(step_idx + 1)
+    } else {
+        None
+    };
+
+    let db = state.db.database("rustapi");
+    let ai_feedback = generate_groq_feedback(&analysis, Some(step_idx), &db).await;
+
+    // Pre-fetch the NEXT step's audio if we're advancing
+    let next_step_audio_b64 = if let Some(ns) = next_step {
+        let db = state.db.database("rustapi");
+        let config_col: Collection<crate::voice::models::VoiceConfig> =
+            db.collection("voice_configs");
+        if let Ok(Some(config)) = config_col.find_one(doc! {}).await {
+            let next_text = resolve_target_text(&content, Some(ns));
+            if !next_text.is_empty() {
+                use crate::voice::traits::TextToSpeech;
+                let tts =
+                    crate::voice::elevenlabs::ElevenLabsTTS::new(config.elevenlabs_api_key);
+                match tts.synthesize(&next_text, &config.elevenlabs_voice_id).await {
+                    Ok(audio) => {
+                        use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+                        Some(serde_json::json!({
+                            "step_index": ns,
+                            "text": next_text,
+                            "audio_base64": BASE64.encode(&audio),
+                            "audio_mime": "audio/mpeg"
+                        }))
+                    }
+                    Err(_) => None,
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    // Save session for this step
+    let session_col: Collection<SpeakUpSession> =
+        state.db.database("rustapi").collection("speakup_sessions");
+    let session = SpeakUpSession {
+        id: None,
+        user_id: user.id.unwrap(),
+        content_id: cid,
+        analysis: analysis.clone(),
+        audio_recording_url: None,
+        created_at: Utc::now(),
+    };
+    session_col.insert_one(session).await?;
+
+    Ok(Json(serde_json::json!({
+        "step_index": step_idx,
+        "total_steps": total_steps,
+        "passed": passed,
+        "is_complete": is_last_step && passed,
+        "analysis": analysis,
+        "ai_feedback": ai_feedback,
+        "next_step": next_step,
+        "next_step_audio": next_step_audio_b64
+    }))
+    .into_response())
+}
+
+/// GET /speakup/mobile/history
+/// Return the student's past SpeakUp sessions (last 20).
+pub async fn mobile_speakup_history(
+    State(state): State<Arc<AppState>>,
+    user: User,
+) -> Result<axum::response::Response, AppError> {
+    let db = state.db.database("rustapi");
+    let session_col: Collection<SpeakUpSession> = db.collection("speakup_sessions");
+
+    let user_oid = user.id.unwrap();
+    let opts = mongodb::options::FindOptions::builder()
+        .sort(doc! { "created_at": -1 })
+        .limit(20)
+        .build();
+
+    let mut cursor = session_col
+        .find(doc! { "user_id": user_oid })
+        .with_options(opts)
+        .await
+        .map_err(|_| AppError::InternalServerError)?;
+
+    let mut sessions = Vec::new();
+    while let Some(item) = cursor.next().await {
+        if let Ok(s) = item {
+            sessions.push(s);
+        }
+    }
+
+    Ok(Json(sessions).into_response())
+}
+
+// ──────────────────────────────────────────────────────────────
+// Private helpers
+// ──────────────────────────────────────────────────────────────
+
+/// Resolve the text a student should practice.
+/// For expansion: return the step text at `step_index` if given, else full transcript.
+/// For shadowing: always the full transcript.
+fn resolve_target_text(content: &SpeakUpContent, step_index: Option<usize>) -> String {
+    match content.content_type {
+        crate::speakup::models::SpeakUpType::Expansion => {
+            if let Some(steps) = &content.steps {
+                if let Some(idx) = step_index {
+                    return steps.get(idx).cloned().unwrap_or_default();
+                }
+                return steps.join(" ");
+            }
+            content.transcript.clone()
+        }
+        _ => content.transcript.clone(),
+    }
+}
+
+/// Generate AI coaching feedback using Groq based on analysis scores.
+/// Falls back to a template string if Groq key is not configured.
+async fn generate_groq_feedback(
+    analysis: &crate::speakup::models::SpeakUpAnalysis,
+    step_index: Option<usize>,
+    db: &mongodb::Database,
+) -> String {
+    // Fetch the active Groq key from llm_api_keys collection
+    let key_col: mongodb::Collection<crate::content::models::LlmApiKey> =
+        db.collection("llm_api_keys");
+    let groq_key = match key_col
+        .find_one(doc! { "provider": "groq", "is_active": true })
+        .await
+    {
+        Ok(Some(k)) if !k.api_key.is_empty() => k.api_key,
+        _ => return template_feedback(analysis, step_index),
+    };
+
+    let step_context = step_index
+        .map(|i| format!(" (expansion step {})", i + 1))
+        .unwrap_or_default();
+
+    let prompt = format!(
+        "You are a friendly English pronunciation and fluency coach for Indonesian hospitality workers.\n\
+         A student just completed a speaking drill{step_context}. Here are their scores:\n\
+         - Pronunciation match: {:.0}%\n\
+         - Pace: {:.0} WPM\n\
+         - Fluency score: {:.0}%\n\
+         - Number of hesitations detected: {}\n\n\
+         Give a short, warm, encouraging 2-3 sentence coaching comment. \
+         Mention what they did well and ONE specific tip to improve. \
+         Keep it spoken-style, no markdown or bullet points.",
+        analysis.pronunciation_score,
+        analysis.pace_wpm,
+        analysis.fluency_score,
+        analysis.hesitations.len()
+    );
+
+    let client = reqwest::Client::new();
+    match client
+        .post("https://api.groq.com/openai/v1/chat/completions")
+        .header("Authorization", format!("Bearer {}", groq_key))
+        .header("Content-Type", "application/json")
+        .json(&serde_json::json!({
+            "model": "llama-3.3-70b-versatile",
+            "messages": [
+                { "role": "system", "content": "You are a friendly English speaking coach. Keep responses brief and encouraging." },
+                { "role": "user", "content": prompt }
+            ],
+            "max_tokens": 150,
+            "temperature": 0.7
+        }))
+        .send()
+        .await
+    {
+        Ok(res) if res.status().is_success() => {
+            match res.json::<serde_json::Value>().await {
+                Ok(data) => data["choices"][0]["message"]["content"]
+                    .as_str()
+                    .unwrap_or("")
+                    .trim()
+                    .to_string(),
+                Err(_) => template_feedback(analysis, step_index),
+            }
+        }
+        _ => template_feedback(analysis, step_index),
+    }
+}
+
+fn template_feedback(
+    analysis: &crate::speakup::models::SpeakUpAnalysis,
+    _step_index: Option<usize>,
+) -> String {
+    if analysis.fluency_score >= 80.0 {
+        format!(
+            "Great job! Your fluency score is {:.0}% and your pace was {:.0} WPM — really solid. \
+             Keep it up and try to push your speed a little more next time!",
+            analysis.fluency_score, analysis.pace_wpm
+        )
+    } else if analysis.fluency_score >= 55.0 {
+        let hesitations = analysis.hesitations.len();
+        format!(
+            "Good effort! You scored {:.0}% fluency at {:.0} WPM. \
+             {}Try to speak a bit more smoothly and reduce any pauses.",
+            analysis.fluency_score,
+            analysis.pace_wpm,
+            if hesitations > 0 {
+                format!("You paused {} time(s) — that's okay, just keep practising. ", hesitations)
+            } else {
+                String::new()
+            }
+        )
+    } else {
+        format!(
+            "Keep practising! Your score is {:.0}% — focus on matching the target sentence \
+             word-for-word and don't rush. Slow and accurate beats fast and unclear.",
+            analysis.fluency_score
+        )
+    }
+}
+
 /// POST /admin/speakup/test-listen
 pub async fn speakup_admin_test_listen(
     State(state): State<Arc<AppState>>,

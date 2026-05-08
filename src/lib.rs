@@ -105,12 +105,26 @@ pub async fn create_app() -> Router {
 
     // ============ SpeakUp Routes ============
     let speakup_routes: Router<Arc<AppState>> = Router::new()
+        // Admin / shared content management
         .route("/content", get(speakup_handlers::speakup_list_content).post(speakup_handlers::speakup_create_content))
         .route("/content/:id", get(speakup_handlers::speakup_get_content).put(speakup_handlers::speakup_update_content).delete(speakup_handlers::speakup_delete_content))
+        // Student attempt (existing)
         .route("/analyze", post(speakup_handlers::speakup_analyze_attempt))
+        // Admin test endpoints
         .route("/test-analyze", post(speakup_handlers::speakup_admin_test_analyze))
         .route("/test-listen", post(speakup_handlers::speakup_admin_test_listen))
-        .route("/ai-generate", post(speakup_handlers::speakup_ai_generate_content));
+        .route("/ai-generate", post(speakup_handlers::speakup_ai_generate_content))
+        // ── Mobile-first endpoints (user-authenticated) ──────────────
+        // GET  /speakup/mobile/content?type=shadowing&difficulty=A1
+        .route("/mobile/content", get(speakup_handlers::mobile_list_speakup))
+        // POST /speakup/mobile/listen          → base64 MP3 reference audio
+        .route("/mobile/listen", post(speakup_handlers::mobile_speakup_listen))
+        // POST /speakup/mobile/attempt         → STT + analysis + Groq feedback + feedback audio
+        .route("/mobile/attempt", post(speakup_handlers::mobile_speakup_attempt))
+        // POST /speakup/mobile/expansion/step  → per-step expansion drill
+        .route("/mobile/expansion/step", post(speakup_handlers::mobile_expansion_step))
+        // GET  /speakup/mobile/history         → last 20 sessions
+        .route("/mobile/history", get(speakup_handlers::mobile_speakup_history));
 
     // ============ Admin Routes (protected by Admin extractor) ============
     let admin_routes = Router::new()

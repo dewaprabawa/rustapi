@@ -34,14 +34,27 @@ async fn load_voice_config(state: &AppState) -> Result<VoiceConfig, AppError> {
 }
 
 // ──────────────────────────────────────────────────────────────
-// Helper: Groq API key from env (with fallback instructions)
+// Helper: load active Groq key from llm_api_keys collection
 // ──────────────────────────────────────────────────────────────
-fn groq_api_key() -> Result<String, AppError> {
-    std::env::var("GROQ_API_KEY").map_err(|_| {
-        AppError::BadRequest(
-            "GROQ_API_KEY not set. Add it to your .env file.".to_string(),
-        )
-    })
+async fn load_groq_key(state: &AppState) -> Result<String, AppError> {
+    use crate::content::models::LlmApiKey;
+    let col: Collection<LlmApiKey> =
+        state.db.database("rustapi").collection("llm_api_keys");
+    let key = col
+        .find_one(doc! { "provider": "groq", "is_active": true })
+        .await?
+        .ok_or_else(|| {
+            AppError::BadRequest(
+                "No active Groq API key found. Please add one in Admin → API Key Management."
+                    .to_string(),
+            )
+        })?;
+    if key.api_key.is_empty() {
+        return Err(AppError::BadRequest(
+            "Groq API key is empty. Please update it in Admin → API Key Management.".to_string(),
+        ));
+    }
+    Ok(key.api_key)
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -165,7 +178,7 @@ pub async fn voice_chat(
 
     // ── 2. Load config & API keys ──────────────────────────────
     let config = load_voice_config(&state).await?;
-    let groq_key = groq_api_key()?;
+    let groq_key = load_groq_key(&state).await?;
 
     // ── 3. STT: ElevenLabs Scribe ─────────────────────────────
     let stt = ElevenLabsSTT::new(&config.elevenlabs_api_key);
@@ -231,7 +244,7 @@ pub async fn text_chat(
 ) -> Result<impl IntoResponse, AppError> {
     // ── 1. Load config & Groq key ──────────────────────────────
     let config = load_voice_config(&state).await?;
-    let groq_key = groq_api_key()?;
+    let groq_key = load_groq_key(&state).await?;
 
     // ── 2. Build system prompt ─────────────────────────────────
     let system_prompt = payload.context.as_deref().map(|ctx| {
