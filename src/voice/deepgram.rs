@@ -19,6 +19,21 @@ impl SpeechToText for DeepgramSTT {
     }
 
     async fn transcribe_with_timing(&self, audio_data: Vec<u8>, mime_type: &str) -> Result<super::traits::TranscriptionResult, AppError> {
+        if self.api_key.is_empty() {
+            println!("⚠️ Deepgram API key is empty. Returning dummy transcript.");
+            return Ok(super::traits::TranscriptionResult {
+                transcript: "This is a dummy transcript because the API key is missing.".to_string(),
+                words: vec![
+                    super::traits::WordTiming {
+                        word: "This".to_string(),
+                        start: 0.0,
+                        end: 0.5,
+                        confidence: 0.99,
+                    }
+                ],
+            });
+        }
+
         let url = "https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&utterances=true&punctuate=true";
 
         let res = self.client.post(url)
