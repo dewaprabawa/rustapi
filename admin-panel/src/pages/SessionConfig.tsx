@@ -48,12 +48,10 @@ interface LessonSessionConfig {
   conversation_prompt?: string | null
 }
 
-const PHASE_TYPES = ["read", "flashcard", "vocab_drill", "game", "pronunciation", "conversation"]
 const PHASE_LABELS: Record<string, string> = {
   read: "📖 Read", flashcard: "🃏 Flashcards", vocab_drill: "🧩 Vocab Drill",
   game: "🎮 Games", pronunciation: "🎤 Pronunciation", conversation: "💬 Conversation",
 }
-const LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2"]
 
 export default function SessionConfig() {
   const [tab, setTab] = useState<"templates" | "overrides">("templates")
