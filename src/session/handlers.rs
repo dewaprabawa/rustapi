@@ -1,0 +1,452 @@
+use axum::{
+    extract::{Path, State, Json},
+    http::StatusCode,
+    response::IntoResponse,
+};
+use mongodb::Collection;
+use mongodb::bson::{doc, oid::ObjectId};
+use std::sync::Arc;
+use chrono::Utc;
+use futures::TryStreamExt;
+use serde_json::json;
+
+use crate::handlers::{AppState, AppError};
+use crate::models::Admin;
+use crate::content::models::*;
+use crate::game::models::GameContent;
+use crate::session::models::*;
+
+// ==================== Mobile: Session Assembly ====================
+
+/// GET /api/lessons/:id/session
+/// Assembles the full session payload for a lesson by resolving
+/// level template + per-lesson overrides + fetching related content.
+pub async fn get_lesson_session(
+    State(state): State<Arc<AppState>>,
+    Path(lesson_id_str): Path<String>,
+) -> Result<impl IntoResponse, AppError> {
+    let db = state.db.database("rustapi");
+    let lesson_oid = ObjectId::parse_str(&lesson_id_str)
+        .map_err(|_| AppError::BadRequest("Invalid lesson ID".into()))?;
+
+    // 1. Fetch the lesson
+    let lesson_col: Collection<Lesson> = db.collection("lessons");
+    let lesson = lesson_col.find_one(doc! { "_id": lesson_oid }).await?
+        .ok_or(AppError::NotFound("Lesson not found".into()))?;
+
+    // 2. Look up per-lesson config override
+    let config_col: Collection<LessonSessionConfig> = db.collection("lesson_session_configs");
+    let lesson_config = config_col.find_one(doc! { "lesson_id": lesson_oid }).await?;
+
+    // 3. Look up level template
+    let level_str = serde_json::to_value(&lesson.level)
+        .ok()
+        .and_then(|v| v.as_str().map(|s| s.to_string()))
+        .unwrap_or_else(|| "A1".to_string());
+    let template_col: Collection<LevelTemplate> = db.collection("level_templates");
+    let template = template_col.find_one(doc! { "level": &level_str }).await?;
+
+    // 4. Resolve phases, lives, xp_multiplier
+    let (phases, lives, xp_mult) = resolve_config(&lesson_config, &template);
+
+    // 5. Fetch related content
+    let vocab_col: Collection<Vocabulary> = db.collection("vocabulary");
+    let vocab_cursor = vocab_col.find(doc! { "lesson_id": lesson_oid }).await?;
+    let vocabulary: Vec<Vocabulary> = vocab_cursor.try_collect().await?;
+
+    let dialogue_col: Collection<Dialogue> = db.collection("dialogues");
+    let dialogue = dialogue_col.find_one(doc! { "lesson_id": lesson_oid }).await?;
+
+    let game_col: Collection<GameContent> = db.collection("games");
+    let game_cursor = game_col.find(doc! { "lesson_id": lesson_oid, "is_active": true }).await?;
+    let games: Vec<GameContent> = game_cursor.try_collect().await?;
+
+    // 6. Build pronunciation sentences
+    let pron_sentences = build_pronunciation_sentences(&lesson_config, &dialogue, &phases);
+
+    // 7. Build conversation context
+    let conv_prompt = build_conversation_prompt(&lesson_config, &lesson);
+
+    // 8. Assemble response
+    let mut phase_data = Vec::new();
+    for phase in &phases {
+        if !phase.enabled {
+            continue;
+        }
+        let data = match phase.phase_type {
+            SessionPhaseType::Read => json!({
+                "content": lesson.content,
+                "content_id": lesson.content_id,
+                "instruction": lesson.instruction,
+                "culture_notes": lesson.culture_notes,
+                "xp_reward": 5,
+            }),
+            SessionPhaseType::Flashcard => {
+                let words: Vec<serde_json::Value> = vocabulary.iter().map(|v| json!({
+                    "id": v.id.map(|id| id.to_hex()),
+                    "word": v.word,
+                    "translation": v.translation,
+                    "pronunciation": v.pronunciation,
+                    "example_en": v.example_en,
+                    "example_id": v.example_id,
+                    "audio_url": v.audio_url,
+                })).collect();
+                let auto_play = phase.settings.auto_play_audio.unwrap_or(true);
+                json!({
+                    "words": words,
+                    "auto_play_audio": auto_play,
+                    "xp_reward": 10,
+                })
+            },
+            SessionPhaseType::VocabDrill => {
+                let drills = build_vocab_drills(&vocabulary, &phase.settings);
+                json!({
+                    "drills": drills,
+                    "xp_reward": 15,
+                })
+            },
+            SessionPhaseType::Game => {
+                let game_data: Vec<serde_json::Value> = games.iter().map(|g| json!({
+                    "id": g.id.map(|id| id.to_hex()),
+                    "game_type": g.game_type,
+                    "title": g.title,
+                    "instructions": g.instructions,
+                    "difficulty": g.difficulty,
+                    "data_json": g.data_json,
+                    "xp_reward": g.xp_reward,
+                    "order": g.order,
+                })).collect();
+                json!({
+                    "games": game_data,
+                    "xp_reward": 20,
+                })
+            },
+            SessionPhaseType::Pronunciation => {
+                let count = phase.settings.sentence_count.unwrap_or(3) as usize;
+                let sentences: Vec<&str> = pron_sentences.iter().take(count).map(|s| s.as_str()).collect();
+                let min_acc = phase.settings.min_accuracy_score.unwrap_or(60.0);
+                let speed = phase.settings.speed.clone().unwrap_or_else(|| "normal".into());
+                json!({
+                    "sentences": sentences,
+                    "min_accuracy": min_acc,
+                    "speed": speed,
+                    "xp_reward": 15,
+                })
+            },
+            SessionPhaseType::Conversation => {
+                let turns = phase.settings.turn_count.unwrap_or(3);
+                json!({
+                    "scenario_context": conv_prompt,
+                    "turn_count": turns,
+                    "xp_reward": 25,
+                })
+            },
+        };
+
+        phase_data.push(json!({
+            "type": phase.phase_type,
+            "order": phase.order,
+            "data": data,
+        }));
+    }
+
+    let response = json!({
+        "lesson_id": lesson_id_str,
+        "title": lesson.title,
+        "title_id": lesson.title_id,
+        "lives": lives,
+        "xp_multiplier": xp_mult,
+        "phases": phase_data,
+    });
+
+    Ok((StatusCode::OK, Json(response)))
+}
+
+// ==================== Admin: Level Template CRUD ====================
+
+/// GET /admin/level-templates
+pub async fn list_level_templates(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+) -> Result<impl IntoResponse, AppError> {
+    let db = state.db.database("rustapi");
+    let col: Collection<LevelTemplate> = db.collection("level_templates");
+    let cursor = col.find(doc! {}).await?;
+    let templates: Vec<LevelTemplate> = cursor.try_collect().await?;
+    Ok(Json(templates))
+}
+
+/// GET /admin/level-templates/:level
+pub async fn get_level_template(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+    Path(level): Path<String>,
+) -> Result<impl IntoResponse, AppError> {
+    let db = state.db.database("rustapi");
+    let col: Collection<LevelTemplate> = db.collection("level_templates");
+    let template = col.find_one(doc! { "level": &level }).await?
+        .ok_or(AppError::NotFound(format!("Template for level '{}' not found", level)))?;
+    Ok(Json(template))
+}
+
+/// PUT /admin/level-templates/:level
+pub async fn update_level_template(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+    Path(level): Path<String>,
+    Json(payload): Json<UpdateLevelTemplateRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    let db = state.db.database("rustapi");
+    let col: Collection<LevelTemplate> = db.collection("level_templates");
+
+    let mut update = doc! { "updated_at": mongodb::bson::DateTime::now() };
+    if let Some(name) = payload.name {
+        update.insert("name", name);
+    }
+    if let Some(phases) = payload.phases {
+        let phases_bson = mongodb::bson::to_bson(&phases)
+            .map_err(|_| AppError::BadRequest("Invalid phases data".into()))?;
+        update.insert("phases", phases_bson);
+    }
+    if let Some(lives) = payload.default_lives {
+        update.insert("default_lives", lives);
+    }
+    if let Some(mult) = payload.xp_multiplier {
+        update.insert("xp_multiplier", mult);
+    }
+
+    col.update_one(doc! { "level": &level }, doc! { "$set": update }).await?;
+    let updated = col.find_one(doc! { "level": &level }).await?
+        .ok_or(AppError::NotFound("Template not found".into()))?;
+    Ok(Json(updated))
+}
+
+// ==================== Admin: Lesson Session Config CRUD ====================
+
+/// GET /admin/lesson-configs
+pub async fn list_lesson_configs(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+) -> Result<impl IntoResponse, AppError> {
+    let db = state.db.database("rustapi");
+    let col: Collection<LessonSessionConfig> = db.collection("lesson_session_configs");
+    let cursor = col.find(doc! {}).await?;
+    let configs: Vec<LessonSessionConfig> = cursor.try_collect().await?;
+    Ok(Json(configs))
+}
+
+/// GET /admin/lesson-configs/:lesson_id
+pub async fn get_lesson_config(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+    Path(lesson_id): Path<String>,
+) -> Result<impl IntoResponse, AppError> {
+    let db = state.db.database("rustapi");
+    let oid = ObjectId::parse_str(&lesson_id)
+        .map_err(|_| AppError::BadRequest("Invalid lesson ID".into()))?;
+    let col: Collection<LessonSessionConfig> = db.collection("lesson_session_configs");
+    let config = col.find_one(doc! { "lesson_id": oid }).await?
+        .ok_or(AppError::NotFound("No session config for this lesson".into()))?;
+    Ok(Json(config))
+}
+
+/// PUT /admin/lesson-configs/:lesson_id
+pub async fn upsert_lesson_config(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+    Path(lesson_id): Path<String>,
+    Json(payload): Json<UpsertLessonConfigRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    let db = state.db.database("rustapi");
+    let oid = ObjectId::parse_str(&lesson_id)
+        .map_err(|_| AppError::BadRequest("Invalid lesson ID".into()))?;
+    let col: Collection<LessonSessionConfig> = db.collection("lesson_session_configs");
+
+    let config_bson = mongodb::bson::to_bson(&LessonSessionConfig {
+        id: None,
+        lesson_id: oid,
+        phases: payload.phases,
+        override_lives: payload.override_lives,
+        override_xp_multiplier: payload.override_xp_multiplier,
+        pronunciation_sentences: payload.pronunciation_sentences,
+        conversation_prompt: payload.conversation_prompt,
+        updated_at: Utc::now(),
+    }).map_err(|_| AppError::BadRequest("Invalid config data".into()))?;
+
+    let config_doc = config_bson.as_document()
+        .ok_or(AppError::BadRequest("Failed to serialize config".into()))?;
+
+    col.update_one(
+        doc! { "lesson_id": oid },
+        doc! { "$set": config_doc },
+    ).await?;
+
+    // If no doc was modified, insert a new one
+    let existing = col.find_one(doc! { "lesson_id": oid }).await?;
+    if existing.is_none() {
+        let new_config = LessonSessionConfig {
+            id: None,
+            lesson_id: oid,
+            phases: None,
+            override_lives: None,
+            override_xp_multiplier: None,
+            pronunciation_sentences: None,
+            conversation_prompt: None,
+            updated_at: Utc::now(),
+        };
+        col.insert_one(new_config).await?;
+    }
+
+    let result = col.find_one(doc! { "lesson_id": oid }).await?;
+    Ok((StatusCode::OK, Json(result)))
+}
+
+/// DELETE /admin/lesson-configs/:lesson_id
+pub async fn delete_lesson_config(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+    Path(lesson_id): Path<String>,
+) -> Result<impl IntoResponse, AppError> {
+    let db = state.db.database("rustapi");
+    let oid = ObjectId::parse_str(&lesson_id)
+        .map_err(|_| AppError::BadRequest("Invalid lesson ID".into()))?;
+    let col: Collection<LessonSessionConfig> = db.collection("lesson_session_configs");
+    col.delete_one(doc! { "lesson_id": oid }).await?;
+    Ok((StatusCode::OK, Json(json!({ "message": "Session config deleted, lesson will use level template" }))))
+}
+
+// ==================== Helpers ====================
+
+/// Resolve the effective config by merging lesson override with level template.
+fn resolve_config(
+    lesson_config: &Option<LessonSessionConfig>,
+    template: &Option<LevelTemplate>,
+) -> (Vec<PhaseConfig>, i32, f64) {
+    // Default phases if no template exists
+    let default_phases = vec![
+        PhaseConfig { phase_type: SessionPhaseType::Read, enabled: true, order: 0, settings: PhaseSettings::default() },
+        PhaseConfig { phase_type: SessionPhaseType::Flashcard, enabled: true, order: 1, settings: PhaseSettings::default() },
+        PhaseConfig { phase_type: SessionPhaseType::VocabDrill, enabled: true, order: 2, settings: PhaseSettings { drill_types: Some(vec!["matching".into()]), ..Default::default() } },
+        PhaseConfig { phase_type: SessionPhaseType::Game, enabled: true, order: 3, settings: PhaseSettings::default() },
+        PhaseConfig { phase_type: SessionPhaseType::Pronunciation, enabled: true, order: 4, settings: PhaseSettings { sentence_count: Some(3), min_accuracy_score: Some(60.0), speed: Some("normal".into()), ..Default::default() } },
+        PhaseConfig { phase_type: SessionPhaseType::Conversation, enabled: true, order: 5, settings: PhaseSettings { turn_count: Some(3), ..Default::default() } },
+    ];
+
+    let (tmpl_phases, tmpl_lives, tmpl_mult) = match template {
+        Some(t) => (t.phases.clone(), t.default_lives, t.xp_multiplier),
+        None => (default_phases, 5, 1.0),
+    };
+
+    match lesson_config {
+        Some(cfg) => {
+            let phases = cfg.phases.clone().unwrap_or(tmpl_phases);
+            let lives = cfg.override_lives.unwrap_or(tmpl_lives);
+            let mult = cfg.override_xp_multiplier.unwrap_or(tmpl_mult);
+            (phases, lives, mult)
+        }
+        None => (tmpl_phases, tmpl_lives, tmpl_mult),
+    }
+}
+
+/// Build pronunciation sentences from config, or fall back to dialogue lines.
+fn build_pronunciation_sentences(
+    config: &Option<LessonSessionConfig>,
+    dialogue: &Option<Dialogue>,
+    _phases: &[PhaseConfig],
+) -> Vec<String> {
+    // Priority 1: lesson config custom sentences
+    if let Some(cfg) = config {
+        if let Some(sentences) = &cfg.pronunciation_sentences {
+            if !sentences.is_empty() {
+                return sentences.clone();
+            }
+        }
+    }
+    // Priority 2: extract from dialogue
+    if let Some(d) = dialogue {
+        return d.lines.iter().map(|l| l.text_en.clone()).collect();
+    }
+    // Fallback
+    vec![]
+}
+
+/// Build conversation prompt from config or lesson context.
+fn build_conversation_prompt(
+    config: &Option<LessonSessionConfig>,
+    lesson: &Lesson,
+) -> String {
+    if let Some(cfg) = config {
+        if let Some(prompt) = &cfg.conversation_prompt {
+            if !prompt.is_empty() {
+                return prompt.clone();
+            }
+        }
+    }
+    format!(
+        "You are an AI conversation partner. The student is practicing: {}. \
+         Help them practice using vocabulary and phrases from this lesson about {}. \
+         Respond naturally as a {}.",
+        lesson.title,
+        lesson.content.chars().take(200).collect::<String>(),
+        match lesson.category {
+            ContentCategory::Hotel => "hotel guest",
+            ContentCategory::Restaurant => "restaurant customer",
+            ContentCategory::Cruise => "cruise passenger",
+            _ => "conversation partner",
+        }
+    )
+}
+
+/// Auto-generate vocabulary drills from the lesson's vocabulary list.
+fn build_vocab_drills(vocabulary: &[Vocabulary], settings: &PhaseSettings) -> Vec<serde_json::Value> {
+    let drill_types = settings.drill_types.clone()
+        .unwrap_or_else(|| vec!["matching".into(), "fill_in_the_blank".into()]);
+    let max_count = settings.max_drill_count.unwrap_or(3) as usize;
+    let mut drills = Vec::new();
+
+    for drill_type in drill_types.iter().take(max_count) {
+        match drill_type.as_str() {
+            "matching" => {
+                let items: Vec<serde_json::Value> = vocabulary.iter().map(|v| {
+                    json!({ "word": v.word, "match": v.translation })
+                }).collect();
+                if !items.is_empty() {
+                    drills.push(json!({ "drill_type": "matching", "items": items }));
+                }
+            },
+            "fill_in_the_blank" => {
+                let items: Vec<serde_json::Value> = vocabulary.iter().filter_map(|v| {
+                    let sentence = v.example_en.replace(&v.word, "___");
+                    if sentence == v.example_en { return None; }
+                    // Build simple distractors from other words
+                    let distractors: Vec<String> = vocabulary.iter()
+                        .filter(|other| other.word != v.word)
+                        .take(3)
+                        .map(|other| other.word.clone())
+                        .collect();
+                    let mut options = vec![v.word.clone()];
+                    options.extend(distractors);
+                    Some(json!({
+                        "sentence": sentence,
+                        "answer": v.word,
+                        "options": options,
+                    }))
+                }).collect();
+                if !items.is_empty() {
+                    drills.push(json!({ "drill_type": "fill_in_the_blank", "items": items }));
+                }
+            },
+            "word_scramble" => {
+                let items: Vec<serde_json::Value> = vocabulary.iter().map(|v| {
+                    json!({ "word": v.word.to_uppercase(), "hint": v.translation })
+                }).collect();
+                if !items.is_empty() {
+                    drills.push(json!({ "drill_type": "word_scramble", "items": items }));
+                }
+            },
+            _ => {}
+        }
+    }
+
+    drills
+}

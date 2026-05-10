@@ -396,3 +396,25 @@ export const updateMasterData = (category: string, options: string[]) =>
 
 export const listMasterData = () => 
   api.get("/master-data").then(r => r.data)
+
+// ============ Session Config (Level Templates & Lesson Overrides) ============
+export const getLevelTemplates = () =>
+  api.get("/level-templates").then(r => r.data)
+
+export const getLevelTemplate = (level: string) =>
+  api.get(`/level-templates/${level}`).then(r => r.data)
+
+export const updateLevelTemplate = (level: string, data: any) =>
+  api.put(`/level-templates/${level}`, data).then(r => r.data)
+
+export const getLessonConfigs = () =>
+  api.get("/lesson-configs").then(r => r.data)
+
+export const getLessonConfig = (lessonId: string) =>
+  api.get(`/lesson-configs/${lessonId}`).then(r => r.data)
+
+export const upsertLessonConfig = (lessonId: string, data: any) =>
+  api.put(`/lesson-configs/${lessonId}`, data).then(r => r.data)
+
+export const deleteLessonConfig = (lessonId: string) =>
+  api.delete(`/lesson-configs/${lessonId}`).then(r => r.data)

@@ -144,7 +144,12 @@ pub fn build_course_prompt(req: &GenerateCourseRequest) -> String {
                                 "xp_reward": 10,
                                 "data_json": {}
                             }
-                        ]
+                        ],
+                        "pronunciation_sentences": [
+                            "Full sentence from the lesson for pronunciation practice.",
+                            "Another key sentence the student should practice saying aloud."
+                        ],
+                        "conversation_prompt": "You are a hotel receptionist. The student is a guest checking in. Practice the check-in conversation using vocabulary from this lesson."
                     }
                 ]
             }
@@ -177,7 +182,9 @@ pub fn build_course_prompt(req: &GenerateCourseRequest) -> String {
     prompt.push_str("- Dialogues should have realistic hospitality scenarios\n");
     prompt.push_str("- Quiz questions should test lesson comprehension\n");
     prompt.push_str("- Include Bahasa Indonesia translations for ALL text fields marked with _id suffix\n");
-    prompt.push_str("- Culture notes should reference Indonesian customs, politeness norms, or communication style\n\n");
+    prompt.push_str("- Culture notes should reference Indonesian customs, politeness norms, or communication style\n");
+    prompt.push_str("- pronunciation_sentences: include 3-5 key sentences from the lesson for speaking practice, ordered by difficulty\n");
+    prompt.push_str("- conversation_prompt: a 1-2 sentence roleplay scenario using lesson vocabulary, written as AI persona instructions\n\n");
 
     // Critical rules
     prompt.push_str("## CRITICAL\n");

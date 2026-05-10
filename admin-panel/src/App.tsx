@@ -16,6 +16,7 @@ import AIGenerator from "./pages/AIGenerator"
 import SpeakingMonitor from "./pages/SpeakingMonitor"
 import VocabForge from "./pages/VocabForge"
 import SpeakUpManager from "./pages/SpeakUpManager"
+import SessionConfig from "./pages/SessionConfig"
 
 function App() {
   return (
@@ -46,6 +47,7 @@ function App() {
             <Route path="ai-generator" element={<AIGenerator />} />
             <Route path="speaking-monitor" element={<SpeakingMonitor />} />
             <Route path="speakup" element={<SpeakUpManager />} />
+            <Route path="session-config" element={<SessionConfig />} />
             <Route
               path="*"
               element={

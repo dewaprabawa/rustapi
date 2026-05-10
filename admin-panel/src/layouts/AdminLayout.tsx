@@ -14,7 +14,8 @@ import {
   Mic, 
   Activity,
   PanelLeftClose,
-  PanelLeftOpen
+  PanelLeftOpen,
+  SlidersHorizontal
 } from "lucide-react"
 import { cn, normalizeDate } from "../lib/utils"
 import { useAuth } from "../contexts/AuthContext"
@@ -35,6 +36,7 @@ export default function AdminLayout() {
     { name: "Speaking Monitor", path: "/speaking-monitor", icon: Activity },
     { name: "SpeakUp Fluency", path: "/speakup", icon: Mic },
     { name: "Gamification", path: "/gamification", icon: Trophy },
+    { name: "Session Config", path: "/session-config", icon: SlidersHorizontal },
     { name: "Monetization", path: "/monetization", icon: CreditCard },
     { name: "Notifications", path: "/notifications", icon: Bell },
     { name: "Settings", path: "/settings", icon: Settings },

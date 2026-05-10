@@ -12,6 +12,7 @@ pub mod notification;
 pub mod progress;
 pub mod rating;
 pub mod seed;
+pub mod session;
 pub mod speaking;
 pub mod speaking_ai;
 pub mod speakup;
@@ -49,6 +50,7 @@ use crate::speaking::handlers as speaking_handlers;
 use crate::speaking_ai::handlers::{
     voice_chat, text_chat, transcribe_only, tts_only,
 };
+use crate::session::handlers as session_handlers;
 use crate::speakup::handlers as speakup_handlers;
 use crate::swagger::ApiDoc;
 use crate::voice::handlers::{
@@ -92,6 +94,7 @@ pub async fn create_app() -> Router {
     crate::seed::seed_api_keys(&client).await;
     crate::seed::seed_phrasal_verbs(&client).await;
     crate::seed::seed_speakup_content(&client).await;
+    crate::seed::seed_level_templates(&client).await;
 
     let state = Arc::new(AppState {
         db: client,
@@ -261,7 +264,12 @@ pub async fn create_app() -> Router {
         .route("/voice/stt", post(speech_to_text))
         .route("/voice/tts", post(text_to_speech))
         // SpeakUp Management
-        .nest("/speakup", speakup_routes.clone());
+        .nest("/speakup", speakup_routes.clone())
+        // Session Templates & Configs
+        .route("/level-templates", get(session_handlers::list_level_templates))
+        .route("/level-templates/:level", get(session_handlers::get_level_template).put(session_handlers::update_level_template))
+        .route("/lesson-configs", get(session_handlers::list_lesson_configs))
+        .route("/lesson-configs/:lesson_id", get(session_handlers::get_lesson_config).put(session_handlers::upsert_lesson_config).delete(session_handlers::delete_lesson_config));
 
     // ============ Voice Abstraction Routes (auth recommended) ============
     let voice_routes = Router::new()
@@ -276,6 +284,7 @@ pub async fn create_app() -> Router {
         .route("/courses/:id/modules", get(public_list_modules))
         .route("/modules/:id/lessons", get(public_list_lessons))
         .route("/lessons/:id", get(public_get_lesson))
+        .route("/lessons/:id/session", get(session_handlers::get_lesson_session))
         .route("/lessons/:id/games", get(public_list_lesson_games))
         .route("/scenarios", get(public_list_scenarios))
         .route("/scenarios/:id", get(public_get_scenario))

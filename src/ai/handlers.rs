@@ -733,6 +733,26 @@ pub async fn save_course(
                     }
                 }
             }
+
+            // -- Auto-create Session Config from AI data --
+            if !gen_lesson.pronunciation_sentences.is_empty() || gen_lesson.conversation_prompt.is_some() {
+                let session_config = crate::session::models::LessonSessionConfig {
+                    id: None,
+                    lesson_id,
+                    phases: None, // Inherits from LevelTemplate
+                    override_lives: None,
+                    override_xp_multiplier: None,
+                    pronunciation_sentences: if gen_lesson.pronunciation_sentences.is_empty() {
+                        None
+                    } else {
+                        Some(gen_lesson.pronunciation_sentences.clone())
+                    },
+                    conversation_prompt: gen_lesson.conversation_prompt.clone(),
+                    updated_at: Utc::now(),
+                };
+                let config_col: Collection<crate::session::models::LessonSessionConfig> = db.collection("lesson_session_configs");
+                let _ = config_col.insert_one(session_config).await;
+            }
         }
     }
 

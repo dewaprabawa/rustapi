@@ -5,6 +5,7 @@ use crate::content::models::{
 };
 use crate::game::models::{GameContent, GameType};
 use crate::models::{Admin, Role};
+use crate::session::models::{LevelTemplate, PhaseConfig, PhaseSettings, SessionPhaseType};
 use crate::speaking::models::SpeakingScenario;
 use crate::vocab::models::{VocabSet, VocabWord, VocabDialogueLine};
 use crate::speakup::models::{SpeakUpContent, SpeakUpType};
@@ -803,5 +804,133 @@ pub async fn seed_speakup_content(client: &Client) {
 
         content_col.insert_many(content).await.expect("Failed to seed SpeakUp content");
         println!("✅ Successfully seeded SpeakUp content examples!");
+    }
+}
+
+/// Seeds default level templates (A1-C2) if none exist.
+pub async fn seed_level_templates(client: &Client) {
+    let db = client.database("rustapi");
+    let col: Collection<LevelTemplate> = db.collection("level_templates");
+
+    let count = col.count_documents(doc! {}).await.unwrap_or(0);
+
+    if count == 0 {
+        println!("📋 Seeding Level Templates...");
+
+        let now = Utc::now();
+
+        let templates = vec![
+            // ── A1: Beginner Foundation ──
+            LevelTemplate {
+                id: None,
+                level: ContentLevel::A1,
+                name: "Beginner Foundation".into(),
+                default_lives: 5,
+                xp_multiplier: 1.0,
+                phases: vec![
+                    PhaseConfig { phase_type: SessionPhaseType::Read, enabled: true, order: 0, settings: PhaseSettings::default() },
+                    PhaseConfig { phase_type: SessionPhaseType::Flashcard, enabled: true, order: 1, settings: PhaseSettings { auto_play_audio: Some(true), show_translation: Some(true), ..Default::default() } },
+                    PhaseConfig { phase_type: SessionPhaseType::VocabDrill, enabled: true, order: 2, settings: PhaseSettings { drill_types: Some(vec!["matching".into()]), max_drill_count: Some(2), ..Default::default() } },
+                    PhaseConfig { phase_type: SessionPhaseType::Game, enabled: true, order: 3, settings: PhaseSettings { difficulty: Some("easy".into()), ..Default::default() } },
+                    PhaseConfig { phase_type: SessionPhaseType::Pronunciation, enabled: true, order: 4, settings: PhaseSettings { sentence_count: Some(3), min_accuracy_score: Some(50.0), speed: Some("slow".into()), ..Default::default() } },
+                    PhaseConfig { phase_type: SessionPhaseType::Conversation, enabled: false, order: 5, settings: PhaseSettings { turn_count: Some(2), ..Default::default() } },
+                ],
+                created_at: now,
+                updated_at: now,
+            },
+            // ── A2: Elementary Practice ──
+            LevelTemplate {
+                id: None,
+                level: ContentLevel::A2,
+                name: "Elementary Practice".into(),
+                default_lives: 5,
+                xp_multiplier: 1.0,
+                phases: vec![
+                    PhaseConfig { phase_type: SessionPhaseType::Read, enabled: true, order: 0, settings: PhaseSettings::default() },
+                    PhaseConfig { phase_type: SessionPhaseType::Flashcard, enabled: true, order: 1, settings: PhaseSettings { auto_play_audio: Some(true), show_translation: Some(true), ..Default::default() } },
+                    PhaseConfig { phase_type: SessionPhaseType::VocabDrill, enabled: true, order: 2, settings: PhaseSettings { drill_types: Some(vec!["matching".into(), "fill_in_the_blank".into()]), max_drill_count: Some(2), ..Default::default() } },
+                    PhaseConfig { phase_type: SessionPhaseType::Game, enabled: true, order: 3, settings: PhaseSettings { difficulty: Some("easy".into()), ..Default::default() } },
+                    PhaseConfig { phase_type: SessionPhaseType::Pronunciation, enabled: true, order: 4, settings: PhaseSettings { sentence_count: Some(4), min_accuracy_score: Some(55.0), speed: Some("slow".into()), ..Default::default() } },
+                    PhaseConfig { phase_type: SessionPhaseType::Conversation, enabled: true, order: 5, settings: PhaseSettings { turn_count: Some(2), ..Default::default() } },
+                ],
+                created_at: now,
+                updated_at: now,
+            },
+            // ── B1: Intermediate Practice ──
+            LevelTemplate {
+                id: None,
+                level: ContentLevel::B1,
+                name: "Intermediate Practice".into(),
+                default_lives: 4,
+                xp_multiplier: 1.2,
+                phases: vec![
+                    PhaseConfig { phase_type: SessionPhaseType::Read, enabled: true, order: 0, settings: PhaseSettings::default() },
+                    PhaseConfig { phase_type: SessionPhaseType::Flashcard, enabled: true, order: 1, settings: PhaseSettings { auto_play_audio: Some(true), show_translation: Some(false), ..Default::default() } },
+                    PhaseConfig { phase_type: SessionPhaseType::VocabDrill, enabled: true, order: 2, settings: PhaseSettings { drill_types: Some(vec!["matching".into(), "word_scramble".into(), "fill_in_the_blank".into()]), max_drill_count: Some(3), ..Default::default() } },
+                    PhaseConfig { phase_type: SessionPhaseType::Game, enabled: true, order: 3, settings: PhaseSettings { difficulty: Some("medium".into()), ..Default::default() } },
+                    PhaseConfig { phase_type: SessionPhaseType::Pronunciation, enabled: true, order: 4, settings: PhaseSettings { sentence_count: Some(4), min_accuracy_score: Some(60.0), speed: Some("normal".into()), ..Default::default() } },
+                    PhaseConfig { phase_type: SessionPhaseType::Conversation, enabled: true, order: 5, settings: PhaseSettings { turn_count: Some(3), ..Default::default() } },
+                ],
+                created_at: now,
+                updated_at: now,
+            },
+            // ── B2: Upper Intermediate ──
+            LevelTemplate {
+                id: None,
+                level: ContentLevel::B2,
+                name: "Upper Intermediate".into(),
+                default_lives: 3,
+                xp_multiplier: 1.3,
+                phases: vec![
+                    PhaseConfig { phase_type: SessionPhaseType::Read, enabled: true, order: 0, settings: PhaseSettings::default() },
+                    PhaseConfig { phase_type: SessionPhaseType::Flashcard, enabled: false, order: 1, settings: PhaseSettings::default() },
+                    PhaseConfig { phase_type: SessionPhaseType::VocabDrill, enabled: true, order: 2, settings: PhaseSettings { drill_types: Some(vec!["word_scramble".into(), "fill_in_the_blank".into()]), max_drill_count: Some(3), ..Default::default() } },
+                    PhaseConfig { phase_type: SessionPhaseType::Game, enabled: true, order: 3, settings: PhaseSettings { difficulty: Some("medium".into()), ..Default::default() } },
+                    PhaseConfig { phase_type: SessionPhaseType::Pronunciation, enabled: true, order: 4, settings: PhaseSettings { sentence_count: Some(4), min_accuracy_score: Some(65.0), speed: Some("normal".into()), ..Default::default() } },
+                    PhaseConfig { phase_type: SessionPhaseType::Conversation, enabled: true, order: 5, settings: PhaseSettings { turn_count: Some(4), ..Default::default() } },
+                ],
+                created_at: now,
+                updated_at: now,
+            },
+            // ── C1: Advanced ──
+            LevelTemplate {
+                id: None,
+                level: ContentLevel::C1,
+                name: "Advanced Mastery".into(),
+                default_lives: 3,
+                xp_multiplier: 1.5,
+                phases: vec![
+                    PhaseConfig { phase_type: SessionPhaseType::Read, enabled: true, order: 0, settings: PhaseSettings::default() },
+                    PhaseConfig { phase_type: SessionPhaseType::Flashcard, enabled: false, order: 1, settings: PhaseSettings::default() },
+                    PhaseConfig { phase_type: SessionPhaseType::VocabDrill, enabled: true, order: 2, settings: PhaseSettings { drill_types: Some(vec!["fill_in_the_blank".into()]), max_drill_count: Some(2), ..Default::default() } },
+                    PhaseConfig { phase_type: SessionPhaseType::Game, enabled: true, order: 3, settings: PhaseSettings { difficulty: Some("hard".into()), ..Default::default() } },
+                    PhaseConfig { phase_type: SessionPhaseType::Pronunciation, enabled: true, order: 4, settings: PhaseSettings { sentence_count: Some(5), min_accuracy_score: Some(70.0), speed: Some("fast".into()), ..Default::default() } },
+                    PhaseConfig { phase_type: SessionPhaseType::Conversation, enabled: true, order: 5, settings: PhaseSettings { turn_count: Some(5), ..Default::default() } },
+                ],
+                created_at: now,
+                updated_at: now,
+            },
+            // ── C2: Proficiency ──
+            LevelTemplate {
+                id: None,
+                level: ContentLevel::C2,
+                name: "Proficiency Challenge".into(),
+                default_lives: 3,
+                xp_multiplier: 1.8,
+                phases: vec![
+                    PhaseConfig { phase_type: SessionPhaseType::Read, enabled: true, order: 0, settings: PhaseSettings::default() },
+                    PhaseConfig { phase_type: SessionPhaseType::Flashcard, enabled: false, order: 1, settings: PhaseSettings::default() },
+                    PhaseConfig { phase_type: SessionPhaseType::VocabDrill, enabled: false, order: 2, settings: PhaseSettings::default() },
+                    PhaseConfig { phase_type: SessionPhaseType::Game, enabled: true, order: 3, settings: PhaseSettings { difficulty: Some("hard".into()), ..Default::default() } },
+                    PhaseConfig { phase_type: SessionPhaseType::Pronunciation, enabled: true, order: 4, settings: PhaseSettings { sentence_count: Some(5), min_accuracy_score: Some(75.0), speed: Some("fast".into()), ..Default::default() } },
+                    PhaseConfig { phase_type: SessionPhaseType::Conversation, enabled: true, order: 5, settings: PhaseSettings { turn_count: Some(5), ..Default::default() } },
+                ],
+                created_at: now,
+                updated_at: now,
+            },
+        ];
+
+        col.insert_many(templates).await.expect("Failed to seed level templates");
+        println!("✅ Successfully seeded Level Templates (A1-C2)!");
     }
 }
