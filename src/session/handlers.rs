@@ -106,19 +106,23 @@ pub async fn get_lesson_session(
                 })
             },
             SessionPhaseType::Game => {
-                let game_data: Vec<serde_json::Value> = games.iter().map(|g| json!({
-                    "id": g.id.map(|id| id.to_hex()),
-                    "game_type": g.game_type,
-                    "title": g.title,
-                    "instructions": g.instructions,
-                    "difficulty": g.difficulty,
-                    "data_json": g.data_json,
-                    "xp_reward": g.xp_reward,
-                    "order": g.order,
-                })).collect();
+                let difficulty = phase.settings.difficulty.clone().unwrap_or_else(|| "easy".into());
+                let game_data: Vec<serde_json::Value> = games.iter()
+                    .filter(|g| g.difficulty.to_lowercase() == difficulty.to_lowercase())
+                    .map(|g| json!({
+                        "id": g.id.map(|id| id.to_hex()),
+                        "game_type": g.game_type,
+                        "title": g.title,
+                        "instructions": g.instructions,
+                        "difficulty": g.difficulty,
+                        "data_json": g.data_json,
+                        "xp_reward": g.xp_reward,
+                        "order": g.order,
+                    })).collect();
                 json!({
                     "games": game_data,
                     "xp_reward": 20,
+                    "difficulty": difficulty,
                 })
             },
             SessionPhaseType::Pronunciation => {

@@ -149,7 +149,7 @@ export default function AIGenerator() {
               value={formData.level}
               onChange={e => setFormData({ ...formData, level: e.target.value })}
             >
-              {["a1", "a2", "b1", "b2", "c1", "c2"].map(l => (
+              {Array.isArray(["a1", "a2", "b1", "b2", "c1", "c2"]) && ["a1", "a2", "b1", "b2", "c1", "c2"].map(l => (
                 <option key={l} value={l}>{l.toUpperCase()}</option>
               ))}
             </select>
@@ -163,7 +163,7 @@ export default function AIGenerator() {
               value={formData.category}
               onChange={e => setFormData({ ...formData, category: e.target.value })}
             >
-              {["hotel", "restaurant", "cruise", "interview", "general", "business", "travel"].map(c => (
+              {Array.isArray(["hotel", "restaurant", "cruise", "interview", "general", "business", "travel"]) && ["hotel", "restaurant", "cruise", "interview", "general", "business", "travel"].map(c => (
                 <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>
               ))}
             </select>
@@ -177,7 +177,7 @@ export default function AIGenerator() {
               value={formData.target_age}
               onChange={e => setFormData({ ...formData, target_age: e.target.value })}
             >
-              {["kids", "teens", "adults", "all"].map(a => (
+              {Array.isArray(["kids", "teens", "adults", "all"]) && ["kids", "teens", "adults", "all"].map(a => (
                 <option key={a} value={a}>{a.charAt(0).toUpperCase() + a.slice(1)}</option>
               ))}
             </select>
@@ -226,7 +226,7 @@ export default function AIGenerator() {
           <div className="lg:col-span-3">
             <label className="block text-sm font-medium text-slate-700 mb-2">Skill Focus</label>
             <div className="flex flex-wrap gap-2">
-              {skillOptions.map(skill => (
+              {Array.isArray(skillOptions) && skillOptions.map(skill => (
                 <button
                   key={skill}
                   onClick={() => toggleSkill(skill)}
@@ -283,7 +283,7 @@ export default function AIGenerator() {
           {/* Tab Bar */}
           <div className="flex items-center justify-between">
             <div className="flex bg-slate-100/50 p-1 rounded-xl">
-              {tabs.map(tab => (
+              {Array.isArray(tabs) && tabs.map(tab => (
                 <button
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key)}
@@ -346,7 +346,7 @@ function CoursePreview({ course }: { course: any }) {
         <div>
           <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Skill Focus</span>
           <div className="flex flex-wrap gap-2 mt-2">
-            {course.skill_focus.map((s: string) => (
+            {Array.isArray(course.skill_focus) && course.skill_focus.map((s: string) => (
               <span key={s} className="px-2.5 py-1 bg-violet-50 text-violet-700 text-xs font-medium rounded-lg capitalize">{s}</span>
             ))}
           </div>
@@ -356,7 +356,7 @@ function CoursePreview({ course }: { course: any }) {
         <div>
           <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Tags</span>
           <div className="flex flex-wrap gap-2 mt-2">
-            {course.tags.map((t: string) => (
+            {Array.isArray(course.tags) && course.tags.map((t: string) => (
               <span key={t} className="px-2.5 py-1 bg-slate-100 text-slate-600 text-xs font-medium rounded-lg">{t}</span>
             ))}
           </div>
@@ -372,7 +372,7 @@ function ModulesPreview({ modules }: { modules: any[] }) {
 
   return (
     <div className="divide-y divide-slate-100">
-      {modules.map((mod, mi) => (
+      {Array.isArray(modules) && modules.map((mod, mi) => (
         <div key={mi}>
           <button
             onClick={() => setExpandedModule(expandedModule === mi ? null : mi)}

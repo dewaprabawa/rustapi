@@ -6,6 +6,9 @@ import {
   upsertLessonConfig,
   deleteLessonConfig,
   getLessons,
+  updateLesson,
+  getVocabulary,
+  updateVocabulary,
 } from "../services/api"
 
 // ── Types ──
@@ -62,19 +65,42 @@ export default function SessionConfig() {
   const [saving, setSaving] = useState(false)
   const [editTemplate, setEditTemplate] = useState<LevelTemplate | null>(null)
   const [editConfig, setEditConfig] = useState<LessonSessionConfig | null>(null)
+  const [activeVocab, setActiveVocab] = useState<any[]>([])
+  const [vocabLoading, setVocabLoading] = useState(false)
   const [toast, setToast] = useState("")
 
   useEffect(() => {
     loadAll()
   }, [])
 
+  useEffect(() => {
+    if (editConfig?.lesson_id) {
+      loadVocab(editConfig.lesson_id)
+    } else {
+      setActiveVocab([])
+    }
+  }, [editConfig?.lesson_id])
+
+  const loadVocab = async (lessonId: string) => {
+    setVocabLoading(true)
+    try {
+      const v = await getVocabulary(lessonId)
+      setActiveVocab(Array.isArray(v) ? v : [])
+    } catch (e) {
+      console.error(e)
+    }
+    setVocabLoading(false)
+  }
+
   const loadAll = async () => {
     setLoading(true)
     try {
       const [t, c, l] = await Promise.all([getLevelTemplates(), getLessonConfigs(), getLessons()])
-      setTemplates(t)
-      setConfigs(c)
-      setLessons(l)
+      console.log("SessionConfig Load:", { templates: t, configs: c, lessons: l });
+      setTemplates(Array.isArray(t) ? t : [])
+      setConfigs(Array.isArray(c) ? c : [])
+      // Backend returns PaginatedResponse { data: Lesson[], ... } for lessons
+      setLessons(l && l.data ? l.data : (Array.isArray(l) ? l : []))
     } catch (e) {
       console.error(e)
     }
@@ -106,12 +132,28 @@ export default function SessionConfig() {
     if (!editConfig) return
     setSaving(true)
     try {
+      // 1. Save the session config override
       await upsertLessonConfig(editConfig.lesson_id, editConfig)
-      showToast("✅ Lesson config saved")
+      
+      // 2. If lesson content was modified, save the lesson
+      const lesson = lessons.find(l => (l._id?.$oid || l._id) === editConfig.lesson_id);
+      if (lesson && lesson._dirty) {
+        const { _dirty, ...lessonData } = lesson;
+        await updateLesson(lesson._id?.$oid || lesson._id, lessonData);
+      }
+
+      // 3. Save any modified vocabulary
+      const dirtyVocab = activeVocab.filter(v => v._dirty);
+      for (const v of dirtyVocab) {
+        const { _dirty, ...vData } = v;
+        await updateVocabulary(v._id?.$oid || v._id, vData);
+      }
+
+      showToast("✅ All changes saved")
       setEditConfig(null)
       loadAll()
     } catch (e) {
-      showToast("❌ Failed to save config")
+      showToast("❌ Failed to save changes")
     }
     setSaving(false)
   }
@@ -177,7 +219,7 @@ export default function SessionConfig() {
       {/* ── Level Templates Tab ── */}
       {tab === "templates" && !editTemplate && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {templates.map((tmpl) => (
+          {Array.isArray(templates) && templates.map((tmpl) => (
             <div
               key={tmpl.level}
               className="bg-white rounded-2xl border border-slate-200 p-5 hover:shadow-md transition-shadow cursor-pointer"
@@ -194,7 +236,7 @@ export default function SessionConfig() {
                 <span>⭐ {tmpl.xp_multiplier}x XP</span>
               </div>
               <div className="flex flex-wrap gap-1.5">
-                {tmpl.phases.map((p) => (
+                {Array.isArray(tmpl.phases) && tmpl.phases.map((p) => (
                   <span
                     key={p.phase_type}
                     className={`text-xs px-2 py-0.5 rounded-full font-medium ${
@@ -258,19 +300,22 @@ export default function SessionConfig() {
           {/* Phase configs */}
           <div className="space-y-3">
             <h4 className="text-sm font-bold text-slate-700">Phases</h4>
-            {editTemplate.phases
+            {[...editTemplate.phases]
               .sort((a, b) => a.order - b.order)
-              .map((phase, idx) => (
-                <PhaseEditor
-                  key={phase.phase_type}
-                  phase={phase}
-                  onChange={(updated) => {
-                    const phases = [...editTemplate.phases]
-                    phases[idx] = updated
-                    setEditTemplate({ ...editTemplate, phases })
-                  }}
-                />
-              ))}
+              .map((phase) => {
+                const originalIdx = editTemplate.phases.findIndex(p => p.phase_type === phase.phase_type);
+                return (
+                  <PhaseEditor
+                    key={phase.phase_type}
+                    phase={phase}
+                    onChange={(updated) => {
+                      const phases = [...editTemplate.phases]
+                      phases[originalIdx] = updated
+                      setEditTemplate({ ...editTemplate, phases })
+                    }}
+                  />
+                );
+              })}
           </div>
 
           <div className="flex gap-3 pt-2">
@@ -316,7 +361,7 @@ export default function SessionConfig() {
             </div>
           ) : (
             <div className="space-y-3">
-              {configs.map((cfg) => (
+              {Array.isArray(configs) && configs.map((cfg) => (
                 <div
                   key={cfg.lesson_id}
                   className="bg-white rounded-xl border border-slate-200 p-4 flex items-center justify-between hover:shadow-sm transition-shadow"
@@ -378,7 +423,7 @@ export default function SessionConfig() {
                 onChange={(e) => setEditConfig({ ...editConfig, lesson_id: e.target.value })}
               >
                 <option value="">Select a lesson…</option>
-                {lessons.map((l: any) => (
+                {Array.isArray(lessons) && lessons.map((l: any) => (
                   <option key={l._id?.$oid || l._id} value={l._id?.$oid || l._id}>
                     {l.title}
                   </option>
@@ -453,7 +498,68 @@ export default function SessionConfig() {
               }
             />
           </div>
-
+ 
+          {/* Phase Overrides */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-bold text-slate-700">Phases Override</h4>
+              {!editConfig.phases ? (
+                <button
+                  onClick={() => {
+                    // Find the level of the current lesson to pick the right template
+                    const lesson = lessons.find(l => (l._id?.$oid || l._id) === editConfig.lesson_id);
+                    const lessonLevel = (lesson?.level || "A1").toLowerCase();
+                    const template = templates.find(t => t.level.toLowerCase() === lessonLevel);
+                    setEditConfig({ 
+                      ...editConfig, 
+                      phases: template ? [...template.phases] : [] 
+                    });
+                  }}
+                  className="text-xs font-semibold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg hover:bg-blue-100"
+                >
+                  ⚙️ Customize Phases
+                </button>
+              ) : (
+                <button
+                  onClick={() => setEditConfig({ ...editConfig, phases: null })}
+                  className="text-xs font-semibold text-slate-500 hover:text-red-600 transition-colors"
+                >
+                  ↺ Reset to Template
+                </button>
+              )}
+            </div>
+            
+            {!editConfig.phases ? (
+              <div className="bg-slate-50 rounded-xl border border-dashed border-slate-200 p-8 text-center">
+                <p className="text-xs text-slate-400">
+                  This lesson is currently using the default phases from its level template.
+                  Customize it to enable/disable specific phases or change their settings.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {[...(editConfig.phases || [])]
+                  .sort((a, b) => a.order - b.order)
+                  .map((phase, idx) => {
+                    // We need the actual index in the original array to update it correctly
+                    // Or we can just find it by phase_type since phase_type is unique
+                    const originalIdx = editConfig.phases!.findIndex(p => p.phase_type === phase.phase_type);
+                    return (
+                      <PhaseEditor
+                        key={phase.phase_type}
+                        phase={phase}
+                        onChange={(updated) => {
+                          const phases = [...(editConfig.phases || [])]
+                          phases[originalIdx] = updated
+                          setEditConfig({ ...editConfig, phases })
+                        }}
+                      />
+                    );
+                  })}
+              </div>
+            )}
+          </div>
+ 
           <div className="flex gap-3 pt-2">
             <button
               onClick={saveConfig}
@@ -479,11 +585,23 @@ export default function SessionConfig() {
 function PhaseEditor({
   phase,
   onChange,
+  lesson,
+  vocabulary,
+  onLessonUpdate,
+  onVocabUpdate,
+  onOverrideUpdate,
 }: {
   phase: PhaseConfig
   onChange: (p: PhaseConfig) => void
+  lesson?: any
+  vocabulary?: any[]
+  onLessonUpdate?: (l: any) => void
+  onVocabUpdate?: (v: any) => void
+  onOverrideUpdate?: (field: string, value: any) => void
 }) {
+  const [tab, setTab] = useState<"settings" | "content">("settings")
   const s = phase.settings
+  const hasContent = lesson || (vocabulary && vocabulary.length > 0) || phase.phase_type === "pronunciation" || phase.phase_type === "conversation"
 
   return (
     <div
@@ -491,23 +609,46 @@ function PhaseEditor({
         phase.enabled ? "border-slate-200 bg-white" : "border-slate-100 bg-slate-50 opacity-60"
       }`}
     >
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold">{PHASE_LABELS[phase.phase_type]}</span>
-          <span className="text-[10px] text-slate-400 font-mono">order:{phase.order}</span>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-bold text-slate-800">{PHASE_LABELS[phase.phase_type]}</span>
+            <span className="text-[10px] text-slate-400 font-mono bg-slate-50 px-1.5 py-0.5 rounded">order:{phase.order}</span>
+          </div>
+
+          {phase.enabled && hasContent && (
+            <div className="flex gap-1 bg-slate-100 p-0.5 rounded-lg ml-2">
+              <button
+                onClick={() => setTab("settings")}
+                className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all ${
+                  tab === "settings" ? "bg-white text-blue-600 shadow-sm" : "text-slate-500"
+                }`}
+              >
+                SETTINGS
+              </button>
+              <button
+                onClick={() => setTab("content")}
+                className={`px-3 py-1 rounded-md text-[10px] font-bold transition-all ${
+                  tab === "content" ? "bg-white text-blue-600 shadow-sm" : "text-slate-500"
+                }`}
+              >
+                CONTENT
+              </button>
+            </div>
+          )}
         </div>
         <label className="flex items-center gap-1.5 cursor-pointer">
           <input
             type="checkbox"
             checked={phase.enabled}
             onChange={(e) => onChange({ ...phase, enabled: e.target.checked })}
-            className="rounded border-slate-300"
+            className="rounded border-slate-300 text-blue-600"
           />
-          <span className="text-xs text-slate-500">Enabled</span>
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Enabled</span>
         </label>
       </div>
 
-      {phase.enabled && (
+      {phase.enabled && tab === "settings" && (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
           {/* Game/Drill difficulty */}
           {(phase.phase_type === "game" || phase.phase_type === "vocab_drill") && (
@@ -649,6 +790,71 @@ function PhaseEditor({
                 </div>
               </div>
             </>
+          )}
+        </div>
+      )}
+
+      {phase.enabled && tab === "content" && (
+        <div className="space-y-4 animate-fade-in">
+          {/* Read Content */}
+          {phase.phase_type === "read" && lesson && (
+            <div>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1.5">Markdown Content</label>
+              <textarea
+                className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm font-mono min-h-[200px]"
+                value={lesson.content}
+                onChange={(e) => onLessonUpdate?.({ ...lesson, content: e.target.value })}
+              />
+            </div>
+          )}
+
+          {/* Flashcard/Vocab Content */}
+          {(phase.phase_type === "flashcard" || phase.phase_type === "vocab_drill") && vocabulary && (
+            <div className="space-y-2">
+              <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1.5">Vocabulary Items</label>
+              <div className="max-h-[300px] overflow-y-auto pr-2 space-y-2">
+                {Array.isArray(vocabulary) && vocabulary.map((v: any) => (
+                  <div key={v._id?.$oid || v._id} className="grid grid-cols-2 gap-2 bg-slate-50 p-2 rounded-lg border border-slate-100">
+                    <input
+                      className="bg-transparent border-none text-xs font-bold text-slate-700 p-0 focus:ring-0"
+                      value={v.word}
+                      onChange={(e) => onVocabUpdate?.({ ...v, word: e.target.value })}
+                    />
+                    <input
+                      className="bg-transparent border-none text-xs text-slate-500 p-0 text-right focus:ring-0"
+                      value={v.translation}
+                      onChange={(e) => onVocabUpdate?.({ ...v, translation: e.target.value })}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Pronunciation Content (Custom Sentences) */}
+          {phase.phase_type === "pronunciation" && onOverrideUpdate && (
+            <div>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1.5">Custom Sentences (Overrides Dialogue)</label>
+              <textarea
+                className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm font-mono min-h-[100px]"
+                placeholder="One sentence per line..."
+                value={(lesson?.pronunciation_sentences || []).join("\n")}
+                onChange={(e) => onOverrideUpdate("pronunciation_sentences", e.target.value.split("\n").filter((s: string) => s.trim()))}
+              />
+            </div>
+          )}
+
+          {/* Conversation Content (Custom Prompt) */}
+          {phase.phase_type === "conversation" && onOverrideUpdate && (
+            <div>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1.5">Scenario Prompt Override</label>
+              <textarea
+                className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm min-h-[100px]"
+                placeholder="Enter custom conversation context..."
+                value={lesson?.conversation_prompt || ""}
+                onChange={(e) => onOverrideUpdate("conversation_prompt", e.target.value)}
+              />
+            </div>
           )}
         </div>
       )}

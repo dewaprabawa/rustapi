@@ -181,7 +181,7 @@ export default function Scenarios() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {scenarios?.map((item: any) => (
+          {Array.isArray(scenarios) && scenarios.map((item: any) => (
             <div key={getScenarioId(item)} className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 hover:shadow-md transition-all group relative overflow-hidden">
               <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity">
                 <button 
@@ -451,7 +451,7 @@ export default function Scenarios() {
 
             {/* Chat Area */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/50">
-              {testMessages.map((msg, idx) => (
+              {Array.isArray(testMessages) && testMessages.map((msg, idx) => (
                 <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-[85%] flex gap-2 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
                     <div className={`h-8 w-8 rounded-full flex-shrink-0 flex items-center justify-center ${

@@ -302,7 +302,7 @@ export default function VocabForge() {
                   <p className="text-sm">No vocabulary sets found. Click "Generate New Set" to begin.</p>
                 </div>
               ) : (
-                vocabSets.map((set: VocabSet | any) => {
+                Array.isArray(vocabSets) && vocabSets.map((set: VocabSet | any) => {
                   const id = set._id?.$oid || set._id;
                   const selectedId = selectedSet?._id?.$oid || selectedSet?._id;
                   return (
@@ -381,7 +381,7 @@ export default function VocabForge() {
 
                 <div className="flex-1 overflow-y-auto p-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {selectedWords.map((word, idx) => (
+                    {Array.isArray(selectedWords) && selectedWords.map((word, idx) => (
                       <div key={idx} className="p-5 rounded-2xl border border-slate-100 bg-slate-50/30 hover:bg-white hover:shadow-md transition-all group">
                         <div className="flex justify-between items-start mb-3">
                           <div>
@@ -430,12 +430,12 @@ export default function VocabForge() {
                           </div>
                           
                           {/* Item Dialogue Section */}
-                          {(word as any).item_dialogue && (word as any).item_dialogue.length > 0 && (
+                          {Array.isArray((word as any).item_dialogue) && (word as any).item_dialogue.length > 0 && (
                             <div className="mt-2 pt-3 border-t border-slate-100/50 space-y-2">
                               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
                                 <MessageSquare className="h-3 w-3" /> Context Dialogue
                               </p>
-                              {(word as any).item_dialogue.map((line: any, lidx: number) => (
+                              {Array.isArray((word as any).item_dialogue) && (word as any).item_dialogue.map((line: any, lidx: number) => (
                                 <div key={lidx} className="text-[11px] leading-snug flex justify-between items-start group/line">
                                   <div>
                                     <span className="font-bold text-slate-500">{line.speaker}: </span>
@@ -462,9 +462,9 @@ export default function VocabForge() {
                     <h4 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
                       <MessageSquare className="h-5 w-5 text-indigo-500" /> Example Conversation
                     </h4>
-                    {selectedSet.example_dialogue && selectedSet.example_dialogue.length > 0 ? (
+                    {Array.isArray(selectedSet.example_dialogue) && selectedSet.example_dialogue.length > 0 ? (
                       <div className="space-y-4">
-                        {selectedSet.example_dialogue.map((line: any, idx: number) => (
+                        {Array.isArray(selectedSet.example_dialogue) && selectedSet.example_dialogue.map((line: any, idx: number) => (
                           <div key={idx} className="flex flex-col gap-1 p-3 bg-slate-50 rounded-2xl">
                             <div className="flex justify-between items-center mb-1">
                               <span className="text-xs font-bold text-slate-500 uppercase">{line.speaker}</span>
@@ -522,7 +522,7 @@ export default function VocabForge() {
                 <p className="text-sm">No student practice requests found.</p>
               </div>
             ) : (
-              conversationRequests.map((req: ConversationRequest | any) => {
+              Array.isArray(conversationRequests) && conversationRequests.map((req: ConversationRequest | any) => {
                 const reqId = req._id?.$oid || req._id;
                 return (
                 <div key={reqId} className="p-6 rounded-2xl border border-slate-200 bg-white shadow-sm flex flex-col gap-4 relative overflow-hidden">
@@ -558,7 +558,7 @@ export default function VocabForge() {
                       <BookOpen className="h-3 w-3" /> Target Vocabulary ({req.target_words.length} words)
                     </p>
                     <div className="flex flex-wrap gap-2">
-                      {req.target_words.map((tw: TargetWord | any, idx: number) => {
+                      {Array.isArray(req.target_words) && req.target_words.map((tw: TargetWord | any, idx: number) => {
                         const twId = tw._id?.$oid || tw._id || String(idx);
                         return (
                         <div key={twId} className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm flex gap-2 items-center shadow-sm">
@@ -714,7 +714,7 @@ export default function VocabForge() {
                 {previewData.related_topics?.length > 0 && (
                   <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                     <span className="text-[10px] font-bold text-slate-400 uppercase">Related:</span>
-                    {previewData.related_topics.map((t, i) => (
+                    {Array.isArray(previewData.related_topics) && previewData.related_topics.map((t, i) => (
                       <span key={i} className="px-2 py-0.5 bg-indigo-50 text-indigo-600 text-[10px] font-bold rounded-full">{t}</span>
                     ))}
                   </div>
@@ -740,7 +740,7 @@ export default function VocabForge() {
 
             <div className="flex-1 overflow-y-auto p-8 bg-slate-50/30">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {previewData.words.map((word, idx) => (
+                {Array.isArray(previewData.words) && previewData.words.map((word, idx) => (
                   <div key={idx} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm relative group">
                     <div className="flex justify-between items-start mb-4">
                       <div>
@@ -840,7 +840,7 @@ export default function VocabForge() {
                       {(word as any).item_dialogue && (
                         <div className="p-4 bg-blue-50/30 rounded-2xl border border-blue-100/50">
                           <label className="text-[10px] font-bold text-blue-400 uppercase tracking-widest block mb-3">Item Dialogue Snippet</label>
-                          {(word as any).item_dialogue.map((line: any, lidx: number) => (
+                          {Array.isArray((word as any).item_dialogue) && (word as any).item_dialogue.map((line: any, lidx: number) => (
                             <div key={lidx} className="mb-3 last:mb-0 space-y-1 group/pline">
                               <div className="flex justify-between items-center">
                                 <span className="text-[10px] font-bold text-slate-400">{line.speaker}</span>
@@ -885,7 +885,7 @@ export default function VocabForge() {
                     <MessageSquare className="h-5 w-5 text-indigo-500" /> Example Conversation
                   </h4>
                   <div className="space-y-4">
-                    {previewData.dialogue.map((line: any, idx: number) => (
+                    {Array.isArray(previewData.dialogue) && previewData.dialogue.map((line: any, idx: number) => (
                       <div key={idx} className="flex flex-col gap-1 p-3 bg-slate-50 rounded-2xl">
                         <div className="flex justify-between items-center">
                           <span className="text-xs font-bold text-slate-500 uppercase">{line.speaker}</span>

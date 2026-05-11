@@ -420,7 +420,7 @@ export default function SpeakUpManager() {
               {item.steps && item.steps.length > 0 && (
                 <div className="space-y-2">
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Progressive Steps</p>
-                  {item.steps.map((step: string, idx: number) => (
+                  {Array.isArray(item.steps) && item.steps.map((step: string, idx: number) => (
                     <div key={idx} className="flex items-center gap-2 text-xs text-slate-500">
                       <ChevronRight className="h-3 w-3 text-teal-400" />
                       <span className="truncate">{step}</span>

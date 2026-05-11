@@ -454,7 +454,7 @@ function GamesPanel({ games, isLoading }: { games: any[]; isLoading: boolean }) 
                     onChange={(e) => setFormData({ ...formData, lesson_id: e.target.value })}
                   >
                     <option value="" disabled>Select Lesson</option>
-                    {lessons.map((l: any) => {
+                    {Array.isArray(lessons) && lessons.map((l: any) => {
                       const lid = l._id?.$oid || l.id
                       return <option key={lid} value={lid}>{l.title}</option>
                     })}
