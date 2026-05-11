@@ -67,7 +67,7 @@ pub async fn get_lesson_session(
     // 7. Build conversation context
     let conv_prompt = build_conversation_prompt(&lesson_config, &lesson);
 
-    // 8. Assemble response
+    // 8. Assemble response (with graceful degradation per Section 16)
     let mut phase_data = Vec::new();
     for phase in &phases {
         if !phase.enabled {
@@ -82,6 +82,11 @@ pub async fn get_lesson_session(
                 "xp_reward": 5,
             }),
             SessionPhaseType::Flashcard => {
+                if vocabulary.is_empty() {
+                    // Fallback: skip flashcard phase if no vocabulary
+                    eprintln!("[WARN] Flashcard phase skipped: no vocabulary for lesson {}", lesson_id_str);
+                    continue;
+                }
                 let words: Vec<serde_json::Value> = vocabulary.iter().map(|v| json!({
                     "id": v.id.map(|id| id.to_hex()),
                     "word": v.word,
@@ -100,6 +105,10 @@ pub async fn get_lesson_session(
             },
             SessionPhaseType::VocabDrill => {
                 let drills = build_vocab_drills(&vocabulary, &phase.settings);
+                if drills.is_empty() {
+                    eprintln!("[WARN] VocabDrill phase skipped: no drills generated for lesson {}", lesson_id_str);
+                    continue;
+                }
                 json!({
                     "drills": drills,
                     "xp_reward": 15,
@@ -119,6 +128,10 @@ pub async fn get_lesson_session(
                         "xp_reward": g.xp_reward,
                         "order": g.order,
                     })).collect();
+                if game_data.is_empty() {
+                    eprintln!("[WARN] Game phase skipped: no games for difficulty '{}' in lesson {}", difficulty, lesson_id_str);
+                    continue;
+                }
                 json!({
                     "games": game_data,
                     "xp_reward": 20,
@@ -128,6 +141,26 @@ pub async fn get_lesson_session(
             SessionPhaseType::Pronunciation => {
                 let count = phase.settings.sentence_count.unwrap_or(3) as usize;
                 let sentences: Vec<&str> = pron_sentences.iter().take(count).map(|s| s.as_str()).collect();
+                if sentences.is_empty() {
+                    // ── GRACEFUL DEGRADATION (Section 16.3) ──
+                    // If no pronunciation sentences are available, replace this
+                    // phase with a safe VocabDrill to prevent session abandonment.
+                    eprintln!("[WARN] Pronunciation phase DEGRADED → VocabDrill (no sentences) for lesson {}", lesson_id_str);
+                    let fallback_drills = build_vocab_drills(&vocabulary, &PhaseSettings {
+                        drill_types: Some(vec!["matching".into()]),
+                        max_drill_count: Some(2),
+                        ..Default::default()
+                    });
+                    if fallback_drills.is_empty() {
+                        continue; // Nothing to show — skip entirely
+                    }
+                    phase_data.push(json!({
+                        "type": SessionPhaseType::VocabDrill,
+                        "order": phase.order,
+                        "data": { "drills": fallback_drills, "xp_reward": 10, "is_fallback": true },
+                    }));
+                    continue;
+                }
                 let min_acc = phase.settings.min_accuracy_score.unwrap_or(60.0);
                 let speed = phase.settings.speed.clone().unwrap_or_else(|| "normal".into());
                 json!({
@@ -138,10 +171,33 @@ pub async fn get_lesson_session(
                 })
             },
             SessionPhaseType::Conversation => {
+                if conv_prompt.is_empty() {
+                    // ── GRACEFUL DEGRADATION (Section 16.3) ──
+                    // If conversation context is missing, replace with a VocabDrill.
+                    eprintln!("[WARN] Conversation phase DEGRADED → VocabDrill (no prompt) for lesson {}", lesson_id_str);
+                    let fallback_drills = build_vocab_drills(&vocabulary, &PhaseSettings {
+                        drill_types: Some(vec!["fill_in_the_blank".into()]),
+                        max_drill_count: Some(2),
+                        ..Default::default()
+                    });
+                    if fallback_drills.is_empty() {
+                        continue;
+                    }
+                    phase_data.push(json!({
+                        "type": SessionPhaseType::VocabDrill,
+                        "order": phase.order,
+                        "data": { "drills": fallback_drills, "xp_reward": 10, "is_fallback": true },
+                    }));
+                    continue;
+                }
                 let turns = phase.settings.turn_count.unwrap_or(3);
+                let branching = lesson_config.as_ref()
+                    .and_then(|c| c.branching_tree.clone())
+                    .or_else(|| dialogue.as_ref().and_then(|d| d.branching_tree.clone()));
                 json!({
                     "scenario_context": conv_prompt,
                     "turn_count": turns,
+                    "branching_tree": branching,
                     "xp_reward": 25,
                 })
             },
@@ -151,6 +207,22 @@ pub async fn get_lesson_session(
             "type": phase.phase_type,
             "order": phase.order,
             "data": data,
+        }));
+    }
+
+    // Final safety: if ALL phases were degraded/skipped, return a minimal Read-only session
+    if phase_data.is_empty() {
+        eprintln!("[ERROR] ALL phases skipped — returning minimal Read-only session for lesson {}", lesson_id_str);
+        phase_data.push(json!({
+            "type": SessionPhaseType::Read,
+            "order": 0,
+            "data": {
+                "content": lesson.content,
+                "content_id": lesson.content_id,
+                "instruction": lesson.instruction,
+                "culture_notes": lesson.culture_notes,
+                "xp_reward": 5,
+            },
         }));
     }
 
@@ -274,6 +346,7 @@ pub async fn upsert_lesson_config(
         override_xp_multiplier: payload.override_xp_multiplier,
         pronunciation_sentences: payload.pronunciation_sentences,
         conversation_prompt: payload.conversation_prompt,
+        branching_tree: payload.branching_tree,
         updated_at: Utc::now(),
     }).map_err(|_| AppError::BadRequest("Invalid config data".into()))?;
 
@@ -296,6 +369,7 @@ pub async fn upsert_lesson_config(
             override_xp_multiplier: None,
             pronunciation_sentences: None,
             conversation_prompt: None,
+            branching_tree: None,
             updated_at: Utc::now(),
         };
         col.insert_one(new_config).await?;

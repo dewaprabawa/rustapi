@@ -77,7 +77,7 @@ pub async fn send_chat_message(
         .ok_or(AppError::NotFound("Not found".to_string()))?;
 
     if session.completed {
-        return Err(AppError::Forbidden); // Already completed
+        return Err(AppError::Forbidden("Session is already completed".to_string())); // Already completed
     }
 
     // 1. Append User Message

@@ -149,7 +149,12 @@ pub fn build_course_prompt(req: &GenerateCourseRequest) -> String {
                             "Full sentence from the lesson for pronunciation practice.",
                             "Another key sentence the student should practice saying aloud."
                         ],
-                        "conversation_prompt": "You are a hotel receptionist. The student is a guest checking in. Practice the check-in conversation using vocabulary from this lesson."
+                        "conversation_prompt": "You are a hotel receptionist. The student is a guest checking in. Practice the check-in conversation using vocabulary from this lesson.",
+                        "branching_tree": {
+                          "nodes": {
+                            "start": { "text": "Welcome! How can I help you?", "branches": { "check-in": "guest_checking_in", "info": "asking_info" } }
+                          }
+                        }
                     }
                 ]
             }
@@ -157,6 +162,11 @@ pub fn build_course_prompt(req: &GenerateCourseRequest) -> String {
     });
     prompt.push_str(&serde_json::to_string_pretty(&schema).unwrap());
     prompt.push_str("\n\n");
+
+    // Branching Tree rules
+    prompt.push_str("## Branching Tree Rules\n");
+    prompt.push_str("Every `dialogue` and `conversation_prompt` MUST include a `branching_tree` for offline fallback. \n");
+    prompt.push_str("The tree should have at least 3 levels of depth and handle common student responses (e.g. Yes/No, greeting, asking price).\n\n");
 
     // Game type rules
     prompt.push_str("## Game Type Rules\n");
@@ -472,10 +482,15 @@ pub fn build_vocab_prompt(req: &GenerateVocabRequest) -> String {
                 "text_id": "Permisi, saya butuh handuk bersih."
             }
         ],
+        "branching_tree": {
+            "nodes": {
+                "start": { "text": "Greeting", "branches": { "reply": "next" } }
+            }
+        },
         "related_topics": ["Topic A", "Topic B", "Topic C"]
     });
     prompt.push_str(&serde_json::to_string_pretty(&schema).unwrap());
-    prompt.push_str("\n\nOutput only valid JSON.");
+    prompt.push_str("\n\nOutput only valid JSON. Crucially, provide a robust branching_tree for the dialogue with at least 3 levels of depth.");
 
     prompt
 }

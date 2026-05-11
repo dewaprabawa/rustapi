@@ -20,6 +20,7 @@ interface VocabPreview {
   title_id: string
   words: GeneratedWord[]
   dialogue?: { speaker: string, text_en: string, text_id: string }[]
+  branching_tree?: any
   related_topics: string[]
   set_type?: string
 }
@@ -35,6 +36,7 @@ interface VocabSet {
   created_at: string
   set_type: string
   example_dialogue?: { speaker: string, text_en: string, text_id: string }[]
+  branching_tree?: any
 }
 
 interface TargetWord {
@@ -917,6 +919,27 @@ export default function VocabForge() {
                         />
                       </div>
                     ))}
+                  </div>
+                </div>
+              )}
+
+              {previewData.branching_tree && (
+                <div className="mt-8 bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-xl overflow-hidden">
+                  <div className="flex justify-between items-center mb-4">
+                    <h4 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+                      <Sparkles className="h-5 w-5 text-emerald-400" /> Offline Branching Tree
+                    </h4>
+                    <span className="px-3 py-1 bg-emerald-500/10 text-emerald-400 text-[10px] font-bold rounded-full uppercase tracking-wider border border-emerald-500/20">
+                      AI Generated Fallback
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 mb-4 leading-relaxed">
+                    This logic provides high-quality interactive paths for students when they are offline or when real-time AI is unavailable.
+                  </p>
+                  <div className="bg-slate-950/50 rounded-2xl p-4 border border-slate-800">
+                    <pre className="text-[10px] font-mono text-emerald-300/80 overflow-x-auto whitespace-pre-wrap max-h-[300px] leading-relaxed">
+                      {JSON.stringify(previewData.branching_tree, null, 2)}
+                    </pre>
                   </div>
                 </div>
               )}

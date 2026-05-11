@@ -115,7 +115,7 @@ pub async fn admin_login(
         .ok_or(AppError::InvalidCredentials)?;
 
     if !admin.is_active {
-        return Err(AppError::Forbidden);
+        return Err(AppError::Forbidden("Access denied: Invalid credentials or insufficient permissions".to_string()));
     }
 
     if !verify_password(&payload.password, &admin.password) {

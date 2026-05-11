@@ -23,6 +23,10 @@ pub struct Persona {
 pub struct Progress {
     pub streak_days: i32,
     pub total_practice: i32,
+    #[serde(default)]
+    pub badges_count: i32,
+    #[serde(default)]
+    pub ranking: Option<String>, // e.g. "TOP 5%", "Diamond I"
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -45,7 +49,8 @@ pub struct User {
     pub level: i32,
     #[serde(default)]
     pub xp: i32,
-
+    #[serde(default)]
+    pub is_premium: bool,
     pub is_verified: bool,
     #[serde(default, skip_serializing_if = "Option::is_none", with = "optional_bson_datetime")]
     pub last_login: Option<DateTime<Utc>>,

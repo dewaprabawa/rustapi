@@ -25,6 +25,20 @@ pub struct UserProgress {
     pub created_at: DateTime<Utc>,
     #[serde(with = "mongodb::bson::serde_helpers::chrono_datetime_as_bson_datetime")]
     pub updated_at: DateTime<Utc>,
+    #[serde(default)]
+    pub earned_badges: Vec<String>, // List of badge IDs or slugs
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Badge {
+    #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
+    pub id: Option<ObjectId>,
+    pub slug: String,        // e.g. "first_lesson", "streak_7"
+    pub title: String,
+    pub description: String,
+    pub icon_url: String,
+    pub category: String,    // milestone | streak | social
+    pub created_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -113,4 +127,14 @@ pub struct QuizAnswer {
 pub struct SubmitQuizRequest {
     pub quiz_id: String,
     pub answers: Vec<usize>, // selected option indices
+}
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct LeaderboardUser {
+    pub user_id: String,
+    pub name: String,
+    pub avatar_url: Option<String>,
+    pub xp: i64,
+    pub level: i32,
+    pub rank: i32,
+    pub is_current_user: bool,
 }

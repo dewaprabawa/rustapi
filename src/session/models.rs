@@ -128,6 +128,9 @@ pub struct LessonSessionConfig {
     /// Custom AI conversation prompt
     #[serde(skip_serializing_if = "Option::is_none")]
     pub conversation_prompt: Option<String>,
+    /// Offline fallback branching tree
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub branching_tree: Option<serde_json::Value>,
     #[serde(with = "mongodb::bson::serde_helpers::chrono_datetime_as_bson_datetime")]
     pub updated_at: DateTime<Utc>,
 }
@@ -149,6 +152,7 @@ pub struct UpsertLessonConfigRequest {
     pub override_xp_multiplier: Option<f64>,
     pub pronunciation_sentences: Option<Vec<String>>,
     pub conversation_prompt: Option<String>,
+    pub branching_tree: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Deserialize)]

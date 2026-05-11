@@ -19,7 +19,8 @@ export default function Scenarios() {
     initial_message: "",
     context: "",
     target_vocabulary: "",
-    level: "A1"
+    level: "A1",
+    branching_tree: "{}"
   })
 
   const { data: scenarios, isLoading } = useQuery({
@@ -68,7 +69,8 @@ export default function Scenarios() {
       initial_message: "",
       context: "",
       target_vocabulary: "",
-      level: "A1"
+      level: "A1",
+      branching_tree: "{}"
     })
   }
 
@@ -84,7 +86,8 @@ export default function Scenarios() {
       target_vocabulary: Array.isArray(scenario.target_vocabulary) 
         ? scenario.target_vocabulary.join(', ') 
         : scenario.target_vocabulary || "",
-      level: scenario.level
+      level: scenario.level,
+      branching_tree: scenario.branching_tree ? JSON.stringify(scenario.branching_tree, null, 2) : "{}"
     })
     setIsModalOpen(true)
   }
@@ -93,7 +96,8 @@ export default function Scenarios() {
     e.preventDefault()
     const payload = {
       ...formData,
-      target_vocabulary: formData.target_vocabulary.split(',').map(s => s.trim()).filter(Boolean)
+      target_vocabulary: formData.target_vocabulary.split(',').map(s => s.trim()).filter(Boolean),
+      branching_tree: JSON.parse(formData.branching_tree || "{}")
     }
     
     if (editingScenario) {
@@ -382,6 +386,19 @@ export default function Scenarios() {
                       <option value="C1">C1 - Advanced</option>
                     </select>
                   </div>
+                </div>
+                
+                <div className="pt-2">
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5"><BrainCircuit className="h-3 w-3" /> Offline Branching Tree (JSON)</span>
+                    <span className="text-[10px] text-slate-400 font-mono">Section 7 Requirement</span>
+                  </label>
+                  <textarea 
+                    value={formData.branching_tree}
+                    onChange={e => setFormData({...formData, branching_tree: e.target.value})}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all min-h-[150px]"
+                    placeholder='{ "start": { "text": "Hello", "options": { "hi": "node2" } } }'
+                  />
                 </div>
               </div>
 

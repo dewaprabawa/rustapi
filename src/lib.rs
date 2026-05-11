@@ -1,3 +1,4 @@
+pub mod analytics;
 pub mod admin;
 pub mod ai;
 pub mod auth;
@@ -213,6 +214,8 @@ pub async fn create_app() -> Router {
         // Notifications
         .route("/notifications", get(list_admin_notifications).post(send_notification))
         .route("/notifications/:id/read", put(mark_admin_notification_read))
+        // Analytics
+        .route("/analytics", get(crate::analytics::handlers::list_events))
         // Assets
         .route("/assets/upload", post(upload_asset))
         // LLM API Key Management
@@ -303,12 +306,15 @@ pub async fn create_app() -> Router {
         )
         // Notifications
         .route("/notifications", get(list_notifications))
-        .route("/notifications/:id/read", put(mark_notification_read));
+        .route("/notifications/:id/read", put(mark_notification_read))
+        // Analytics
+        .route("/analytics/track", post(crate::analytics::handlers::track_event));
 
     // ============ User Progress Routes (auth required) ============
 
     let progress_routes = Router::new()
         .route("/", get(get_progress))
+        .route("/leaderboard", get(get_leaderboard))
         .route("/xp", post(add_xp))
         .route("/quiz", post(submit_quiz))
         .route("/game", post(submit_game_result))

@@ -28,10 +28,14 @@ pub async fn start_session(
 ) -> Result<impl IntoResponse, AppError> {
     let scenario_oid = ObjectId::parse_str(&payload.scenario_id).map_err(|_| AppError::BadRequest("Invalid scenario_id".to_string()))?;
     
+
     // 1. Fetch Scenario
     let scenario_col: Collection<SpeakingScenario> = state.db.database("rustapi").collection("speaking_scenarios");
     let scenario = scenario_col.find_one(doc! { "_id": scenario_oid }).await?
         .ok_or(AppError::NotFound("Not found".to_string()))?;
+
+    // ── 0. Check Usage (Monetization Gate) ───────────────────
+    crate::monetization::handlers::check_and_increment_ai_usage(&state, &user).await?;
 
     // 2. Initialize Session
     let session_col: Collection<SpeakingSession> = state.db.database("rustapi").collection("speaking_sessions");

@@ -163,14 +163,8 @@ function MonetizationConfigPanel() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {[
-          { label: "Ad Network ID", key: "ad_network_id", type: "text" },
-          { label: "Banner Ad Unit", key: "banner_ad_unit", type: "text" },
-          { label: "Interstitial Ad Unit", key: "interstitial_ad_unit", type: "text" },
-          { label: "Rewarded Ad Unit", key: "rewarded_ad_unit", type: "text" },
-          { label: "Monthly Price (USD)", key: "monthly_price", type: "number" },
-          { label: "Yearly Price (USD)", key: "yearly_price", type: "number" },
-          { label: "Apple Product ID", key: "apple_product_id", type: "text" },
-          { label: "Google Product ID", key: "google_product_id", type: "text" },
+          { label: "Free Tier Daily AI Limit (Turns)", key: "free_tier_daily_limit", type: "number" },
+          { label: "Premium Tier Daily AI Limit (Turns)", key: "premium_tier_daily_limit", type: "number" },
         ].map((field) => (
           <div key={field.key}>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">{field.label}</label>

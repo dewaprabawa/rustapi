@@ -64,7 +64,7 @@ pub async fn submit_answer(
 
     if session.status != "active" {
         eprintln!("DEBUG: Session {} is not active. Status: {}", session_id, session.status);
-        return Err(AppError::Forbidden); // Game over or completed
+        return Err(AppError::Forbidden("Session is no longer active (completed or game over)".to_string())); // Game over or completed
     }
 
     let game_coll: Collection<GameContent> = state.db.database("rustapi").collection("games");

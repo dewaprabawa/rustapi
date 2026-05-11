@@ -341,10 +341,15 @@ pub async fn fulfill_conversation_request(
             { "speaker": "Partner", "text_en": "English", "text_id": "Indonesian" },
             { "speaker": "Student", "text_en": "English", "text_id": "Indonesian" }
         ],
+        "branching_tree": {
+            "nodes": {
+                "start": { "text": "Greeting from Partner", "branches": { "reply_a": "next_node_id" } }
+            }
+        },
         "coaching_tips": ["Tip about using word X", "Tip about pronunciation"]
     });
     prompt.push_str(&serde_json::to_string_pretty(&schema).unwrap());
-    prompt.push_str("\n\nOutput only valid JSON. Dialogue should be 8-12 lines.");
+    prompt.push_str("\n\nOutput only valid JSON. Dialogue should be 8-12 lines. Crucially, provide a robust branching_tree with at least 3 levels of depth for offline fallback.");
 
     // 4. Call LLM
     let key_col: Collection<LlmApiKey> = db.collection("llm_api_keys");
@@ -666,6 +671,7 @@ pub async fn save_course(
                         text_id: Some(l.text_id.clone()),
                         audio_url: None,
                     }).collect(),
+                    branching_tree: gen_dialogue.branching_tree.clone(),
                     created_at: Utc::now(),
                 };
                 match dialogue_col.insert_one(dialogue).await {
@@ -748,6 +754,7 @@ pub async fn save_course(
                         Some(gen_lesson.pronunciation_sentences.clone())
                     },
                     conversation_prompt: gen_lesson.conversation_prompt.clone(),
+                    branching_tree: gen_lesson.branching_tree.clone(),
                     updated_at: Utc::now(),
                 };
                 let config_col: Collection<crate::session::models::LessonSessionConfig> = db.collection("lesson_session_configs");

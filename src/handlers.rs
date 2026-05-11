@@ -1,17 +1,20 @@
+use crate::auth::{create_jwt, hash_password, verify_password};
+use crate::models::{
+    AuthResponse, FirebaseLoginRequest, LoginRequest, OnboardingRequest, Persona, Progress,
+    RegisterRequest, UpdateFcmTokenRequest, User,
+};
+use crate::notification;
 use axum::{
-    extract::{State, Json, Multipart},
+    extract::{Json, Multipart, State},
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use mongodb::{Client, Collection, bson::doc};
-use crate::models::{User, RegisterRequest, LoginRequest, FirebaseLoginRequest, AuthResponse, Progress, Persona, OnboardingRequest, UpdateFcmTokenRequest};
-use crate::auth::{hash_password, verify_password, create_jwt};
 use chrono::Utc;
-use std::sync::Arc;
-use serde_json::json;
-use jsonwebtoken::{decode_header, decode, DecodingKey, Validation, Algorithm};
+use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, decode_header};
+use mongodb::{Client, Collection, bson::doc};
 use serde::Deserialize;
-use crate::notification;
+use serde_json::json;
+use std::sync::Arc;
 
 pub struct AppState {
     pub db: Client,
@@ -25,12 +28,16 @@ pub async fn register(
     let collection: Collection<User> = state.db.database("rustapi").collection("users");
 
     // Check if user already exists
-    if collection.find_one(doc! { "email": &payload.email }).await?.is_some() {
+    if collection
+        .find_one(doc! { "email": &payload.email })
+        .await?
+        .is_some()
+    {
         return Err(AppError::UserAlreadyExists);
     }
 
     let hashed_password = hash_password(&payload.password);
-    
+
     let default_persona = Persona {
         level: "beginner".to_string(),
         tone: "friendly".to_string(),
@@ -54,9 +61,12 @@ pub async fn register(
         progress: Progress {
             streak_days: 0,
             total_practice: 0,
+            badges_count: 0,
+            ranking: None,
         },
         level: 0,
         xp: 0,
+        is_premium: false,
         is_verified: false,
         last_login: None,
         created_at: Utc::now(),
@@ -65,7 +75,7 @@ pub async fn register(
 
     let result = collection.insert_one(new_user.clone()).await?;
     let inserted_id = result.inserted_id.as_object_id().unwrap();
-    
+
     let mut user_with_id = new_user;
     user_with_id.id = Some(inserted_id);
 
@@ -74,7 +84,10 @@ pub async fn register(
 
     // Send welcome notification (saves to DB + sends FCM push)
     let db_clone = state.db.clone();
-    let name_str = user_with_id.name.clone().unwrap_or_else(|| "New User".to_string());
+    let name_str = user_with_id
+        .name
+        .clone()
+        .unwrap_or_else(|| "New User".to_string());
     let email_str = user_with_id.email.clone();
     tokio::spawn(async move {
         // Notify user
@@ -90,10 +103,17 @@ pub async fn register(
             &db_clone,
             "New User Registered 🆕",
             &format!("User {} ({}) has just registered.", name_str, email_str),
-        ).await;
+        )
+        .await;
     });
 
-    Ok((StatusCode::CREATED, Json(AuthResponse { token, user: user_with_id })))
+    Ok((
+        StatusCode::CREATED,
+        Json(AuthResponse {
+            token,
+            user: user_with_id,
+        }),
+    ))
 }
 
 pub async fn login(
@@ -102,7 +122,9 @@ pub async fn login(
 ) -> Result<impl IntoResponse, AppError> {
     let collection: Collection<User> = state.db.database("rustapi").collection("users");
 
-    let user = collection.find_one(doc! { "email": &payload.email }).await?
+    let user = collection
+        .find_one(doc! { "email": &payload.email })
+        .await?
         .ok_or(AppError::InvalidCredentials)?;
 
     if !verify_password(&payload.password, &user.password) {
@@ -110,10 +132,12 @@ pub async fn login(
     }
 
     // Update last login
-    collection.update_one(
-        doc! { "_id": user.id.unwrap() },
-        doc! { "$set": { "last_login": bson::DateTime::now() } }
-    ).await?;
+    collection
+        .update_one(
+            doc! { "_id": user.id.unwrap() },
+            doc! { "$set": { "last_login": bson::DateTime::now() } },
+        )
+        .await?;
 
     let token = create_jwt(&user.id.unwrap().to_string(), &state.jwt_secret)
         .map_err(|_| AppError::InternalServerError)?;
@@ -121,10 +145,7 @@ pub async fn login(
     Ok(Json(AuthResponse { token, user }))
 }
 
-pub async fn get_me(
-    State(_state): State<Arc<AppState>>,
-    user: User, 
-) -> impl IntoResponse {
+pub async fn get_me(State(_state): State<Arc<AppState>>, user: User) -> impl IntoResponse {
     Json(user)
 }
 
@@ -148,21 +169,25 @@ pub async fn update_onboarding(
         avatar_emoji: payload.avatar_emoji,
     };
 
-    let result = collection.update_one(
-        doc! { "_id": user.id.unwrap() },
-        doc! { 
-            "$set": { 
-                "persona": mongodb::bson::to_bson(&updated_persona).unwrap(),
-                "updated_at": bson::DateTime::now()
-            } 
-        }
-    ).await?;
+    let result = collection
+        .update_one(
+            doc! { "_id": user.id.unwrap() },
+            doc! {
+                "$set": {
+                    "persona": mongodb::bson::to_bson(&updated_persona).unwrap(),
+                    "updated_at": bson::DateTime::now()
+                }
+            },
+        )
+        .await?;
 
     if result.matched_count == 0 {
         return Err(AppError::NotFound("Not found".to_string()));
     }
 
-    let updated_user = collection.find_one(doc! { "_id": user.id.unwrap() }).await?
+    let updated_user = collection
+        .find_one(doc! { "_id": user.id.unwrap() })
+        .await?
         .ok_or(AppError::NotFound("Not found".to_string()))?;
 
     Ok(Json(updated_user))
@@ -189,7 +214,8 @@ pub async fn firebase_login(
     println!("🔑 Firebase login request received");
 
     // 1. Fetch Google's public keys
-    let keys_url = "https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com";
+    let keys_url =
+        "https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com";
     let certs: std::collections::HashMap<String, String> = reqwest::get(keys_url)
         .await
         .map_err(|e| {
@@ -220,7 +246,7 @@ pub async fn firebase_login(
         eprintln!("❌ No matching certificate for kid: {}", kid);
         AppError::InvalidCredentials
     })?;
-    
+
     // 4. Decode and validate the token (RS256)
     let mut validation = Validation::new(Algorithm::RS256);
     validation.set_audience(&["rustapi-34bbb"]);
@@ -232,14 +258,20 @@ pub async fn firebase_login(
             AppError::InternalServerError
         })?,
         &validation,
-    ).map_err(|e| {
+    )
+    .map_err(|e| {
         eprintln!("❌ Token validation failed: {:?}", e);
         AppError::InvalidCredentials
     })?;
 
     let claims = token_data.claims;
-    println!("✅ Token validated — email: {:?}, name: {:?}, sub: {}", claims.email, claims.name, claims.sub);
-    let email = claims.email.unwrap_or_else(|| format!("{}@firebase.user", claims.sub));
+    println!(
+        "✅ Token validated — email: {:?}, name: {:?}, sub: {}",
+        claims.email, claims.name, claims.sub
+    );
+    let email = claims
+        .email
+        .unwrap_or_else(|| format!("{}@firebase.user", claims.sub));
 
     let collection: Collection<User> = state.db.database("rustapi").collection("users");
 
@@ -249,15 +281,20 @@ pub async fn firebase_login(
         Ok(Some(mut existing_user)) => {
             println!("✅ Found existing user: {:?}", existing_user.id);
             // Update last login
-            collection.update_one(
-                doc! { "_id": existing_user.id.unwrap() },
-                doc! { "$set": { "last_login": bson::DateTime::now() } }
-            ).await?;
+            collection
+                .update_one(
+                    doc! { "_id": existing_user.id.unwrap() },
+                    doc! { "$set": { "last_login": bson::DateTime::now() } },
+                )
+                .await?;
             existing_user.last_login = Some(Utc::now());
             existing_user
         }
         Ok(None) => {
-            println!("🆕 No existing user found, creating new user for: {}", email);
+            println!(
+                "🆕 No existing user found, creating new user for: {}",
+                email
+            );
             let default_persona = Persona {
                 level: "beginner".to_string(),
                 tone: "friendly".to_string(),
@@ -271,7 +308,7 @@ pub async fn firebase_login(
 
             // Create random password since they log in via OAuth
             let random_password = format!("oauth-{}", claims.sub);
-            
+
             let new_user = User {
                 id: None,
                 email: email.clone(),
@@ -284,9 +321,12 @@ pub async fn firebase_login(
                 progress: Progress {
                     streak_days: 0,
                     total_practice: 0,
+                    badges_count: 0,
+                    ranking: None,
                 },
                 level: 0,
                 xp: 0,
+                is_premium: false,
                 is_verified: true, // Auto verify OAuth users
                 last_login: Some(Utc::now()),
                 created_at: Utc::now(),
@@ -316,7 +356,10 @@ pub async fn firebase_login(
     let token = create_jwt(&user.id.unwrap().to_string(), &state.jwt_secret)
         .map_err(|_| AppError::InternalServerError)?;
 
-    println!("✅ Firebase login complete — returning JWT + user (id: {:?}, email: {})", user.id, user.email);
+    println!(
+        "✅ Firebase login complete — returning JWT + user (id: {:?}, email: {})",
+        user.id, user.email
+    );
     Ok(Json(AuthResponse { token, user }))
 }
 
@@ -329,11 +372,20 @@ pub async fn upload_profile_image(
     let mut filename = None;
     let mut content_type = None;
 
-    while let Some(field) = multipart.next_field().await.map_err(|_| AppError::InternalServerError)? {
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|_| AppError::InternalServerError)?
+    {
         if field.name() == Some("image") {
             filename = field.file_name().map(|s| s.to_string());
             content_type = field.content_type().map(|s| s.to_string());
-            image_bytes = Some(field.bytes().await.map_err(|_| AppError::InternalServerError)?);
+            image_bytes = Some(
+                field
+                    .bytes()
+                    .await
+                    .map_err(|_| AppError::InternalServerError)?,
+            );
             break;
         }
     }
@@ -344,7 +396,7 @@ pub async fn upload_profile_image(
 
     let supabase_url = "https://jliibnwjluancnoayayd.storage.supabase.co";
     let supabase_key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpsaWlibndqbHVhbmNub2F5YXlkIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NzAwNTE5MywiZXhwIjoyMDkyNTgxMTkzfQ.gk97AUKZ-Gk_fZXxQ9CVyKN3znj3QjTbGjfzHYSBREc";
-    
+
     // We use the `rustapi` bucket.
     let user_id = user.id.unwrap().to_string();
     let ext = filename.split('.').last().unwrap_or("jpg");
@@ -352,7 +404,8 @@ pub async fn upload_profile_image(
     let upload_url = format!("{}/storage/v1/object/rustapi/{}", supabase_url, object_path);
 
     let client = reqwest::Client::new();
-    let res = client.post(&upload_url)
+    let res = client
+        .post(&upload_url)
         .header("Authorization", format!("Bearer {}", supabase_key))
         .header("apikey", supabase_key)
         .header("Content-Type", content_type)
@@ -367,20 +420,27 @@ pub async fn upload_profile_image(
         return Err(AppError::InternalServerError);
     }
 
-    let public_url = format!("{}/storage/v1/object/public/rustapi/{}", supabase_url, object_path);
+    let public_url = format!(
+        "{}/storage/v1/object/public/rustapi/{}",
+        supabase_url, object_path
+    );
 
     let collection: Collection<User> = state.db.database("rustapi").collection("users");
-    collection.update_one(
-        doc! { "_id": user.id.unwrap() },
-        doc! { 
-            "$set": { 
-                "profile_image_url": &public_url,
-                "updated_at": bson::DateTime::now()
-            } 
-        }
-    ).await?;
+    collection
+        .update_one(
+            doc! { "_id": user.id.unwrap() },
+            doc! {
+                "$set": {
+                    "profile_image_url": &public_url,
+                    "updated_at": bson::DateTime::now()
+                }
+            },
+        )
+        .await?;
 
-    let updated_user = collection.find_one(doc! { "_id": user.id.unwrap() }).await?
+    let updated_user = collection
+        .find_one(doc! { "_id": user.id.unwrap() })
+        .await?
         .ok_or(AppError::NotFound("Not found".to_string()))?;
 
     Ok(Json(updated_user))
@@ -393,17 +453,21 @@ pub async fn update_fcm_token(
 ) -> Result<impl IntoResponse, AppError> {
     let collection: Collection<User> = state.db.database("rustapi").collection("users");
 
-    collection.update_one(
-        doc! { "_id": user.id.unwrap() },
-        doc! { 
-            "$set": { 
-                "fcm_token": payload.fcm_token,
-                "updated_at": bson::DateTime::now()
-            } 
-        }
-    ).await?;
+    collection
+        .update_one(
+            doc! { "_id": user.id.unwrap() },
+            doc! {
+                "$set": {
+                    "fcm_token": payload.fcm_token,
+                    "updated_at": bson::DateTime::now()
+                }
+            },
+        )
+        .await?;
 
-    Ok(Json(serde_json::json!({"message": "FCM token updated successfully"})))
+    Ok(Json(
+        serde_json::json!({"message": "FCM token updated successfully"}),
+    ))
 }
 
 pub async fn update_profile(
@@ -421,12 +485,16 @@ pub async fn update_profile(
         update_doc.insert("name", name);
     }
 
-    collection.update_one(
-        doc! { "_id": user.id.unwrap() },
-        doc! { "$set": update_doc }
-    ).await?;
+    collection
+        .update_one(
+            doc! { "_id": user.id.unwrap() },
+            doc! { "$set": update_doc },
+        )
+        .await?;
 
-    let updated_user = collection.find_one(doc! { "_id": user.id.unwrap() }).await?
+    let updated_user = collection
+        .find_one(doc! { "_id": user.id.unwrap() })
+        .await?
         .ok_or(AppError::NotFound("Not found".to_string()))?;
 
     Ok(Json(updated_user))
@@ -437,7 +505,7 @@ pub async fn update_profile(
 pub enum AppError {
     InvalidCredentials,
     UserAlreadyExists,
-    Forbidden,
+    Forbidden(String),
     NotFound(String),
     BadRequest(String),
     InternalServerError,
@@ -456,16 +524,33 @@ impl IntoResponse for AppError {
         let (status, error_message) = match self {
             AppError::InvalidCredentials => (StatusCode::UNAUTHORIZED, "Invalid email or password"),
             AppError::UserAlreadyExists => (StatusCode::CONFLICT, "User already exists"),
-            AppError::Forbidden => (StatusCode::FORBIDDEN, "Forbidden: Session not active or access denied"),
-            AppError::NotFound(ref msg) => (StatusCode::NOT_FOUND, Box::leak(msg.clone().into_boxed_str()) as &'static str),
-            AppError::BadRequest(ref msg) => (StatusCode::BAD_REQUEST, Box::leak(msg.clone().into_boxed_str()) as &'static str),
-            AppError::InternalServerError => (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error"),
-            AppError::TooManyRequests(ref msg) => (StatusCode::TOO_MANY_REQUESTS, Box::leak(msg.clone().into_boxed_str()) as &'static str),
+            AppError::Forbidden(ref msg) => (
+                StatusCode::FORBIDDEN,
+                Box::leak(msg.clone().into_boxed_str()) as &'static str,
+            ),
+            AppError::NotFound(ref msg) => (
+                StatusCode::NOT_FOUND,
+                Box::leak(msg.clone().into_boxed_str()) as &'static str,
+            ),
+            AppError::BadRequest(ref msg) => (
+                StatusCode::BAD_REQUEST,
+                Box::leak(msg.clone().into_boxed_str()) as &'static str,
+            ),
+            AppError::InternalServerError => {
+                (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error")
+            }
+            AppError::TooManyRequests(ref msg) => (
+                StatusCode::TOO_MANY_REQUESTS,
+                Box::leak(msg.clone().into_boxed_str()) as &'static str,
+            ),
             AppError::DatabaseError(err) => {
                 eprintln!("Database error: {:?}", err);
                 let err_msg = format!("Database error: {}", err);
-                (StatusCode::INTERNAL_SERVER_ERROR, Box::leak(err_msg.into_boxed_str()) as &'static str)
-            },
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Box::leak(err_msg.into_boxed_str()) as &'static str,
+                )
+            }
         };
 
         let body = Json(json!({

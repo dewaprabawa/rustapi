@@ -53,6 +53,7 @@ pub async fn save_vocab_set(
             text_en: d.text_en,
             text_id: d.text_id,
         }).collect()),
+        branching_tree: payload.preview.branching_tree,
     };
 
     let set_result = sets_col.insert_one(new_set).await?;

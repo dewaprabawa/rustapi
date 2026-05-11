@@ -16,6 +16,7 @@ pub struct SpeakingScenario {
     pub level: ContentLevel,
     pub initial_message: String, // AI's first line
     pub target_vocabulary: Vec<String>, // Words user should try to use
+    pub branching_tree: Option<serde_json::Value>, // Section 7 — Offline branching
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

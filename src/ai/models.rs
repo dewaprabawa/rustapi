@@ -102,6 +102,8 @@ pub struct GeneratedLesson {
     pub pronunciation_sentences: Vec<String>,
     #[serde(default)]
     pub conversation_prompt: Option<String>,
+    #[serde(default)]
+    pub branching_tree: Option<Value>,
 }
 
 impl Default for GeneratedLesson {
@@ -122,6 +124,7 @@ impl Default for GeneratedLesson {
             games: vec![],
             pronunciation_sentences: vec![],
             conversation_prompt: None,
+            branching_tree: None,
         }
     }
 }
@@ -154,6 +157,7 @@ pub struct GeneratedDialogue {
     pub title: String,
     pub context: String,
     pub lines: Vec<GeneratedDialogueLine>,
+    pub branching_tree: Option<Value>,
 }
 
 impl Default for GeneratedDialogue {
@@ -162,6 +166,7 @@ impl Default for GeneratedDialogue {
             title: String::new(),
             context: String::new(),
             lines: vec![],
+            branching_tree: None,
         }
     }
 }
@@ -326,6 +331,7 @@ pub struct GeneratedVocabPreview {
     pub title_id: String,
     pub words: Vec<GeneratedVocabWord>,
     pub dialogue: Vec<GeneratedVocabDialogueLine>,
+    pub branching_tree: Option<serde_json::Value>,
     pub related_topics: Vec<String>,
 }
 

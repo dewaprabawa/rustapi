@@ -347,6 +347,7 @@ pub async fn seed_content(client: &Client) {
                     audio_url: None,
                 },
             ],
+            branching_tree: None,
             created_at: Utc::now(),
         };
         dialogue_col
@@ -589,6 +590,7 @@ pub async fn seed_speaking_scenarios(client: &Client) {
                     "amenities".to_string(),
                 ],
                 level: ContentLevel::A1,
+                branching_tree: None,
                 created_at: Utc::now(),
                 updated_at: Utc::now(),
             },
@@ -608,6 +610,7 @@ pub async fn seed_speaking_scenarios(client: &Client) {
                     "pleasure".to_string(),
                 ],
                 level: ContentLevel::A1,
+                branching_tree: None,
                 created_at: Utc::now(),
                 updated_at: Utc::now(),
             }
@@ -690,6 +693,7 @@ pub async fn seed_phrasal_verbs(client: &Client) {
                     text_id: "Tentu, mari kita lanjutkan dari bagian terakhir kemarin.".to_string(),
                 },
             ]),
+            branching_tree: None,
         };
 
         let s_res = set_col.insert_one(set).await.expect("Failed to seed vocab set");

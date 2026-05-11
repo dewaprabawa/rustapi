@@ -17,6 +17,7 @@ use super::models::{
     TextChatRequest, TextChatResponse,
     ChatMessage,
 };
+use crate::models::User;
 use mongodb::Collection;
 use bson::doc;
 
@@ -134,8 +135,10 @@ async fn call_deepgram_tts(api_key: &str, text: &str) -> Result<Vec<u8>, AppErro
 // ══════════════════════════════════════════════════════════════
 pub async fn voice_chat(
     State(state): State<Arc<AppState>>,
+    user: User,
     mut multipart: Multipart,
 ) -> Result<impl IntoResponse, AppError> {
+
     // ── 1. Parse multipart fields ──────────────────────────────
     let mut audio_bytes: Vec<u8> = Vec::new();
     let mut mime_type = String::from("audio/mp4");
@@ -179,6 +182,9 @@ pub async fn voice_chat(
     // ── 2. Load config & API keys ──────────────────────────────
     let config = load_voice_config(&state).await?;
     let groq_key = load_groq_key(&state).await?;
+
+    // ── 2.5 Check Usage (Monetization Gate) ───────────────────
+    crate::monetization::handlers::check_and_increment_ai_usage(&state, &user).await?;
 
     // ── 3. STT: ElevenLabs Scribe ─────────────────────────────
     let stt = ElevenLabsSTT::new(&config.elevenlabs_api_key);
@@ -240,8 +246,10 @@ pub async fn voice_chat(
 // ══════════════════════════════════════════════════════════════
 pub async fn text_chat(
     State(state): State<Arc<AppState>>,
+    user: User,
     Json(payload): Json<TextChatRequest>,
 ) -> Result<impl IntoResponse, AppError> {
+
     // ── 1. Load config & Groq key ──────────────────────────────
     let config = load_voice_config(&state).await?;
     let groq_key = load_groq_key(&state).await?;
@@ -257,6 +265,9 @@ pub async fn text_chat(
     });
 
     // ── 3. Groq chat ──────────────────────────────────────────
+    // ── 2.5 Check Usage (Monetization Gate) ───────────────────
+    crate::monetization::handlers::check_and_increment_ai_usage(&state, &user).await?;
+
     let history: Vec<ChatMessage> = payload.history.unwrap_or_default();
     let groq = GroqChat::new(groq_key);
     let reply_text = groq

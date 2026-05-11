@@ -7,6 +7,7 @@ use crate::progress::models::*;
 use crate::models::User;
 use crate::handlers::{AppState, AppError};
 use std::sync::Arc;
+use futures::StreamExt;
 use bson::oid::ObjectId;
 use chrono::Utc;
 
@@ -39,7 +40,8 @@ pub async fn get_progress(
                 average_interview_score: 0.0,
                 streak_freezes: 1, // Default 1 freeze
                 current_unit: 1,
-                current_lesson_node: 1,
+                current_lesson_node: 0,
+                earned_badges: vec![],
                 created_at: Utc::now(),
                 updated_at: Utc::now(),
             };
@@ -74,7 +76,8 @@ pub async fn add_xp(
             average_interview_score: 0.0,
             streak_freezes: 1,
             current_unit: 1,
-            current_lesson_node: 1,
+            current_lesson_node: 0,
+            earned_badges: vec![],
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };
@@ -135,6 +138,9 @@ pub async fn add_xp(
             ).await;
         });
     }
+
+    // Sync summary
+    sync_user_summary(&state, user_id).await?;
 
     Ok(Json(XPResponse {
         xp: updated.xp + payload.xp,
@@ -225,6 +231,9 @@ pub async fn submit_quiz(
                 &format!("User {} passed the quiz: {}.", user_name, quiz_title),
             ).await;
         });
+
+        // Sync summary
+        sync_user_summary(&state, user_id).await?;
     }
 
     Ok(Json(serde_json::json!({
@@ -307,4 +316,108 @@ fn calculate_level(xp: i64) -> i32 {
     else if xp >= 300 { 3 }
     else if xp >= 100 { 2 }
     else { 1 }
+}
+
+/// Syncs high-level progress fields back to the User object for fast access/display.
+async fn sync_user_summary(state: &Arc<AppState>, user_id: ObjectId) -> Result<(), AppError> {
+    let progress_col: Collection<UserProgress> = state.db.database("rustapi").collection("progress");
+    let user_col: Collection<crate::models::User> = state.db.database("rustapi").collection("users");
+
+    let mut progress = progress_col.find_one(doc! { "user_id": user_id }).await?
+        .ok_or(AppError::InternalServerError)?;
+
+    // --- Badge Awarding Logic ---
+    let mut new_badges = Vec::new();
+    
+    // 1. First Lesson Badge
+    if !progress.completed_lessons.is_empty() && !progress.earned_badges.contains(&"first_lesson".to_string()) {
+        new_badges.push("first_lesson".to_string());
+    }
+    
+    // 2. Level 5 Badge
+    if progress.level >= 5 && !progress.earned_badges.contains(&"level_5".to_string()) {
+        new_badges.push("level_5".to_string());
+    }
+
+    if !new_badges.is_empty() {
+        progress_col.update_one(
+            doc! { "_id": progress.id.unwrap() },
+            doc! { "$addToSet": { "earned_badges": { "$each": &new_badges } } }
+        ).await?;
+        // Refresh progress object
+        progress = progress_col.find_one(doc! { "_id": progress.id.unwrap() }).await?.unwrap();
+        
+        // Notify user about new badges
+        let db_clone = state.db.clone();
+        tokio::spawn(async move {
+            for badge in new_badges {
+                crate::notification::create_and_push_notification(
+                    &db_clone,
+                    Some(user_id),
+                    "New Badge Earned! 🏅",
+                    &format!("You've unlocked the '{}' badge!", badge.replace("_", " ").to_uppercase()),
+                ).await;
+            }
+        });
+    }
+
+    user_col.update_one(
+        doc! { "_id": user_id },
+        doc! {
+            "$set": {
+                "level": progress.level,
+                "xp": progress.xp as i32,
+                "progress.streak_days": progress.streak_days,
+                "progress.total_practice": progress.xp as i32,
+                "progress.badges_count": progress.earned_badges.len() as i32,
+                "progress.ranking": if progress.xp > 2000 {
+                    "Top 1%".to_string()
+                } else if progress.xp > 1000 {
+                    "Top 5%".to_string()
+                } else if progress.xp > 500 {
+                    "Top 15%".to_string()
+                } else {
+                    format!("#{}", 1500 - (progress.xp / 5).min(1499))
+                },
+            }
+        }
+    ).await?;
+
+    Ok(())
+}
+/// GET /progress/leaderboard — Get top users by XP
+pub async fn get_leaderboard(
+    State(state): State<Arc<AppState>>,
+    user: User,
+) -> Result<impl IntoResponse, AppError> {
+    let current_user_id = user.id.unwrap();
+    let progress_col: Collection<UserProgress> = state.db.database("rustapi").collection("progress");
+    let user_col: Collection<User> = state.db.database("rustapi").collection("users");
+
+    // Get top 20 users by XP
+    let mut cursor = progress_col.find(doc! {})
+        .sort(doc! { "xp": -1 })
+        .limit(20)
+        .await?;
+
+    let mut leaderboard = Vec::new();
+    let mut rank = 1;
+
+    while let Some(progress) = cursor.next().await {
+        let p = progress?;
+        if let Some(u) = user_col.find_one(doc! { "_id": p.user_id }).await? {
+            leaderboard.push(LeaderboardUser {
+                user_id: p.user_id.to_hex(),
+                name: u.name.unwrap_or_else(|| "Anonymous".to_string()),
+                avatar_url: u.profile_image_url,
+                xp: p.xp,
+                level: p.level,
+                rank,
+                is_current_user: p.user_id == current_user_id,
+            });
+            rank += 1;
+        }
+    }
+
+    Ok(Json(leaderboard))
 }

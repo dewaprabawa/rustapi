@@ -31,7 +31,7 @@ impl FromRequestParts<Arc<AppState>> for Admin {
             .map_err(|_| AppError::InvalidCredentials)?;
 
         if claims.role != "admin" {
-            return Err(AppError::Forbidden);
+            return Err(AppError::Forbidden("Admin authorization required".to_string()));
         }
 
         // 3. Load admin from database
@@ -44,7 +44,7 @@ impl FromRequestParts<Arc<AppState>> for Admin {
             .ok_or(AppError::InvalidCredentials)?;
 
         if !admin.is_active {
-            return Err(AppError::Forbidden);
+            return Err(AppError::Forbidden("Invalid or inactive admin account".to_string()));
         }
 
         Ok(admin)

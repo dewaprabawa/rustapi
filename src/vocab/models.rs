@@ -25,6 +25,8 @@ pub struct VocabSet {
     pub updated_at: Option<DateTime>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub example_dialogue: Option<Vec<VocabDialogueLine>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub branching_tree: Option<serde_json::Value>,
 }
 
 fn default_set_type() -> String {

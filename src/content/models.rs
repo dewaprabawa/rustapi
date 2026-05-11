@@ -283,6 +283,7 @@ pub struct Dialogue {
     pub title: String,
     pub context: Option<String>, // e.g. "At the hotel front desk"
     pub lines: Vec<DialogueLine>,
+    pub branching_tree: Option<serde_json::Value>, // Section 7 — Offline branching
     #[serde(with = "mongodb::bson::serde_helpers::chrono_datetime_as_bson_datetime")]
     pub created_at: DateTime<Utc>,
 }
@@ -293,6 +294,7 @@ pub struct CreateDialogueRequest {
     pub title: String,
     pub context: Option<String>,
     pub lines: Vec<DialogueLine>,
+    pub branching_tree: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -300,6 +302,7 @@ pub struct UpdateDialogueRequest {
     pub title: Option<String>,
     pub context: Option<String>,
     pub lines: Option<Vec<DialogueLine>>,
+    pub branching_tree: Option<serde_json::Value>,
 }
 
 // ============ Quiz ============

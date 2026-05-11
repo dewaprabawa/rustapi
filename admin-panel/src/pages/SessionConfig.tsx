@@ -49,6 +49,7 @@ interface LessonSessionConfig {
   override_xp_multiplier?: number | null
   pronunciation_sentences?: string[] | null
   conversation_prompt?: string | null
+  branching_tree?: any | null
 }
 
 const PHASE_LABELS: Record<string, string> = {
@@ -348,6 +349,7 @@ export default function SessionConfig() {
                 override_xp_multiplier: null,
                 pronunciation_sentences: null,
                 conversation_prompt: null,
+                branching_tree: null,
               })
             }
             className="px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors"
@@ -846,15 +848,37 @@ function PhaseEditor({
 
           {/* Conversation Content (Custom Prompt) */}
           {phase.phase_type === "conversation" && onOverrideUpdate && (
-            <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1.5">Scenario Prompt Override</label>
-              <textarea
-                className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm min-h-[100px]"
-                placeholder="Enter custom conversation context..."
-                value={lesson?.conversation_prompt || ""}
-                onChange={(e) => onOverrideUpdate("conversation_prompt", e.target.value)}
-              />
-            </div>
+            <>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1.5">Scenario Prompt Override</label>
+                <textarea
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm min-h-[100px]"
+                  placeholder="Enter custom conversation context..."
+                  value={lesson?.conversation_prompt || ""}
+                  onChange={(e) => onOverrideUpdate("conversation_prompt", e.target.value)}
+                />
+              </div>
+
+              <div className="pt-2">
+                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1.5 flex items-center justify-between">
+                  <span>Offline Branching Tree (JSON)</span>
+                  <span className="text-[10px] text-slate-400 font-mono">Offline Fallback</span>
+                </label>
+                <textarea
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[11px] font-mono min-h-[120px]"
+                  placeholder='{ "start": { "text": "Hello", "options": { "hi": "node2" } } }'
+                  value={lesson?.branching_tree ? JSON.stringify(lesson.branching_tree, null, 2) : ""}
+                  onChange={(e) => {
+                    try {
+                      const json = JSON.parse(e.target.value);
+                      onOverrideUpdate("branching_tree", json);
+                    } catch (err) {
+                      // Allow typing invalid JSON temporarily
+                    }
+                  }}
+                />
+              </div>
+            </>
           )}
         </div>
       )}
