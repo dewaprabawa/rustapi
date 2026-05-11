@@ -67,7 +67,6 @@ export default function SessionConfig() {
   const [editTemplate, setEditTemplate] = useState<LevelTemplate | null>(null)
   const [editConfig, setEditConfig] = useState<LessonSessionConfig | null>(null)
   const [activeVocab, setActiveVocab] = useState<any[]>([])
-  const [vocabLoading, setVocabLoading] = useState(false)
   const [toast, setToast] = useState("")
 
   useEffect(() => {
@@ -83,14 +82,12 @@ export default function SessionConfig() {
   }, [editConfig?.lesson_id])
 
   const loadVocab = async (lessonId: string) => {
-    setVocabLoading(true)
     try {
       const v = await getVocabulary(lessonId)
       setActiveVocab(Array.isArray(v) ? v : [])
     } catch (e) {
       console.error(e)
     }
-    setVocabLoading(false)
   }
 
   const loadAll = async () => {
@@ -542,7 +539,7 @@ export default function SessionConfig() {
               <div className="space-y-3">
                 {[...(editConfig.phases || [])]
                   .sort((a, b) => a.order - b.order)
-                  .map((phase, idx) => {
+                  .map((phase) => {
                     // We need the actual index in the original array to update it correctly
                     // Or we can just find it by phase_type since phase_type is unique
                     const originalIdx = editConfig.phases!.findIndex(p => p.phase_type === phase.phase_type);
