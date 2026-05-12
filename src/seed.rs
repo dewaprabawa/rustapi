@@ -9,6 +9,7 @@ use crate::session::models::{LevelTemplate, PhaseConfig, PhaseSettings, SessionP
 use crate::speaking::models::SpeakingScenario;
 use crate::vocab::models::{VocabSet, VocabWord, VocabDialogueLine};
 use crate::speakup::models::{SpeakUpContent, SpeakUpType};
+use crate::ebook::models::{CurriculumStage, CurriculumCourse, CurriculumModule, CurriculumLesson};
 use chrono::Utc;
 use mongodb::{Client, Collection, bson::doc};
 
@@ -942,5 +943,63 @@ pub async fn seed_level_templates(client: &Client) {
 
         col.insert_many(templates).await.expect("Failed to seed level templates");
         println!("✅ Successfully seeded Level Templates (A1-C2)!");
+    }
+}
+
+pub async fn seed_curriculum(client: &Client) {
+    let db = client.database("rustapi");
+    let col: Collection<CurriculumStage> = db.collection("curriculum");
+
+    let count = col.count_documents(doc! {}).await.unwrap_or(0);
+    if count == 0 {
+        println!("📚 Seeding Curriculum Tree (4 Stages, 16 Courses, 160 Lessons)...");
+        
+        let mut stages = Vec::new();
+        let stage_titles = [
+            "Foundational Hospitality English",
+            "Professional Guest Interaction",
+            "Advanced Service Scenarios",
+            "Leadership & Conflict Mastery"
+        ];
+
+        for s in 1..=4 {
+            let mut courses = Vec::new();
+            for c in 1..=4 {
+                let mut modules = Vec::new();
+                // 10 lessons per course distributed over 2 modules
+                for m in 1..=2 {
+                    let mut lessons = Vec::new();
+                    for l in 1..=5 {
+                        let lesson_num = (m - 1) * 5 + l;
+                        lessons.push(CurriculumLesson {
+                            number: lesson_num,
+                            title: format!("Lesson {}: Professional Communication", lesson_num),
+                            objectives: vec!["Master core vocabulary".to_string(), "Practice natural responses".to_string()],
+                        });
+                    }
+                    modules.push(CurriculumModule {
+                        number: m,
+                        title: format!("Module {}: Skill Building", m),
+                        lessons,
+                    });
+                }
+                courses.push(CurriculumCourse {
+                    number: c,
+                    title: format!("Course {}: Mastery Track", c),
+                    modules,
+                });
+            }
+            
+            stages.push(CurriculumStage {
+                id: None,
+                number: s,
+                title: stage_titles[s as usize - 1].to_string(),
+                courses,
+                updated_at: Utc::now(),
+            });
+        }
+
+        col.insert_many(stages).await.expect("Failed to seed curriculum");
+        println!("✅ Curriculum seeded successfully!");
     }
 }

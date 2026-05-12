@@ -17,6 +17,7 @@ import SpeakingMonitor from "./pages/SpeakingMonitor"
 import VocabForge from "./pages/VocabForge"
 import SpeakUpManager from "./pages/SpeakUpManager"
 import SessionConfig from "./pages/SessionConfig"
+import EbookForge from "./pages/EbookForge"
 
 function App() {
   return (
@@ -48,6 +49,7 @@ function App() {
             <Route path="speaking-monitor" element={<SpeakingMonitor />} />
             <Route path="speakup" element={<SpeakUpManager />} />
             <Route path="session-config" element={<SessionConfig />} />
+            <Route path="ebook-forge" element={<EbookForge />} />
             <Route
               path="*"
               element={

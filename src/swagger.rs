@@ -28,6 +28,7 @@ use utoipa::OpenApi;
         (name = "Ratings", description = "User lesson ratings"),
         (name = "Notifications", description = "User & system notifications"),
         (name = "Voice", description = "Speech-to-text & Text-to-speech services"),
+        (name = "Admin Ebooks", description = "Reference book management & Ebook generation"),
     ),
     paths(
         // Auth
@@ -89,6 +90,12 @@ use utoipa::OpenApi;
         crate::swagger::admin_list_conversation_requests,
         crate::swagger::admin_fulfill_conversation_request,
         crate::swagger::admin_list_speaking_sessions,
+        // Admin Ebooks
+        crate::swagger::admin_list_books,
+        crate::swagger::admin_upload_book,
+        crate::swagger::admin_get_curriculum,
+        crate::swagger::admin_generate_ebook,
+        crate::swagger::admin_export_ebook,
         // Admin API Keys
         crate::swagger::admin_list_api_keys,
         crate::swagger::admin_create_api_key,
@@ -1158,4 +1165,45 @@ pub struct VoiceScoreResponse {
 #[derive(utoipa::ToSchema, serde::Deserialize)]
 pub struct OfflineSyncRequest {
     pub answers: serde_json::Value,
+}
+
+// ── Admin Ebooks ──
+
+#[utoipa::path(get, path = "/admin/books", tag = "Admin Ebooks", security(("bearer_auth" = [])),
+    responses((status = 200, description = "List reference books")))]
+pub async fn admin_list_books() {}
+
+#[utoipa::path(post, path = "/admin/books", tag = "Admin Ebooks", security(("bearer_auth" = [])),
+    request_body = UploadBookRequest,
+    responses((status = 201, description = "Book uploaded")))]
+pub async fn admin_upload_book() {}
+
+#[utoipa::path(get, path = "/admin/curriculum", tag = "Admin Ebooks", security(("bearer_auth" = [])),
+    responses((status = 200, description = "Get curriculum tree")))]
+pub async fn admin_get_curriculum() {}
+
+#[utoipa::path(post, path = "/admin/ebook/generate", tag = "Admin Ebooks", security(("bearer_auth" = [])),
+    request_body = GenerateEbookRequest,
+    responses((status = 201, description = "Ebook generated")))]
+pub async fn admin_generate_ebook() {}
+
+#[utoipa::path(post, path = "/admin/ebook/{id}/export", tag = "Admin Ebooks", security(("bearer_auth" = [])),
+    params(("id" = String, Path)),
+    responses((status = 200, description = "Export initiated")))]
+pub async fn admin_export_ebook() {}
+
+#[derive(utoipa::ToSchema, serde::Deserialize)]
+pub struct UploadBookRequest {
+    pub title: String,
+    pub status: Option<String>,
+}
+
+#[derive(utoipa::ToSchema, serde::Deserialize)]
+pub struct GenerateEbookRequest {
+    pub stage: i32,
+    pub course: i32,
+    pub module: i32,
+    pub lessons: Vec<i32>,
+    pub level: String,
+    pub reference_book_id: Option<String>,
 }

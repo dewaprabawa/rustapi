@@ -20,6 +20,7 @@ pub mod speakup;
 pub mod swagger;
 pub mod vocab;
 pub mod voice;
+pub mod ebook;
 
 use crate::admin::handlers::{
     admin_login, admin_me, delete_user, get_user, list_users, upload_asset, get_dashboard_stats, update_user,
@@ -96,6 +97,7 @@ pub async fn create_app() -> Router {
     crate::seed::seed_phrasal_verbs(&client).await;
     crate::seed::seed_speakup_content(&client).await;
     crate::seed::seed_level_templates(&client).await;
+    crate::seed::seed_curriculum(&client).await;
 
     let state = Arc::new(AppState {
         db: client,
@@ -240,14 +242,19 @@ pub async fn create_app() -> Router {
         .route("/ai-prompts", get(get_ai_prompts))
         .route("/ai-prompts/:entity_type", put(update_ai_prompt))
         .route("/vocab-sets", get(vocab::handlers::list_vocab_sets))
-        .route("/vocab-sets/:id", get(vocab::handlers::get_vocab_words).delete(vocab::handlers::delete_vocab_set))
+        .route(
+            "/vocab-sets/:id", 
+            get(vocab::handlers::get_vocab_words)
+                .put(vocab::handlers::update_vocab_set)
+                .delete(vocab::handlers::delete_vocab_set)
+        )
         .route(
             "/vocab-sets/:id/words",
             get(vocab::handlers::get_vocab_words),
         )
         .route(
             "/vocab-sets/:id/words/:word_id",
-            delete(vocab::handlers::delete_vocab_word),
+            put(vocab::handlers::update_vocab_word).delete(vocab::handlers::delete_vocab_word),
         )
         // Conversation Requests
         .route("/conversation-requests", get(list_conversation_requests))
@@ -272,7 +279,13 @@ pub async fn create_app() -> Router {
         .route("/level-templates", get(session_handlers::list_level_templates))
         .route("/level-templates/:level", get(session_handlers::get_level_template).put(session_handlers::update_level_template))
         .route("/lesson-configs", get(session_handlers::list_lesson_configs))
-        .route("/lesson-configs/:lesson_id", get(session_handlers::get_lesson_config).put(session_handlers::upsert_lesson_config).delete(session_handlers::delete_lesson_config));
+        .route("/lesson-configs/:lesson_id", get(session_handlers::get_lesson_config).put(session_handlers::upsert_lesson_config).delete(session_handlers::delete_lesson_config))
+        // Ebook Reference & Generation
+        .route("/books", get(crate::ebook::list_books).post(crate::ebook::upload_book))
+        .route("/curriculum", get(crate::ebook::get_curriculum))
+        .route("/ebook/generate", post(crate::ebook::generate_ebook))
+        .route("/ebook/:id", get(crate::ebook::get_ebook).put(crate::ebook::update_ebook))
+        .route("/ebook/:id/export", post(crate::ebook::export_ebook));
 
     // ============ Voice Abstraction Routes (auth recommended) ============
     let voice_routes = Router::new()

@@ -15,7 +15,8 @@ import {
   Activity,
   PanelLeftClose,
   PanelLeftOpen,
-  SlidersHorizontal
+  SlidersHorizontal,
+  BookMarked
 } from "lucide-react"
 import { cn, normalizeDate } from "../lib/utils"
 import { useAuth } from "../contexts/AuthContext"
@@ -30,6 +31,7 @@ export default function AdminLayout() {
     { name: "Dashboard", path: "/", icon: LayoutDashboard },
     { name: "Courses & Content", path: "/courses", icon: BookOpen },
     { name: "VocabForge AI", path: "/vocab-forge", icon: Sparkles },
+    { name: "Ebook Forge", path: "/ebook-forge", icon: BookMarked },
     { name: "AI Generator", path: "/ai-generator", icon: Sparkles },
     { name: "Users", path: "/users", icon: Users },
     { name: "AI Scenarios", path: "/scenarios", icon: BrainCircuit },

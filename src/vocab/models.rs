@@ -105,3 +105,29 @@ pub struct ConversationRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub resolved_at: Option<DateTime>,
 }
+#[derive(Debug, Deserialize)]
+pub struct UpdateVocabSetRequest {
+    pub title: Option<String>,
+    pub topic: Option<String>,
+    pub level: Option<String>,
+    pub status: Option<String>,
+    pub related_topics: Option<Vec<String>>,
+    pub example_dialogue: Option<Vec<VocabDialogueLine>>,
+    pub branching_tree: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateVocabWordRequest {
+    pub word: Option<String>,
+    pub translation: Option<String>,
+    pub part_of_speech: Option<String>,
+    pub definition: Option<String>,
+    pub pronunciation_guide: Option<String>,
+    pub colloquial_usage: Option<String>,
+    pub example_sentence: Option<String>,
+    pub distractors: Option<Vec<String>>,
+    pub item_dialogue: Option<Vec<VocabDialogueLine>>,
+    pub card_type: Option<String>,
+    pub emoji: Option<String>,
+    pub emotion: Option<String>,
+}

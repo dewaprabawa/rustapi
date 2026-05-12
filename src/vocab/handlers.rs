@@ -183,3 +183,58 @@ pub async fn delete_vocab_word(
 
     Ok(StatusCode::NO_CONTENT)
 }
+    Ok(StatusCode::NO_CONTENT)
+}
+
+pub async fn update_vocab_set(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+    Json(payload): Json<crate::vocab::models::UpdateVocabSetRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::BadRequest("Invalid set ID".to_string()))?;
+    let collection = state.db.database("rustapi").collection::<crate::vocab::models::VocabSet>("vocab_sets");
+
+    let mut update_doc = doc! { "updated_at": mongodb::bson::DateTime::now() };
+    if let Some(v) = payload.title { update_doc.insert("title", v); }
+    if let Some(v) = payload.topic { update_doc.insert("topic", v); }
+    if let Some(v) = payload.level { update_doc.insert("level", v); }
+    if let Some(v) = payload.status { update_doc.insert("status", v); }
+    if let Some(v) = payload.related_topics { update_doc.insert("related_topics", v); }
+    if let Some(v) = payload.example_dialogue { 
+        update_doc.insert("example_dialogue", mongodb::bson::to_bson(&v).unwrap()); 
+    }
+    if let Some(v) = payload.branching_tree { 
+        update_doc.insert("branching_tree", mongodb::bson::to_bson(&v).unwrap()); 
+    }
+
+    collection.update_one(doc! { "_id": oid }, doc! { "$set": update_doc }).await?;
+    Ok(StatusCode::OK)
+}
+
+pub async fn update_vocab_word(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path((_set_id, word_id)): axum::extract::Path<(String, String)>,
+    Json(payload): Json<crate::vocab::models::UpdateVocabWordRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    let word_oid = ObjectId::parse_str(&word_id).map_err(|_| AppError::BadRequest("Invalid word ID".to_string()))?;
+    let collection = state.db.database("rustapi").collection::<crate::vocab::models::VocabWord>("vocab_words");
+
+    let mut update_doc = doc! {};
+    if let Some(v) = payload.word { update_doc.insert("word", v); }
+    if let Some(v) = payload.translation { update_doc.insert("translation", v); }
+    if let Some(v) = payload.part_of_speech { update_doc.insert("part_of_speech", v); }
+    if let Some(v) = payload.definition { update_doc.insert("definition", v); }
+    if let Some(v) = payload.pronunciation_guide { update_doc.insert("pronunciation_guide", v); }
+    if let Some(v) = payload.colloquial_usage { update_doc.insert("colloquial_usage", v); }
+    if let Some(v) = payload.example_sentence { update_doc.insert("example_sentence", v); }
+    if let Some(v) = payload.distractors { update_doc.insert("distractors", v); }
+    if let Some(v) = payload.item_dialogue { 
+        update_doc.insert("item_dialogue", mongodb::bson::to_bson(&v).unwrap()); 
+    }
+    if let Some(v) = payload.card_type { update_doc.insert("card_type", v); }
+    if let Some(v) = payload.emoji { update_doc.insert("emoji", v); }
+    if let Some(v) = payload.emotion { update_doc.insert("emotion", v); }
+
+    collection.update_one(doc! { "_id": word_oid }, doc! { "$set": update_doc }).await?;
+    Ok(StatusCode::OK)
+}

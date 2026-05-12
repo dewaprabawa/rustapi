@@ -135,6 +135,12 @@ export const getVocabSets = (type?: string) =>
 export const getVocabSetWords = (id: string) =>
   api.get(`/vocab-sets/${id}/words`).then(r => r.data)
 
+export const updateVocabSet = (id: string, data: any) =>
+  api.put(`/vocab-sets/${id}`, data).then(r => r.data)
+
+export const updateVocabWord = (setId: string, wordId: string, data: any) =>
+  api.put(`/vocab-sets/${setId}/words/${wordId}`, data).then(r => r.data)
+
 export const deleteVocabSet = (id: string) =>
   api.delete(`/vocab-sets/${id}`).then(r => r.data)
 
@@ -418,3 +424,31 @@ export const upsertLessonConfig = (lessonId: string, data: any) =>
 
 export const deleteLessonConfig = (lessonId: string) =>
   api.delete(`/lesson-configs/${lessonId}`).then(r => r.data)
+
+// ============ Ebooks & Curriculum ============
+export const getCurriculum = () =>
+  api.get("/curriculum").then(r => r.data)
+
+export const getBooks = () =>
+  api.get("/books").then(r => r.data)
+
+export const uploadBook = (data: { title: string, status?: string }) =>
+  api.post("/books", data).then(r => r.data)
+
+export const generateEbook = (data: {
+  stage: number
+  course: number
+  module: number
+  lessons: number[]
+  level: string
+  reference_book_id?: string
+}) => api.post("/ebook/generate", data).then(r => r.data)
+
+export const getEbook = (id: string) =>
+  api.get(`/ebook/${id}`).then(r => r.data)
+
+export const updateEbook = (id: string, data: { lessons?: any[], status?: string }) =>
+  api.put(`/ebook/${id}`, data).then(r => r.data)
+
+export const exportEbook = (id: string) =>
+  api.post(`/ebook/${id}/export`).then(r => r.data)
