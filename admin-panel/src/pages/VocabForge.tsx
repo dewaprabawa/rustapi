@@ -13,6 +13,9 @@ interface GeneratedWord {
   colloquial_usage: string
   example_sentence: string
   distractors: string[]
+  card_type?: string
+  emoji?: string
+  emotion?: string
 }
 
 interface VocabPreview {
@@ -430,6 +433,35 @@ export default function VocabForge() {
                           <div className="p-3 bg-white rounded-xl border border-slate-100">
                             <p className="text-xs text-slate-500 italic">"{word.example_sentence}"</p>
                           </div>
+
+                          {/* Cinematic Setup Section */}
+                          <div className="pt-3 border-t border-slate-100/50 space-y-3">
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                              <Sparkles className="h-3 w-3 text-amber-500" /> Cinematic Setup
+                            </p>
+                            <div className="flex gap-2">
+                              <div className="flex-1">
+                                <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Type</label>
+                                <div className="px-2 py-1 bg-slate-100 rounded text-[11px] font-bold text-slate-600 border border-slate-200">
+                                  {word.card_type?.toUpperCase() || 'VOCABULARY'}
+                                </div>
+                              </div>
+                              <div className="w-12">
+                                <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Emoji</label>
+                                <div className="h-7 flex items-center justify-center bg-slate-100 rounded border border-slate-200 text-lg">
+                                  {word.emoji || '💡'}
+                                </div>
+                              </div>
+                              {word.emotion && (
+                                <div className="flex-1">
+                                  <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Emotion</label>
+                                  <div className="px-2 py-1 bg-rose-50 rounded text-[11px] font-bold text-rose-600 border border-rose-100">
+                                    {word.emotion.toUpperCase()}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
                           
                           {/* Item Dialogue Section */}
                           {Array.isArray((word as any).item_dialogue) && (word as any).item_dialogue.length > 0 && (
@@ -809,6 +841,61 @@ export default function VocabForge() {
                             setPreviewData({...previewData, words: newWords})
                           }}
                         />
+                      </div>
+                    </div>
+
+                    {/* Cinematic Controls in Preview */}
+                    <div className="p-4 bg-amber-50/50 rounded-2xl border border-amber-100/50 space-y-3 mb-4">
+                      <div className="flex items-center justify-between">
+                        <p className="text-[10px] font-bold text-amber-700 uppercase tracking-widest flex items-center gap-1.5">
+                          <Sparkles className="h-3 w-3" /> Cinematic Setup
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="col-span-1">
+                          <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Card Type</label>
+                          <select 
+                            className="w-full text-[11px] bg-white border border-slate-200 rounded px-1.5 py-1 outline-none"
+                            value={word.card_type || 'vocabulary'}
+                            onChange={e => {
+                              const newWords = [...previewData.words]
+                              newWords[idx].card_type = e.target.value
+                              setPreviewData({...previewData, words: newWords})
+                            }}
+                          >
+                            <option value="vocabulary">Vocab</option>
+                            <option value="phrase">Phrase</option>
+                            <option value="listening">Listen</option>
+                            <option value="speaking">Speak</option>
+                            <option value="situation">Scene</option>
+                            <option value="image">Image</option>
+                          </select>
+                        </div>
+                        <div className="col-span-1">
+                          <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Emoji</label>
+                          <input 
+                            className="w-full text-[11px] bg-white border border-slate-200 rounded px-1.5 py-1 outline-none text-center"
+                            value={word.emoji || '💡'}
+                            onChange={e => {
+                              const newWords = [...previewData.words]
+                              newWords[idx].emoji = e.target.value
+                              setPreviewData({...previewData, words: newWords})
+                            }}
+                          />
+                        </div>
+                        <div className="col-span-1">
+                          <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Emotion</label>
+                          <input 
+                            className="w-full text-[11px] bg-white border border-slate-200 rounded px-1.5 py-1 outline-none"
+                            placeholder="e.g. angry"
+                            value={word.emotion || ''}
+                            onChange={e => {
+                              const newWords = [...previewData.words]
+                              newWords[idx].emotion = e.target.value
+                              setPreviewData({...previewData, words: newWords})
+                            }}
+                          />
+                        </div>
                       </div>
                     </div>
 

@@ -316,6 +316,9 @@ pub struct GeneratedVocabWord {
     pub example_sentence: String,
     pub distractors: Vec<String>,
     pub item_dialogue: Option<Vec<GeneratedVocabDialogueLine>>,
+    pub card_type: Option<String>,
+    pub emoji: Option<String>,
+    pub emotion: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

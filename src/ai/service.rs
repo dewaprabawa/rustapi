@@ -443,6 +443,9 @@ pub fn build_vocab_prompt(req: &GenerateVocabRequest) -> String {
     prompt.push_str("- `colloquial_usage`: How it is most commonly used in natural, daily speaking.\n");
     prompt.push_str("- `example_sentence`: A highly natural, conversational sentence featuring the word.\n");
     prompt.push_str("- `distractors`: An array of 3 incorrect translation options in the target language.\n");
+    prompt.push_str("- `card_type`: The visual presentation style. One of: 'vocabulary', 'phrase', 'listening', 'speaking', 'situation', 'image', 'conversation'.\n");
+    prompt.push_str("- `emoji`: A single relevant emoji for visual memory (e.g. 🛎️, 😡, 🛌).\n");
+    prompt.push_str("- `emotion`: Optional emotional context (e.g. 'angry', 'happy', 'neutral', 'confused').\n");
     
     if set_type == "phrasal_verbs" {
         prompt.push_str("- `item_dialogue`: A 2-line mini conversation (Person A and Person B) demonstrating this specific phrasal verb/collocation. Return as an array of objects with `speaker`, `text_en`, and `text_id`.\n\n");
@@ -472,7 +475,10 @@ pub fn build_vocab_prompt(req: &GenerateVocabRequest) -> String {
                 "colloquial_usage": "Colloquial speaking usage",
                 "example_sentence": "Conversational example sentence.",
                 "distractors": ["wrong1", "wrong2", "wrong3"],
-                "item_dialogue": item_dialogue_example
+                "item_dialogue": item_dialogue_example,
+                "card_type": "vocabulary",
+                "emoji": "💡",
+                "emotion": "neutral"
             }
         ],
         "dialogue": [

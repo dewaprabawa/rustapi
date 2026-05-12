@@ -80,6 +80,9 @@ pub async fn save_vocab_set(
             }).collect()),
             audio_url: None,
             position: i as i32,
+            card_type: w.card_type.unwrap_or_else(|| "vocabulary".to_string()),
+            emoji: w.emoji,
+            emotion: w.emotion,
         });
     }
 

@@ -58,6 +58,16 @@ pub struct VocabWord {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub audio_url: Option<String>,
     pub position: i32,
+    #[serde(default = "default_card_type")]
+    pub card_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub emoji: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub emotion: Option<String>,
+}
+
+fn default_card_type() -> String {
+    "vocabulary".to_string()
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

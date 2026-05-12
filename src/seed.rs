@@ -726,6 +726,9 @@ pub async fn seed_phrasal_verbs(client: &Client) {
                 ]),
                 audio_url: None,
                 position: 0,
+                card_type: "phrase".to_string(),
+                emoji: Some("🤝".to_string()),
+                emotion: Some("neutral".to_string()),
             },
             VocabWord {
                 id: None,
@@ -752,6 +755,9 @@ pub async fn seed_phrasal_verbs(client: &Client) {
                 ]),
                 audio_url: None,
                 position: 1,
+                card_type: "phrase".to_string(),
+                emoji: Some("🔄".to_string()),
+                emotion: Some("neutral".to_string()),
             },
         ];
 

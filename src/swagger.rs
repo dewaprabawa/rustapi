@@ -1102,6 +1102,7 @@ pub struct VocabSet {
     pub topic: String,
     pub level: String,
     pub word_count: i32,
+    pub set_type: String,
 }
 
 #[derive(utoipa::ToSchema, serde::Serialize)]
@@ -1111,6 +1112,9 @@ pub struct VocabWord {
     pub translation: String,
     pub definition: String,
     pub example_sentence: String,
+    pub card_type: String,
+    pub emoji: Option<String>,
+    pub emotion: Option<String>,
 }
 
 #[derive(utoipa::ToSchema, serde::Serialize)]
