@@ -90,21 +90,22 @@ pub async fn generate_ebook(
         created_at: Utc::now(),
     };
 
-    let result = ebooks_coll.insert_one(new_ebook).await?;
+    let result = ebooks_coll.insert_one(&new_ebook).await?;
     let inserted_id = result.inserted_id.as_object_id().unwrap();
 
-    Ok((StatusCode::CREATED, Json(doc! { "id": inserted_id.to_hex(), "lessons": new_ebook.lessons })))
+    let lessons_bson = mongodb::bson::to_bson(&new_ebook.lessons).map_err(|_| AppError::InternalServerError)?;
+    Ok((StatusCode::CREATED, Json(doc! { "id": inserted_id.to_hex(), "lessons": lessons_bson })))
 }
 
 pub async fn get_ebook(
     Path(id): Path<String>,
     State(state): State<Arc<AppState>>,
 ) -> Result<impl IntoResponse, AppError> {
-    let collection: Collection<Ebook> = state.db.database("rustapi").collection("ebooks");
+    let collection = state.db.database("rustapi").collection::<Ebook>("ebooks");
     let oid = ObjectId::parse_str(&id).map_err(|_| AppError::BadRequest("Invalid ID".to_string()))?;
     
     let ebook = collection.find_one(doc! { "_id": oid }).await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(AppError::NotFound("Ebook not found".to_string()))?;
 
     Ok(Json(ebook))
 }
@@ -114,12 +115,12 @@ pub async fn update_ebook(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<UpdateEbookRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    let collection: Collection<Ebook> = state.db.database("rustapi").collection("ebooks");
+    let collection = state.db.database("rustapi").collection::<Ebook>("ebooks");
     let oid = ObjectId::parse_str(&id).map_err(|_| AppError::BadRequest("Invalid ID".to_string()))?;
 
     let mut update_doc = doc! {};
     if let Some(lessons) = payload.lessons {
-        update_doc.insert("lessons", mongodb::bson::to_bson(&lessons).map_err(|_| AppError::Internal("BSON conversion failed".to_string()))?);
+        update_doc.insert("lessons", mongodb::bson::to_bson(&lessons).map_err(|_| AppError::InternalServerError)?);
     }
     if let Some(status) = payload.status {
         update_doc.insert("status", status);

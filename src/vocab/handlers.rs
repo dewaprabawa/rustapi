@@ -183,8 +183,6 @@ pub async fn delete_vocab_word(
 
     Ok(StatusCode::NO_CONTENT)
 }
-    Ok(StatusCode::NO_CONTENT)
-}
 
 pub async fn update_vocab_set(
     State(state): State<Arc<AppState>>,
