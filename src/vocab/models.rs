@@ -114,6 +114,26 @@ pub struct UpdateVocabSetRequest {
     pub related_topics: Option<Vec<String>>,
     pub example_dialogue: Option<Vec<VocabDialogueLine>>,
     pub branching_tree: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub group_id: Option<ObjectId>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct VocabGroup {
+    #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
+    pub id: Option<ObjectId>,
+    pub title: String,
+    pub description: String,
+    pub topic: String,
+    pub level: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pos_type: Option<String>, // e.g., "verb", "noun", "adjective"
+    #[serde(default)]
+    pub color_theme: String,      // hex or CSS class
+    #[serde(default)]
+    pub icon: String,             // lucide icon name
+    #[serde(with = "mongodb::bson::serde_helpers::chrono_datetime_as_bson_datetime")]
+    pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -130,4 +150,14 @@ pub struct UpdateVocabWordRequest {
     pub card_type: Option<String>,
     pub emoji: Option<String>,
     pub emotion: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GenerateVocabRequest {
+    pub topic: String,
+    pub level: String,
+    pub word_count: i32,
+    pub language: String,
+    pub set_type: String,
+    pub part_of_speech: Option<String>, // New: target specific POS
 }

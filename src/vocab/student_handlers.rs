@@ -29,6 +29,47 @@ pub async fn get_published_sets(
     Ok(Json(sets))
 }
 
+/// GET /student/vocab-groups — list all groups
+pub async fn list_vocab_groups(
+    State(state): State<Arc<AppState>>,
+    _user: User,
+) -> Result<impl IntoResponse, AppError> {
+    let db = state.db.database("rustapi");
+    let col = db.collection::<crate::vocab::models::VocabGroup>("vocab_groups");
+    let mut cursor = col.find(doc! {}).await?;
+    let mut groups = Vec::new();
+    while let Some(g) = cursor.next().await {
+        groups.push(g?);
+    }
+    Ok(Json(groups))
+}
+
+/// GET /student/vocab-groups/:id — get group details and its sets
+pub async fn get_vocab_group(
+    State(state): State<Arc<AppState>>,
+    _user: User,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, AppError> {
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::BadRequest("Invalid group ID".to_string()))?;
+    let db = state.db.database("rustapi");
+    let groups_col = db.collection::<crate::vocab::models::VocabGroup>("vocab_groups");
+    let sets_col = db.collection::<VocabSet>("vocab_sets");
+
+    let group = groups_col.find_one(doc! { "_id": oid }).await?
+        .ok_or(AppError::NotFound("Not found".to_string()))?;
+
+    let mut sets_cursor = sets_col.find(doc! { "group_id": oid }).await?;
+    let mut sets = Vec::new();
+    while let Some(s) = sets_cursor.next().await {
+        sets.push(s?);
+    }
+
+    Ok(Json(serde_json::json!({
+        "group": group,
+        "sets": sets
+    })))
+}
+
 /// GET /student/vocab-sets/:id/words — get words for a set
 pub async fn get_set_words(
     State(state): State<Arc<AppState>>,

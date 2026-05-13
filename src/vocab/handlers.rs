@@ -20,6 +20,7 @@ pub struct SaveVocabRequest {
     pub language: String,
     pub topic: String,
     pub set_type: Option<String>,
+    pub group_id: Option<String>, // New: link to a group
 }
 
 pub async fn save_vocab_set(
@@ -54,6 +55,7 @@ pub async fn save_vocab_set(
             text_id: d.text_id,
         }).collect()),
         branching_tree: payload.preview.branching_tree,
+        group_id: payload.group_id.and_then(|id| ObjectId::parse_str(&id).ok()),
     };
 
     let set_result = sets_col.insert_one(new_set).await?;
@@ -236,4 +238,117 @@ pub async fn update_vocab_word(
 
     collection.update_one(doc! { "_id": word_oid }, doc! { "$set": update_doc }).await?;
     Ok(StatusCode::OK)
+}
+
+// ============ VocabGroup Handlers ============
+
+pub async fn list_vocab_groups(
+    State(state): State<Arc<AppState>>,
+) -> Result<impl IntoResponse, AppError> {
+    let collection = state.db.database("rustapi").collection::<crate::vocab::models::VocabGroup>("vocab_groups");
+    let mut cursor = collection.find(doc! {}).await?;
+    let mut groups = Vec::new();
+    while let Some(group) = cursor.next().await {
+        groups.push(group?);
+    }
+    Ok(Json(groups))
+}
+
+pub async fn get_vocab_group(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> Result<impl IntoResponse, AppError> {
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::BadRequest("Invalid group ID".to_string()))?;
+    let collection = state.db.database("rustapi").collection::<crate::vocab::models::VocabGroup>("vocab_groups");
+    let group = collection.find_one(doc! { "_id": oid }).await?
+        .ok_or(AppError::NotFound("Not found".to_string()))?;
+    Ok(Json(group))
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct CreateVocabGroupRequest {
+    pub title: String,
+    pub description: String,
+    pub topic: String,
+    pub level: String,
+    pub pos_type: Option<String>,
+    pub color_theme: Option<String>,
+    pub icon: Option<String>,
+}
+
+pub async fn create_vocab_group(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<CreateVocabGroupRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    let collection = state.db.database("rustapi").collection::<crate::vocab::models::VocabGroup>("vocab_groups");
+    let new_group = crate::vocab::models::VocabGroup {
+        id: None,
+        title: payload.title,
+        description: payload.description,
+        topic: payload.topic,
+        level: payload.level,
+        pos_type: payload.pos_type,
+        color_theme: payload.color_theme.unwrap_or_else(|| "#6366F1".to_string()),
+        icon: payload.icon.unwrap_or_else(|| "Folder".to_string()),
+        created_at: chrono::Utc::now(),
+    };
+    let result = collection.insert_one(new_group).await?;
+    Ok((StatusCode::CREATED, Json(serde_json::json!({ "id": result.inserted_id.as_object_id().unwrap().to_hex() }))))
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct UpdateVocabGroupRequest {
+    pub title: Option<String>,
+    pub description: Option<String>,
+    pub topic: Option<String>,
+    pub level: Option<String>,
+    pub pos_type: Option<String>,
+    pub color_theme: Option<String>,
+    pub icon: Option<String>,
+}
+
+pub async fn update_vocab_group(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+    Json(payload): Json<UpdateVocabGroupRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::BadRequest("Invalid group ID".to_string()))?;
+    let collection = state.db.database("rustapi").collection::<crate::vocab::models::VocabGroup>("vocab_groups");
+
+    let mut update_doc = doc! {};
+    if let Some(v) = payload.title { update_doc.insert("title", v); }
+    if let Some(v) = payload.description { update_doc.insert("description", v); }
+    if let Some(v) = payload.topic { update_doc.insert("topic", v); }
+    if let Some(v) = payload.level { update_doc.insert("level", v); }
+    if let Some(v) = payload.pos_type { update_doc.insert("pos_type", v); }
+    if let Some(v) = payload.color_theme { update_doc.insert("color_theme", v); }
+    if let Some(v) = payload.icon { update_doc.insert("icon", v); }
+
+    collection.update_one(doc! { "_id": oid }, doc! { "$set": update_doc }).await?;
+    Ok(StatusCode::OK)
+}
+
+pub async fn delete_vocab_group(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> Result<impl IntoResponse, AppError> {
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::BadRequest("Invalid group ID".to_string()))?;
+    let db = state.db.database("rustapi");
+    let groups_col = db.collection::<crate::vocab::models::VocabGroup>("vocab_groups");
+    let sets_col = db.collection::<crate::vocab::models::VocabSet>("vocab_sets");
+
+    // 1. Unlink sets from this group (don't delete the sets, just set group_id to null)
+    sets_col.update_many(
+        doc! { "group_id": oid },
+        doc! { "$set": { "group_id": null } }
+    ).await?;
+
+    // 2. Delete the group
+    let result = groups_col.delete_one(doc! { "_id": oid }).await?;
+
+    if result.deleted_count == 0 {
+        return Err(AppError::NotFound("Not found".to_string()));
+    }
+
+    Ok(StatusCode::NO_CONTENT)
 }

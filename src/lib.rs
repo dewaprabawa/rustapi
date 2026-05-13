@@ -262,6 +262,14 @@ pub async fn create_app() -> Router {
             "/conversation-requests/:id/generate",
             post(fulfill_conversation_request),
         )
+        // Vocab Groups
+        .route("/vocab-groups", get(vocab::handlers::list_vocab_groups).post(vocab::handlers::create_vocab_group))
+        .route(
+            "/vocab-groups/:id",
+            get(vocab::handlers::get_vocab_group)
+                .put(vocab::handlers::update_vocab_group)
+                .delete(vocab::handlers::delete_vocab_group)
+        )
         // Master Data
         .route("/master-data", get(list_master_data))
         .route("/master-data/:category", get(get_master_data).put(update_master_data))
@@ -363,6 +371,14 @@ pub async fn create_app() -> Router {
         .route(
             "/vocab-sets",
             get(vocab::student_handlers::get_published_sets),
+        )
+        .route(
+            "/vocab-groups",
+            get(vocab::student_handlers::list_vocab_groups),
+        )
+        .route(
+            "/vocab-groups/:id",
+            get(vocab::student_handlers::get_vocab_group),
         )
         .route(
             "/vocab-sets/:id/words",

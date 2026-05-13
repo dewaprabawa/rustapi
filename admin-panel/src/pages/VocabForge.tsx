@@ -1,70 +1,45 @@
 import { useState, useEffect } from 'react'
-import { Sparkles, Loader2, Plus, Search, BookOpen, Trash2, ChevronRight, Globe, Volume2, Save, X, MessageSquare, Edit2 } from 'lucide-react'
-import { cn } from '../lib/utils'
-import { generateVocabSet, saveVocabSet, getVocabSets, getVocabSetWords, getConversationRequests, generateConversationScenario, testTts, deleteVocabSet, deleteVocabWord, getMasterData, updateVocabSet, updateVocabWord } from '../services/api'
+import { generateVocabSet, saveVocabSet, getVocabSets, getVocabSetWords, getConversationRequests, generateConversationScenario, testTts, deleteVocabSet, deleteVocabWord, getMasterData, updateVocabSet, updateVocabWord, getVocabGroups, createVocabGroup, updateVocabGroup, deleteVocabGroup } from '../services/api'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
-interface GeneratedWord {
-  word: string
-  translation: string
-  part_of_speech: string
-  definition: string
-  pronunciation_guide: string
-  colloquial_usage: string
-  example_sentence: string
-  distractors: string[]
-  card_type?: string
-  emoji?: string
-  emotion?: string
-}
-
-interface VocabPreview {
-  title: string
-  title_id: string
-  words: GeneratedWord[]
-  dialogue?: { speaker: string, text_en: string, text_id: string }[]
-  branching_tree?: any
-  related_topics: string[]
-  set_type?: string
-}
-
-interface VocabSet {
-  _id: any
-  title: string
-  topic: string
-  level: string
-  language: string
-  word_count: number
-  status: string
-  created_at: string
-  set_type: string
-  example_dialogue?: { speaker: string, text_en: string, text_id: string }[]
-  branching_tree?: any
-}
-
-interface TargetWord {
-  _id: any
-  word: string
-  translation: string
-}
-
-interface ConversationRequest {
-  _id: any
-  user_id: string
-  context_note: string
-  status: string
-  target_words: TargetWord[]
-  created_at: any
-  resolved_at?: any
-}
+// Sub-components
+import { VocabForgeHeader } from '../components/vocab/VocabForgeHeader'
+import { VocabSetList } from '../components/vocab/VocabSetList'
+import { VocabSetDetail } from '../components/vocab/VocabSetDetail'
+import { VocabRequests } from '../components/vocab/VocabRequests'
+import { VocabGroups } from '../components/vocab/VocabGroups'
+import { GeneratorModal } from '../components/vocab/GeneratorModal'
+import { PreviewModal } from '../components/vocab/PreviewModal'
+import { GroupModal } from '../components/vocab/GroupModal'
 
 export default function VocabForge() {
   const queryClient = useQueryClient()
   const [isGenerating, setIsGenerating] = useState(false)
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
   const [isBuilderOpen, setIsBuilderOpen] = useState(false)
-  const [activeTab, setActiveTab] = useState<'library' | 'requests'>('library')
+  const [activeTab, setActiveTab] = useState<'library' | 'requests' | 'groups'>('library')
   const [hospitalityTopics, setHospitalityTopics] = useState<string[]>([])
+  const [libraryTab, setLibraryTab] = useState<'vocabulary' | 'phrasal_verbs'>('vocabulary')
+  const [selectedSet, setSelectedSet] = useState<any>(null)
+  const [selectedGroup, setSelectedGroup] = useState<any>(null)
+  const [selectedWords, setSelectedWords] = useState<any[]>([])
+  const [editingWordId, setEditingWordId] = useState<string | null>(null)
+  const [isEditingSet, setIsEditingSet] = useState(false)
+  const [isGroupModalOpen, setIsGroupModalOpen] = useState(false)
+  const [savingEdit, setSavingEdit] = useState(false)
+  const [previewData, setPreviewData] = useState<any>(null)
+  const [creditMeta, setCreditMeta] = useState<any>(null)
+
+  const [builderForm, setBuilderForm] = useState({
+    topic: '',
+    level: 'B1',
+    word_count: 10,
+    dialogue_sentence_count: 10,
+    language: 'Indonesian',
+    set_type: 'vocabulary',
+    part_of_speech: '',
+    group_id: ''
+  })
 
   useEffect(() => {
     getMasterData("hospitality_topics")
@@ -74,45 +49,15 @@ export default function VocabForge() {
       .catch(console.error)
   }, [])
 
-  const [libraryTab, setLibraryTab] = useState<'vocabulary' | 'phrasal_verbs'>('vocabulary')
-  const [selectedSet, setSelectedSet] = useState<VocabSet | null>(null)
-  const [selectedWords, setSelectedWords] = useState<(GeneratedWord & { _id?: any })[]>([])
-  const [editingWordId, setEditingWordId] = useState<string | null>(null)
-  const [isEditingSet, setIsEditingSet] = useState(false)
-  const [savingEdit, setSavingEdit] = useState(false)
-  
-  const playAudio = async (text: string, voiceId?: string) => {
-    try {
-      // Try ElevenLabs proxy first
-      const blob = await testTts({ text, voice_id: voiceId || "" });
-      const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      audio.play();
-    } catch (error) {
-      console.error("ElevenLabs TTS failed, falling back to browser synthesis", error);
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'en-US';
-      window.speechSynthesis.cancel(); 
-      window.speechSynthesis.speak(utterance);
-    }
-  }
-  
-  const [builderForm, setBuilderForm] = useState({
-    topic: '',
-    level: 'B1',
-    word_count: 10,
-    dialogue_sentence_count: 10,
-    language: 'Indonesian',
-    set_type: 'vocabulary'
-  })
-
-  const [previewData, setPreviewData] = useState<VocabPreview | null>(null)
-  const [creditMeta, setCreditMeta] = useState<any>(null)
-
   // Queries
   const { data: vocabSets = [], isLoading: isLoadingSets } = useQuery({
     queryKey: ['vocabSets', libraryTab],
     queryFn: () => getVocabSets(libraryTab)
+  })
+
+  const { data: vocabGroups = [], isLoading: isLoadingGroups } = useQuery({
+    queryKey: ['vocabGroups'],
+    queryFn: getVocabGroups
   })
 
   const { data: conversationRequests = [], isLoading: isLoadingRequests } = useQuery({
@@ -124,7 +69,6 @@ export default function VocabForge() {
   const generateMutation = useMutation({
     mutationFn: generateVocabSet,
     onSuccess: (data: any) => {
-      // Backend returns { preview: {...}, _meta: {...} }
       setPreviewData(data.preview)
       setCreditMeta(data._meta)
       setIsGenerating(false)
@@ -162,7 +106,7 @@ export default function VocabForge() {
       alert(msg)
     }
   })
- 
+
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteVocabSet(id),
     onSuccess: () => {
@@ -186,23 +130,50 @@ export default function VocabForge() {
     }
   })
 
-  const handleGenerate = () => {
-    setIsGenerating(true)
-    generateMutation.mutate(builderForm)
+  const groupMutation = useMutation({
+    mutationFn: (data: any) => {
+      if (selectedGroup) {
+        const id = selectedGroup._id?.$oid || selectedGroup._id
+        return updateVocabGroup(id, data)
+      }
+      return createVocabGroup(data)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vocabGroups'] })
+      setIsGroupModalOpen(false)
+      setSelectedGroup(null)
+      alert(`Group ${selectedGroup ? 'updated' : 'created'} successfully!`)
+    },
+    onError: () => alert("Failed to process group request.")
+  })
+
+  const deleteGroupMutation = useMutation({
+    mutationFn: (id: string) => deleteVocabGroup(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vocabGroups'] })
+      setIsGroupModalOpen(false)
+      setSelectedGroup(null)
+      alert("Group deleted successfully!")
+    },
+    onError: () => alert("Failed to delete group.")
+  })
+
+  const playAudio = async (text: string, voiceId?: string) => {
+    try {
+      const blob = await testTts({ text, voice_id: voiceId || "" });
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audio.play();
+    } catch (error) {
+      console.error("ElevenLabs TTS failed, falling back to browser synthesis", error);
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'en-US';
+      window.speechSynthesis.cancel(); 
+      window.speechSynthesis.speak(utterance);
+    }
   }
 
-  const handleSave = () => {
-    if (!previewData) return
-    saveMutation.mutate({
-      preview: previewData,
-      level: builderForm.level,
-      language: builderForm.language,
-      topic: builderForm.topic,
-      set_type: builderForm.set_type
-    })
-  }
-
-  const openSetDetails = async (set: VocabSet | any) => {
+  const openSetDetails = async (set: any) => {
     setSelectedSet(set)
     try {
       const id = set._id?.$oid || set._id;
@@ -221,7 +192,6 @@ export default function VocabForge() {
       const wordId = word._id?.$oid || word._id;
       await updateVocabWord(setId, wordId, word)
       setEditingWordId(null)
-      // Refresh words
       const words = await getVocabSetWords(setId)
       setSelectedWords(words)
     } catch (error) {
@@ -235,8 +205,8 @@ export default function VocabForge() {
     if (!selectedSet) return
     setSavingEdit(true)
     try {
-      const setId = selectedSet._id?.$oid || selectedSet._id;
-      await updateVocabSet(setId, selectedSet)
+      const id = selectedSet._id?.$oid || selectedSet._id;
+      await updateVocabSet(id, selectedSet)
       setIsEditingSet(false)
       queryClient.invalidateQueries({ queryKey: ['vocabSets'] })
     } catch (error) {
@@ -248,1099 +218,112 @@ export default function VocabForge() {
 
   return (
     <div className="p-8 space-y-8 animate-in fade-in duration-500">
-      {/* Header Section */}
-      <div className="flex justify-between items-end">
-        <div>
-          <h2 className="text-3xl font-bold text-slate-800 tracking-tight">VocabForge AI</h2>
-          <p className="text-slate-500 mt-1">Generate and manage high-quality vocabulary sets for hospitality training.</p>
-        </div>
-        <div className="flex gap-3">
-          <div className="flex bg-slate-100 p-1 rounded-2xl">
-            <button
-              onClick={() => setActiveTab('library')}
-              className={cn(
-                "px-5 py-2 rounded-xl text-sm font-semibold transition-all duration-200",
-                activeTab === 'library' 
-                  ? "bg-white text-slate-800 shadow-sm" 
-                  : "text-slate-500 hover:text-slate-700"
-              )}
-            >
-              Library
-            </button>
-            <button
-              onClick={() => setActiveTab('requests')}
-              className={cn(
-                "px-5 py-2 rounded-xl text-sm font-semibold transition-all duration-200 flex items-center gap-2",
-                activeTab === 'requests' 
-                  ? "bg-white text-slate-800 shadow-sm" 
-                  : "text-slate-500 hover:text-slate-700"
-              )}
-            >
-              Student Requests
-              {conversationRequests.filter((r: any) => r.status === 'pending').length > 0 && (
-                <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full">
-                  {conversationRequests.filter((r: any) => r.status === 'pending').length}
-                </span>
-              )}
-            </button>
-          </div>
-          <button 
-            onClick={() => setIsBuilderOpen(true)}
-            className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-2xl shadow-lg shadow-blue-600/20 transition-all hover:-translate-y-0.5 active:translate-y-0"
-          >
-            <Plus className="h-5 w-5" />
-            Generate New Set
-          </button>
-        </div>
-      </div>
+      <VocabForgeHeader 
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        pendingRequestsCount={conversationRequests.filter((r: any) => r.status === 'pending').length}
+        onGenerateClick={() => setIsBuilderOpen(true)}
+      />
 
-      {/* Main Content Grid */}
       {activeTab === 'library' ? (
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        {/* Left Column: Set List */}
-        <div className="lg:col-span-1 space-y-4">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-[700px]">
-            <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex flex-col gap-4">
-              <div className="flex justify-between items-center">
-                <h3 className="font-bold text-slate-700">Vocabulary Library</h3>
-                <span className="px-2.5 py-1 bg-slate-200 text-slate-600 text-[10px] font-bold rounded-full uppercase tracking-wider">
-                  {vocabSets.length} Sets
-                </span>
-              </div>
-              
-              <div className="flex bg-slate-200/50 p-1 rounded-xl">
-                <button
-                  onClick={() => { setLibraryTab('vocabulary'); setSelectedSet(null); }}
-                  className={cn(
-                    "flex-1 py-1.5 rounded-lg text-xs font-bold transition-all",
-                    libraryTab === 'vocabulary' ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                  )}
-                >
-                  Standard
-                </button>
-                <button
-                  onClick={() => { setLibraryTab('phrasal_verbs'); setSelectedSet(null); }}
-                  className={cn(
-                    "flex-1 py-1.5 rounded-lg text-xs font-bold transition-all",
-                    libraryTab === 'phrasal_verbs' ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                  )}
-                >
-                  Phrasal & Collocations
-                </button>
-              </div>
-            </div>
-            
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
-              {isLoadingSets ? (
-                <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-3">
-                  <Loader2 className="h-8 w-8 animate-spin" />
-                  <p className="text-sm">Loading library...</p>
-                </div>
-              ) : vocabSets.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-3 px-8 text-center">
-                  <BookOpen className="h-12 w-12 opacity-20" />
-                  <p className="text-sm">No vocabulary sets found. Click "Generate New Set" to begin.</p>
-                </div>
-              ) : (
-                Array.isArray(vocabSets) && vocabSets.map((set: VocabSet | any) => {
-                  const id = set._id?.$oid || set._id;
-                  const selectedId = selectedSet?._id?.$oid || selectedSet?._id;
-                  return (
-                  <button
-                    key={id}
-                    onClick={() => openSetDetails(set)}
-                    className={cn(
-                      "w-full text-left p-4 rounded-2xl border transition-all duration-200 group",
-                      selectedId === id 
-                        ? "bg-blue-50 border-blue-200 shadow-sm ring-1 ring-blue-100" 
-                        : "bg-white border-slate-100 hover:border-slate-200 hover:shadow-md"
-                    )}
-                  >
-                    <div className="flex justify-between items-start mb-2">
-                      <span className={cn(
-                        "px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-tight",
-                        set.level.startsWith('A') ? "bg-emerald-100 text-emerald-700" :
-                        set.level.startsWith('B') ? "bg-amber-100 text-amber-700" :
-                        "bg-rose-100 text-rose-700"
-                      )}>
-                        {set.level}
-                      </span>
-                      <ChevronRight className={cn(
-                        "h-4 w-4 transition-transform group-hover:translate-x-0.5",
-                        selectedSet?._id === set._id ? "text-blue-500" : "text-slate-300"
-                      )} />
-                    </div>
-                    <h4 className="font-bold text-slate-800 line-clamp-1">{set.title}</h4>
-                    <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
-                      <Globe className="h-3 w-3" /> {set.topic} • {set.word_count} words
-                    </p>
-                  </button>
-                  );
-                })
-              )}
-            </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <VocabSetList 
+            vocabSets={vocabSets}
+            isLoading={isLoadingSets}
+            selectedSet={selectedSet}
+            libraryTab={libraryTab}
+            setLibraryTab={setLibraryTab}
+            onSetClick={openSetDetails}
+          />
+          <div className="lg:col-span-2">
+            <VocabSetDetail 
+              selectedSet={selectedSet}
+              setSelectedSet={setSelectedSet}
+              selectedWords={selectedWords}
+              setSelectedWords={setSelectedWords}
+              isEditingSet={isEditingSet}
+              setIsEditingSet={setIsEditingSet}
+              editingWordId={editingWordId}
+              setEditingWordId={setEditingWordId}
+              savingEdit={savingEdit}
+              handleUpdateSet={handleUpdateSet}
+              handleUpdateWord={handleUpdateWord}
+              onDeleteSet={(id) => deleteMutation.mutate(id)}
+              onDeleteWord={(setId, wordId) => deleteWordMutation.mutate({ setId, wordId })}
+              playAudio={playAudio}
+              isDeletingSet={deleteMutation.isPending}
+            />
           </div>
         </div>
-
-        {/* Right Column: Set Details */}
-        <div className="lg:col-span-2 space-y-4">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-[700px]">
-            {selectedSet ? (
-              <>
-                <div className="p-6 border-b border-slate-100 bg-white sticky top-0 z-10">
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1 mr-4">
-                      {isEditingSet ? (
-                        <div className="space-y-3">
-                          <input 
-                            className="text-2xl font-bold text-slate-800 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 w-full outline-none focus:ring-2 focus:ring-blue-500/20"
-                            value={selectedSet.title}
-                            onChange={e => setSelectedSet({...selectedSet, title: e.target.value})}
-                          />
-                          <div className="flex gap-4">
-                            <input 
-                              className="flex-1 text-sm bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 outline-none"
-                              value={selectedSet.topic}
-                              placeholder="Topic"
-                              onChange={e => setSelectedSet({...selectedSet, topic: e.target.value})}
-                            />
-                            <select 
-                              className="w-24 text-sm bg-slate-50 border border-slate-200 rounded-xl px-2 py-2 outline-none"
-                              value={selectedSet.level}
-                              onChange={e => setSelectedSet({...selectedSet, level: e.target.value})}
-                            >
-                              {['A1', 'A2', 'B1', 'B2', 'C1', 'C2'].map(l => <option key={l} value={l}>{l}</option>)}
-                            </select>
-                          </div>
-                        </div>
-                      ) : (
-                        <>
-                          <div className="flex items-center gap-3 mb-2">
-                            <h3 className="text-2xl font-bold text-slate-800">{selectedSet.title}</h3>
-                            <span className="px-3 py-1 bg-blue-100 text-blue-700 text-xs font-bold rounded-full">
-                              {selectedSet.status}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-4 text-sm text-slate-500">
-                            <span className="flex items-center gap-1.5"><Globe className="h-4 w-4 text-slate-400" /> {selectedSet.language}</span>
-                            <span className="flex items-center gap-1.5"><BookOpen className="h-4 w-4 text-slate-400" /> {selectedSet.level}</span>
-                            <span className="flex items-center gap-1.5"><Sparkles className="h-4 w-4 text-slate-400" /> {selectedSet.topic}</span>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                    <div className="flex gap-2">
-                      {isEditingSet ? (
-                        <div className="flex gap-2">
-                          <button 
-                            onClick={() => setIsEditingSet(false)}
-                            className="px-4 py-2 text-slate-500 font-bold text-sm"
-                          >
-                            Cancel
-                          </button>
-                          <button 
-                            onClick={handleUpdateSet}
-                            disabled={savingEdit}
-                            className="px-6 py-2 bg-emerald-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-emerald-600/20"
-                          >
-                            {savingEdit ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Changes"}
-                          </button>
-                        </div>
-                      ) : (
-                        <>
-                          <button 
-                            onClick={() => setIsEditingSet(true)}
-                            className="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-200 transition-all"
-                          >
-                            Edit Info
-                          </button>
-                          <button 
-                            onClick={() => {
-                              if (window.confirm("Are you sure you want to delete this vocabulary set? All associated words will also be removed.")) {
-                                const id = selectedSet._id?.$oid || selectedSet._id;
-                                deleteMutation.mutate(id);
-                              }
-                            }}
-                            disabled={deleteMutation.isPending}
-                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors disabled:opacity-50"
-                          >
-                            {deleteMutation.isPending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Trash2 className="h-5 w-5" />}
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex-1 overflow-y-auto p-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {Array.isArray(selectedWords) && selectedWords.map((word, idx) => (
-                      <div key={idx} className={cn(
-                        "p-5 rounded-2xl border transition-all duration-300 group",
-                        editingWordId === (word._id?.$oid || word._id) ? "bg-blue-50/50 border-blue-200 ring-4 ring-blue-500/5 shadow-xl" : "border-slate-100 bg-slate-50/30 hover:bg-white hover:shadow-md"
-                      )}>
-                        <div className="flex justify-between items-start mb-3">
-                          <div className="flex-1">
-                            {editingWordId === (word._id?.$oid || word._id) ? (
-                              <div className="space-y-3">
-                                <div className="flex gap-2">
-                                  <input 
-                                    className="flex-1 font-bold text-slate-800 text-lg bg-white border border-slate-200 rounded-lg px-3 py-1 outline-none"
-                                    value={word.word}
-                                    onChange={e => {
-                                      const newWords = [...selectedWords]
-                                      newWords[idx].word = e.target.value
-                                      setSelectedWords(newWords)
-                                    }}
-                                  />
-                                  <input 
-                                    className="w-24 text-xs bg-white border border-slate-200 rounded-lg px-2 py-1"
-                                    value={word.part_of_speech}
-                                    onChange={e => {
-                                      const newWords = [...selectedWords]
-                                      newWords[idx].part_of_speech = e.target.value
-                                      setSelectedWords(newWords)
-                                    }}
-                                  />
-                                </div>
-                                <input 
-                                  className="w-full text-blue-600 font-medium bg-white border border-slate-200 rounded-lg px-3 py-1 outline-none text-sm"
-                                  value={word.translation}
-                                  onChange={e => {
-                                    const newWords = [...selectedWords]
-                                    newWords[idx].translation = e.target.value
-                                    setSelectedWords(newWords)
-                                  }}
-                                />
-                              </div>
-                            ) : (
-                              <>
-                                <h5 className="font-bold text-slate-800 text-lg flex items-center gap-2">
-                                  {word.word}
-                                  <span className="text-xs font-normal text-slate-400">({word.part_of_speech})</span>
-                                </h5>
-                                <p className="text-blue-600 font-medium">{word.translation}</p>
-                              </>
-                            )}
-                          </div>
-                          <div className="flex gap-1">
-                            {editingWordId === (word._id?.$oid || word._id) ? (
-                              <div className="flex flex-col gap-2">
-                                <button 
-                                  onClick={() => setEditingWordId(null)}
-                                  className="text-[10px] font-bold text-slate-400 hover:text-slate-600"
-                                >
-                                  Cancel
-                                </button>
-                                <button 
-                                  onClick={() => handleUpdateWord(word)}
-                                  disabled={savingEdit}
-                                  className="p-2 bg-blue-600 text-white rounded-xl shadow-lg shadow-blue-600/20"
-                                >
-                                  {savingEdit ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                                </button>
-                              </div>
-                            ) : (
-                              <>
-                                <button 
-                                  onClick={() => setEditingWordId(word._id?.$oid || word._id)}
-                                  className="p-2 text-slate-300 hover:text-blue-600 transition-colors opacity-0 group-hover:opacity-100"
-                                  title="Edit word"
-                                >
-                                  <Edit2 className="h-4 w-4" />
-                                </button>
-                                <button 
-                                  onClick={(e) => { e.stopPropagation(); playAudio(word.word); }}
-                                  className="p-2 text-slate-300 hover:text-blue-600 transition-colors"
-                                  title="Listen to English pronunciation"
-                                >
-                                  <Volume2 className="h-5 w-5" />
-                                </button>
-                                <button 
-                                  onClick={(e) => { 
-                                    e.stopPropagation(); 
-                                    if (window.confirm("Delete this word from the set?")) {
-                                      const setId = selectedSet._id?.$oid || selectedSet._id;
-                                      const wordId = word._id?.$oid || word._id;
-                                      deleteWordMutation.mutate({ setId, wordId });
-                                    }
-                                  }}
-                                  className="p-2 text-slate-300 hover:text-red-500 transition-colors"
-                                  title="Delete word"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                        
-                        <div className="space-y-3 pt-3 border-t border-slate-100">
-                          {editingWordId === (word._id?.$oid || word._id) ? (
-                            <div className="space-y-3">
-                              <div className="flex items-center gap-2">
-                                <span className="px-1.5 py-0.5 bg-slate-100 text-slate-500 text-[10px] font-bold rounded uppercase">IPA</span>
-                                <input 
-                                  className="flex-1 text-xs text-slate-600 italic bg-white border border-slate-200 rounded px-2 py-1"
-                                  value={word.pronunciation_guide}
-                                  onChange={e => {
-                                    const newWords = [...selectedWords]
-                                    newWords[idx].pronunciation_guide = e.target.value
-                                    setSelectedWords(newWords)
-                                  }}
-                                />
-                              </div>
-                              <div className="space-y-1">
-                                <span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-500 text-[10px] font-bold rounded uppercase">SPOKEN</span>
-                                <textarea 
-                                  className="w-full text-xs text-slate-600 leading-relaxed bg-white border border-slate-200 rounded-lg px-3 py-2 min-h-[60px] resize-none"
-                                  value={word.colloquial_usage}
-                                  onChange={e => {
-                                    const newWords = [...selectedWords]
-                                    newWords[idx].colloquial_usage = e.target.value
-                                    setSelectedWords(newWords)
-                                  }}
-                                />
-                              </div>
-                              <div className="space-y-1">
-                                <span className="px-1.5 py-0.5 bg-slate-100 text-slate-500 text-[10px] font-bold rounded uppercase">EXAMPLE</span>
-                                <textarea 
-                                  className="w-full text-xs text-slate-600 italic bg-white border border-slate-200 rounded-lg px-3 py-2 min-h-[50px] resize-none"
-                                  value={word.example_sentence}
-                                  onChange={e => {
-                                    const newWords = [...selectedWords]
-                                    newWords[idx].example_sentence = e.target.value
-                                    setSelectedWords(newWords)
-                                  }}
-                                />
-                              </div>
-                            </div>
-                          ) : (
-                            <>
-                              <div className="flex items-start gap-2">
-                                <span className="px-1.5 py-0.5 bg-slate-100 text-slate-500 text-[10px] font-bold rounded uppercase mt-0.5">IPA</span>
-                                <p className="text-xs text-slate-600 italic">{word.pronunciation_guide}</p>
-                              </div>
-                              <div className="flex items-start gap-2">
-                                <span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-500 text-[10px] font-bold rounded uppercase mt-0.5">SPOKEN</span>
-                                <p className="text-xs text-slate-600 leading-relaxed">{word.colloquial_usage}</p>
-                              </div>
-                              <div className="p-3 bg-white rounded-xl border border-slate-100">
-                                <p className="text-xs text-slate-500 italic">"{word.example_sentence}"</p>
-                              </div>
-                            </>
-                          )}
-
-                          {/* Cinematic Setup Section */}
-                          <div className="pt-3 border-t border-slate-100/50 space-y-3">
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                              <Sparkles className="h-3 w-3 text-amber-500" /> Cinematic Setup
-                            </p>
-                            <div className="flex gap-2">
-                              <div className="flex-1">
-                                <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Type</label>
-                                <div className="px-2 py-1 bg-slate-100 rounded text-[11px] font-bold text-slate-600 border border-slate-200">
-                                  {word.card_type?.toUpperCase() || 'VOCABULARY'}
-                                </div>
-                              </div>
-                              <div className="w-12">
-                                <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Emoji</label>
-                                <div className="h-7 flex items-center justify-center bg-slate-100 rounded border border-slate-200 text-lg">
-                                  {word.emoji || '💡'}
-                                </div>
-                              </div>
-                              {word.emotion && (
-                                <div className="flex-1">
-                                  <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Emotion</label>
-                                  <div className="px-2 py-1 bg-rose-50 rounded text-[11px] font-bold text-rose-600 border border-rose-100">
-                                    {word.emotion.toUpperCase()}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          
-                          {/* Item Dialogue Section */}
-                          {Array.isArray((word as any).item_dialogue) && (word as any).item_dialogue.length > 0 && (
-                            <div className="mt-2 pt-3 border-t border-slate-100/50 space-y-2">
-                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
-                                <MessageSquare className="h-3 w-3" /> Context Dialogue
-                              </p>
-                              {Array.isArray((word as any).item_dialogue) && (word as any).item_dialogue.map((line: any, lidx: number) => (
-                                <div key={lidx} className="text-[11px] leading-snug flex justify-between items-start group/line">
-                                  <div>
-                                    <span className="font-bold text-slate-500">{line.speaker}: </span>
-                                    <span className="text-slate-700">{line.text_en}</span>
-                                    <p className="text-blue-600/70 ml-4 italic">{line.text_id}</p>
-                                  </div>
-                                  <button 
-                                    onClick={() => playAudio(line.text_en)}
-                                    className="p-1 text-slate-300 hover:text-blue-600 transition-colors opacity-0 group-hover/line:opacity-100"
-                                    title="Listen"
-                                  >
-                                    <Volume2 className="h-3.5 w-3.5" />
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="mt-8 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-                    <h4 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-                      <MessageSquare className="h-5 w-5 text-indigo-500" /> Example Conversation
-                    </h4>
-                    {Array.isArray(selectedSet.example_dialogue) && selectedSet.example_dialogue.length > 0 ? (
-                      <div className="space-y-4">
-                        {Array.isArray(selectedSet.example_dialogue) && selectedSet.example_dialogue.map((line: any, idx: number) => (
-                          <div key={idx} className="flex flex-col gap-1 p-3 bg-slate-50 rounded-2xl">
-                            {isEditingSet ? (
-                              <div className="space-y-2">
-                                <div className="flex justify-between items-center mb-1">
-                                  <input 
-                                    className="text-xs font-bold text-slate-500 uppercase bg-white border border-slate-200 rounded px-2 py-0.5"
-                                    value={line.speaker}
-                                    onChange={e => {
-                                      const newDialogue = [...(selectedSet.example_dialogue || [])]
-                                      newDialogue[idx].speaker = e.target.value
-                                      setSelectedSet({...selectedSet, example_dialogue: newDialogue})
-                                    }}
-                                  />
-                                  <button 
-                                    onClick={() => playAudio(line.text_en)}
-                                    className="p-1 text-slate-300 hover:text-blue-600 transition-colors"
-                                  >
-                                    <Volume2 className="h-4 w-4" />
-                                  </button>
-                                </div>
-                                <input 
-                                  className="w-full font-medium text-slate-800 text-sm bg-white border border-slate-200 rounded px-3 py-1 outline-none"
-                                  value={line.text_en}
-                                  onChange={e => {
-                                    const newDialogue = [...(selectedSet.example_dialogue || [])]
-                                    newDialogue[idx].text_en = e.target.value
-                                    setSelectedSet({...selectedSet, example_dialogue: newDialogue})
-                                  }}
-                                />
-                                <input 
-                                  className="w-full text-blue-600 font-medium text-sm bg-white border border-slate-200 rounded px-3 py-1 outline-none"
-                                  value={line.text_id}
-                                  onChange={e => {
-                                    const newDialogue = [...(selectedSet.example_dialogue || [])]
-                                    newDialogue[idx].text_id = e.target.value
-                                    setSelectedSet({...selectedSet, example_dialogue: newDialogue})
-                                  }}
-                                />
-                              </div>
-                            ) : (
-                              <>
-                                <div className="flex justify-between items-center mb-1">
-                                  <span className="text-xs font-bold text-slate-500 uppercase">{line.speaker}</span>
-                                  <button 
-                                    onClick={() => playAudio(line.text_en)}
-                                    className="p-1 text-slate-300 hover:text-blue-600 transition-colors"
-                                    title="Listen to English pronunciation"
-                                  >
-                                    <Volume2 className="h-4 w-4" />
-                                  </button>
-                                </div>
-                                <p className="font-medium text-slate-800 text-sm">{line.text_en}</p>
-                                <p className="text-blue-600 font-medium text-sm">{line.text_id}</p>
-                              </>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-sm text-slate-400 py-4 text-center bg-slate-50 rounded-xl border border-slate-100">
-                        No conversation generated for this set.
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Branching Tree Editor in Library */}
-                  {selectedSet.branching_tree && (
-                    <div className="mt-8 bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-xl overflow-hidden">
-                      <div className="flex justify-between items-center mb-4">
-                        <h4 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-                          <Sparkles className="h-5 w-5 text-emerald-400" /> Offline Branching Tree
-                        </h4>
-                        {isEditingSet && (
-                          <span className="px-3 py-1 bg-emerald-500/10 text-emerald-400 text-[10px] font-bold rounded-full uppercase tracking-wider border border-emerald-500/20">
-                            Editable Mode
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs text-slate-400 mb-4 leading-relaxed">
-                        Refine the interactive decision paths for offline practice.
-                      </p>
-                      <div className="bg-slate-950/50 rounded-2xl border border-slate-800 overflow-hidden">
-                        <textarea 
-                          disabled={!isEditingSet}
-                          className={cn(
-                            "w-full text-[10px] font-mono p-4 outline-none min-h-[300px] leading-relaxed resize-y bg-transparent",
-                            isEditingSet ? "text-emerald-300/80 cursor-text" : "text-slate-500 cursor-not-allowed"
-                          )}
-                          value={typeof selectedSet.branching_tree === 'string' ? selectedSet.branching_tree : JSON.stringify(selectedSet.branching_tree, null, 2)}
-                          onChange={e => {
-                            try {
-                              const parsed = JSON.parse(e.target.value)
-                              setSelectedSet({...selectedSet, branching_tree: parsed})
-                            } catch (err) {
-                              // Allow typing invalid JSON temporarily
-                              setSelectedSet({...selectedSet, branching_tree: e.target.value})
-                            }
-                          }}
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </>
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full text-slate-300 p-12 text-center">
-                <div className="h-24 w-24 bg-slate-50 rounded-full flex items-center justify-center mb-6">
-                  <Search className="h-12 w-12 opacity-20" />
-                </div>
-                <h4 className="text-xl font-bold text-slate-400">Select a set to view details</h4>
-                <p className="text-sm mt-2 max-w-xs">Review the vocabulary, translations, and AI-generated speaking contexts.</p>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+      ) : activeTab === 'requests' ? (
+        <VocabRequests 
+          conversationRequests={conversationRequests}
+          isLoading={isLoadingRequests}
+          onGenerateScenario={(id) => generateScenarioMutation.mutate(id)}
+          isGenerating={generateScenarioMutation.isPending}
+        />
       ) : (
-        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-[700px]">
-          <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-            <h3 className="font-bold text-slate-700">Student Practice Requests</h3>
-            <span className="px-2.5 py-1 bg-slate-200 text-slate-600 text-[10px] font-bold rounded-full uppercase tracking-wider">
-              {conversationRequests.length} Total
-            </span>
-          </div>
-          
-          <div className="flex-1 overflow-y-auto p-6 space-y-4">
-            {isLoadingRequests ? (
-              <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-3">
-                <Loader2 className="h-8 w-8 animate-spin" />
-                <p className="text-sm">Loading requests...</p>
-              </div>
-            ) : conversationRequests.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-3 px-8 text-center">
-                <MessageSquare className="h-12 w-12 opacity-20" />
-                <p className="text-sm">No student practice requests found.</p>
-              </div>
-            ) : (
-              Array.isArray(conversationRequests) && conversationRequests.map((req: ConversationRequest | any) => {
-                const reqId = req._id?.$oid || req._id;
-                return (
-                <div key={reqId} className="p-6 rounded-2xl border border-slate-200 bg-white shadow-sm flex flex-col gap-4 relative overflow-hidden">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className={cn(
-                          "px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider",
-                          req.status === 'pending' ? "bg-amber-100 text-amber-700" :
-                          req.status === 'generated' ? "bg-emerald-100 text-emerald-700" :
-                          "bg-slate-100 text-slate-600"
-                        )}>
-                          {req.status}
-                        </span>
-                        <span className="text-xs text-slate-400 font-medium">User: {req.user_id.substring(0,8)}...</span>
-                      </div>
-                      <p className="text-slate-800 font-medium italic">"{req.context_note}"</p>
-                    </div>
-                    {req.status === 'pending' && (
-                      <button 
-                        onClick={() => generateScenarioMutation.mutate(reqId)}
-                        disabled={generateScenarioMutation.isPending}
-                        className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl shadow-md shadow-indigo-600/20 transition-all disabled:opacity-50"
-                      >
-                        {generateScenarioMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                        Generate Practice
-                      </button>
-                    )}
-                  </div>
-                  
-                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                      <BookOpen className="h-3 w-3" /> Target Vocabulary ({req.target_words.length} words)
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {Array.isArray(req.target_words) && req.target_words.map((tw: TargetWord | any, idx: number) => {
-                        const twId = tw._id?.$oid || tw._id || String(idx);
-                        return (
-                        <div key={twId} className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm flex gap-2 items-center shadow-sm">
-                          <span className="font-bold text-slate-700">{tw.word}</span>
-                          <span className="text-slate-300">|</span>
-                          <span className="text-blue-600 font-medium text-xs">{tw.translation}</span>
-                        </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-                );
-              })
-            )}
-          </div>
-        </div>
+        <VocabGroups 
+          vocabGroups={vocabGroups}
+          vocabSets={vocabSets}
+          isLoading={isLoadingGroups}
+          onNewGroup={() => {
+            setSelectedGroup(null)
+            setIsGroupModalOpen(true)
+          }}
+          onEditGroup={(group) => {
+            setSelectedGroup(group)
+            setIsGroupModalOpen(true)
+          }}
+        />
       )}
 
-      {/* Generator Modal */}
-      {isBuilderOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in duration-300">
-          <div className="bg-white rounded-[32px] shadow-2xl w-full max-w-xl overflow-hidden animate-in zoom-in-95 duration-300">
-            <div className="px-8 py-6 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-              <div>
-                <h3 className="text-xl font-bold text-slate-800">VocabForge Builder</h3>
-                <p className="text-xs text-slate-500">Configure your AI vocabulary generation parameters.</p>
-              </div>
-              <button onClick={() => setIsBuilderOpen(false)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-white border border-slate-100 rounded-xl transition-all">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            
-            <div className="p-8 space-y-6">
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-2">Content Type</label>
-                    <select 
-                      className="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all text-slate-800 outline-none"
-                      value={builderForm.set_type}
-                      onChange={e => setBuilderForm({...builderForm, set_type: e.target.value})}
-                    >
-                      <option value="vocabulary">Standard Vocabulary</option>
-                      <option value="phrasal_verbs">Phrasal Verbs & Collocations</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-2">Target Topic</label>
-                    <input 
-                      type="text"
-                      list="hospitality-topics"
-                      className="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all text-slate-800 outline-none placeholder:text-slate-400"
-                      placeholder={builderForm.set_type === 'phrasal_verbs' ? "e.g. Workplace, Dating, Travel..." : "e.g. Front Desk, Housekeeping..."}
-                      value={builderForm.topic}
-                      onChange={e => setBuilderForm({...builderForm, topic: e.target.value})}
-                    />
-                  </div>
-                </div>
-                  <datalist id="hospitality-topics">
-                    {hospitalityTopics.map(topic => (
-                      <option key={topic} value={topic} />
-                    ))}
-                  </datalist>
-                
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-2">CEFR Level</label>
-                    <select 
-                      className="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all text-slate-800 outline-none"
-                      value={builderForm.level}
-                      onChange={e => setBuilderForm({...builderForm, level: e.target.value})}
-                    >
-                      {['A1', 'A2', 'B1', 'B2', 'C1', 'C2'].map(lvl => (
-                        <option key={lvl} value={lvl}>{lvl} - {lvl === 'A1' ? 'Beginner' : lvl === 'B1' ? 'Intermediate' : 'Advanced'}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-2">Word Count</label>
-                    <input 
-                      type="number"
-                      className="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all text-slate-800 outline-none"
-                      value={builderForm.word_count}
-                      onChange={e => setBuilderForm({...builderForm, word_count: parseInt(e.target.value)})}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-2">Sentences</label>
-                    <input 
-                      type="number"
-                      className="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all text-slate-800 outline-none"
-                      value={builderForm.dialogue_sentence_count}
-                      onChange={e => setBuilderForm({...builderForm, dialogue_sentence_count: parseInt(e.target.value)})}
-                    />
-                  </div>
-                </div>
+      <GeneratorModal 
+        isOpen={isBuilderOpen}
+        onClose={() => setIsBuilderOpen(false)}
+        builderForm={builderForm}
+        setBuilderForm={setBuilderForm}
+        hospitalityTopics={hospitalityTopics}
+        vocabGroups={vocabGroups}
+        onGenerate={() => {
+          setIsGenerating(true)
+          generateMutation.mutate(builderForm)
+        }}
+        isGenerating={isGenerating}
+      />
 
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">Target Language</label>
-                  <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-100 rounded-2xl">
-                    <Globe className="h-5 w-5 text-blue-600" />
-                    <span className="text-sm font-bold text-blue-800">Indonesian (Bilingual Mode)</span>
-                  </div>
-                </div>
-              </div>
+      <PreviewModal 
+        isOpen={isPreviewOpen}
+        onClose={() => setIsPreviewOpen(false)}
+        previewData={previewData}
+        setPreviewData={setPreviewData}
+        onSave={() => {
+          if (!previewData) return
+          saveMutation.mutate({
+            preview: previewData,
+            level: builderForm.level,
+            language: builderForm.language,
+            topic: builderForm.topic,
+            set_type: builderForm.set_type,
+            group_id: builderForm.group_id
+          })
+        }}
+        isSaving={saveMutation.isPending}
+        playAudio={playAudio}
+      />
 
-              <div className="pt-4">
-                <button
-                  onClick={handleGenerate}
-                  disabled={!builderForm.topic || isGenerating}
-                  className="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold rounded-2xl shadow-xl shadow-blue-600/20 transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 disabled:hover:scale-100 flex items-center justify-center gap-3"
-                >
-                  {isGenerating ? (
-                    <>
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                      Generating with Claude AI...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="h-5 w-5" />
-                      Generate Vocabulary
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Preview Modal */}
-      {isPreviewOpen && previewData && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in duration-300">
-          <div className="bg-white rounded-[32px] shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
-            <div className="px-8 py-6 border-b border-slate-100 bg-white flex justify-between items-center sticky top-0 z-10">
-              <div className="flex-1 mr-8">
-                <input 
-                  className="text-xl font-bold text-slate-800 bg-slate-50 border-none rounded-lg px-3 py-1 w-full focus:ring-2 focus:ring-blue-500/20 outline-none"
-                  value={previewData.title}
-                  onChange={e => setPreviewData({...previewData, title: e.target.value})}
-                />
-                {previewData.title_id && (
-                  <input 
-                    className="text-sm text-blue-600 font-medium bg-transparent border-none focus:ring-0 p-0 w-full mt-1"
-                    value={previewData.title_id}
-                    onChange={e => setPreviewData({...previewData, title_id: e.target.value})}
-                  />
-                )}
-                <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                  <p className="text-xs text-slate-500">Review and edit before saving.</p>
-                  {creditMeta && (
-                    <span className={cn(
-                      "px-2 py-0.5 rounded-full text-[10px] font-bold",
-                      creditMeta.warning_level === 'critical' ? 'bg-red-100 text-red-700' :
-                      creditMeta.warning_level === 'caution' ? 'bg-amber-100 text-amber-700' :
-                      'bg-emerald-100 text-emerald-700'
-                    )}>
-                      {creditMeta.daily_remaining} credits left • ${creditMeta.estimated_cost_usd}
-                    </span>
-                  )}
-                </div>
-                {previewData.related_topics?.length > 0 && (
-                  <div className="flex items-center gap-2 mt-2 flex-wrap">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">Related:</span>
-                    {Array.isArray(previewData.related_topics) && previewData.related_topics.map((t, i) => (
-                      <input 
-                        key={i}
-                        className="px-2 py-0.5 bg-indigo-50 text-indigo-600 text-[10px] font-bold rounded-full border-none focus:ring-1 focus:ring-indigo-300 outline-none w-24"
-                        value={t}
-                        onChange={e => {
-                          const newTopics = [...previewData.related_topics]
-                          newTopics[i] = e.target.value
-                          setPreviewData({...previewData, related_topics: newTopics})
-                        }}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div className="flex items-center gap-3">
-                <button 
-                  onClick={() => setIsPreviewOpen(false)}
-                  className="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl transition-all"
-                >
-                  Discard
-                </button>
-                <button 
-                  onClick={handleSave}
-                  disabled={saveMutation.isPending}
-                  className="px-8 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-600/20 transition-all flex items-center gap-2"
-                >
-                  {saveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                  Save to Library
-                </button>
-              </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-8 bg-slate-50/30">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {Array.isArray(previewData.words) && previewData.words.map((word, idx) => (
-                  <div key={idx} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm relative group">
-                    <div className="flex justify-between items-start mb-4">
-                      <div>
-                        <input 
-                          className="font-bold text-slate-800 text-xl bg-transparent border-none focus:ring-0 p-0 w-full"
-                          value={word.word}
-                          onChange={e => {
-                            const newWords = [...previewData.words]
-                            newWords[idx].word = e.target.value
-                            setPreviewData({...previewData, words: newWords})
-                          }}
-                        />
-                        <input 
-                          className="text-blue-600 font-bold bg-transparent border-none focus:ring-0 p-0 w-full text-sm"
-                          value={word.translation}
-                          onChange={e => {
-                            const newWords = [...previewData.words]
-                            newWords[idx].translation = e.target.value
-                            setPreviewData({...previewData, words: newWords})
-                          }}
-                        />
-                      </div>
-                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button 
-                          onClick={() => playAudio(word.word)}
-                          className="p-1.5 text-slate-300 hover:text-blue-600 transition-colors"
-                          title="Listen to English pronunciation"
-                        >
-                          <Volume2 className="h-4 w-4" />
-                        </button>
-                        <button 
-                          onClick={() => {
-                            const newWords = previewData.words.filter((_, i) => i !== idx);
-                            setPreviewData({...previewData, words: newWords});
-                          }}
-                          className="p-1.5 text-slate-300 hover:text-red-500 transition-colors"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4 mb-4">
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Phonetics</label>
-                        <input 
-                          className="w-full text-xs text-slate-600 italic bg-slate-50 border-none rounded-lg px-2 py-1"
-                          value={word.pronunciation_guide}
-                          onChange={e => {
-                            const newWords = [...previewData.words]
-                            newWords[idx].pronunciation_guide = e.target.value
-                            setPreviewData({...previewData, words: newWords})
-                          }}
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Part of Speech</label>
-                        <input 
-                          className="w-full text-xs text-slate-600 bg-slate-50 border-none rounded-lg px-2 py-1"
-                          value={word.part_of_speech}
-                          onChange={e => {
-                            const newWords = [...previewData.words]
-                            newWords[idx].part_of_speech = e.target.value
-                            setPreviewData({...previewData, words: newWords})
-                          }}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Cinematic Controls in Preview */}
-                    <div className="p-4 bg-amber-50/50 rounded-2xl border border-amber-100/50 space-y-3 mb-4">
-                      <div className="flex items-center justify-between">
-                        <p className="text-[10px] font-bold text-amber-700 uppercase tracking-widest flex items-center gap-1.5">
-                          <Sparkles className="h-3 w-3" /> Cinematic Setup
-                        </p>
-                      </div>
-                      <div className="grid grid-cols-3 gap-3">
-                        <div className="col-span-1">
-                          <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Card Type</label>
-                          <select 
-                            className="w-full text-[11px] bg-white border border-slate-200 rounded px-1.5 py-1 outline-none"
-                            value={word.card_type || 'vocabulary'}
-                            onChange={e => {
-                              const newWords = [...previewData.words]
-                              newWords[idx].card_type = e.target.value
-                              setPreviewData({...previewData, words: newWords})
-                            }}
-                          >
-                            <option value="vocabulary">Vocab</option>
-                            <option value="phrase">Phrase</option>
-                            <option value="listening">Listen</option>
-                            <option value="speaking">Speak</option>
-                            <option value="situation">Scene</option>
-                            <option value="image">Image</option>
-                          </select>
-                        </div>
-                        <div className="col-span-1">
-                          <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Emoji</label>
-                          <input 
-                            className="w-full text-[11px] bg-white border border-slate-200 rounded px-1.5 py-1 outline-none text-center"
-                            value={word.emoji || '💡'}
-                            onChange={e => {
-                              const newWords = [...previewData.words]
-                              newWords[idx].emoji = e.target.value
-                              setPreviewData({...previewData, words: newWords})
-                            }}
-                          />
-                        </div>
-                        <div className="col-span-1">
-                          <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Emotion</label>
-                          <input 
-                            className="w-full text-[11px] bg-white border border-slate-200 rounded px-1.5 py-1 outline-none"
-                            placeholder="e.g. angry"
-                            value={word.emotion || ''}
-                            onChange={e => {
-                              const newWords = [...previewData.words]
-                              newWords[idx].emotion = e.target.value
-                              setPreviewData({...previewData, words: newWords})
-                            }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-3">
-                      <div>
-                        <label className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">Natural Spoken Usage</label>
-                        <textarea 
-                          className="w-full text-xs text-slate-600 leading-relaxed bg-indigo-50/30 border-none rounded-xl px-3 py-2 min-h-[60px] resize-none mt-1"
-                          value={word.colloquial_usage}
-                          onChange={e => {
-                            const newWords = [...previewData.words]
-                            newWords[idx].colloquial_usage = e.target.value
-                            setPreviewData({...previewData, words: newWords})
-                          }}
-                        />
-                      </div>
-                      <div className="p-4 bg-slate-50 rounded-2xl">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Conversational Example</label>
-                        <textarea 
-                          className="w-full text-xs text-slate-600 italic bg-white border border-slate-100 rounded-lg px-3 py-2 min-h-[50px] resize-none"
-                          value={word.example_sentence}
-                          onChange={e => {
-                            const newWords = [...previewData.words]
-                            newWords[idx].example_sentence = e.target.value
-                            setPreviewData({...previewData, words: newWords})
-                          }}
-                        />
-                      </div>
-
-                      {/* Item Dialogue Preview Section */}
-                      {(word as any).item_dialogue && (
-                        <div className="p-4 bg-blue-50/30 rounded-2xl border border-blue-100/50">
-                          <label className="text-[10px] font-bold text-blue-400 uppercase tracking-widest block mb-3">Item Dialogue Snippet</label>
-                          {Array.isArray((word as any).item_dialogue) && (word as any).item_dialogue.map((line: any, lidx: number) => (
-                            <div key={lidx} className="mb-3 last:mb-0 space-y-1 group/pline">
-                              <div className="flex justify-between items-center">
-                                <span className="text-[10px] font-bold text-slate-400">{line.speaker}</span>
-                                <button 
-                                  onClick={() => playAudio(line.text_en)}
-                                  className="p-1 text-slate-300 hover:text-blue-600 transition-colors opacity-0 group-hover/pline:opacity-100"
-                                  title="Listen"
-                                >
-                                  <Volume2 className="h-3 w-3" />
-                                </button>
-                              </div>
-                              <input 
-                                className="w-full text-[11px] font-medium text-slate-700 bg-white/50 border-none rounded px-2 py-1"
-                                value={line.text_en}
-                                onChange={e => {
-                                  const newWords = [...previewData.words];
-                                  (newWords[idx] as any).item_dialogue[lidx].text_en = e.target.value;
-                                  setPreviewData({...previewData, words: newWords});
-                                }}
-                              />
-                              <input 
-                                className="w-full text-[11px] text-blue-600 bg-white/50 border-none rounded px-2 py-1"
-                                value={line.text_id}
-                                onChange={e => {
-                                  const newWords = [...previewData.words];
-                                  (newWords[idx] as any).item_dialogue[lidx].text_id = e.target.value;
-                                  setPreviewData({...previewData, words: newWords});
-                                }}
-                              />
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              
-              {previewData.dialogue && previewData.dialogue.length > 0 && (
-                <div className="mt-8 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-                  <h4 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-                    <MessageSquare className="h-5 w-5 text-indigo-500" /> Example Conversation
-                  </h4>
-                  <div className="space-y-4">
-                    {Array.isArray(previewData.dialogue) && previewData.dialogue.map((line: any, idx: number) => (
-                      <div key={idx} className="flex flex-col gap-1 p-3 bg-slate-50 rounded-2xl">
-                        <div className="flex justify-between items-center">
-                          <span className="text-xs font-bold text-slate-500 uppercase">{line.speaker}</span>
-                          <button 
-                            onClick={() => playAudio(line.text_en)}
-                            className="p-1 text-slate-300 hover:text-blue-600 transition-colors"
-                            title="Listen to English pronunciation"
-                          >
-                            <Volume2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                        <input 
-                          className="font-medium text-slate-800 bg-transparent border-none focus:ring-0 p-0 text-sm w-full"
-                          value={line.text_en}
-                          onChange={e => {
-                            const newDialogue = [...previewData.dialogue!]
-                            newDialogue[idx].text_en = e.target.value
-                            setPreviewData({...previewData, dialogue: newDialogue})
-                          }}
-                        />
-                        <input 
-                          className="text-blue-600 font-medium bg-transparent border-none focus:ring-0 p-0 text-sm w-full"
-                          value={line.text_id}
-                          onChange={e => {
-                            const newDialogue = [...previewData.dialogue!]
-                            newDialogue[idx].text_id = e.target.value
-                            setPreviewData({...previewData, dialogue: newDialogue})
-                          }}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {previewData.branching_tree && (
-                <div className="mt-8 bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-xl overflow-hidden">
-                  <div className="flex justify-between items-center mb-4">
-                    <h4 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-                      <Sparkles className="h-5 w-5 text-emerald-400" /> Offline Branching Tree
-                    </h4>
-                    <span className="px-3 py-1 bg-emerald-500/10 text-emerald-400 text-[10px] font-bold rounded-full uppercase tracking-wider border border-emerald-500/20">
-                      Editable Logic
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-400 mb-4 leading-relaxed">
-                    Modify the JSON below to refine the interactive offline paths.
-                  </p>
-                  <div className="bg-slate-950/50 rounded-2xl border border-slate-800 overflow-hidden">
-                    <textarea 
-                      className="w-full text-[10px] font-mono text-emerald-300/80 bg-transparent p-4 outline-none min-h-[300px] leading-relaxed resize-y"
-                      value={typeof previewData.branching_tree === 'string' ? previewData.branching_tree : JSON.stringify(previewData.branching_tree, null, 2)}
-                      onChange={e => {
-                        try {
-                          const parsed = JSON.parse(e.target.value)
-                          setPreviewData({...previewData, branching_tree: parsed})
-                        } catch (err) {
-                          // Allow typing invalid JSON temporarily
-                          setPreviewData({...previewData, branching_tree: e.target.value})
-                        }
-                      }}
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <GroupModal 
+        isOpen={isGroupModalOpen}
+        onClose={() => {
+          setIsGroupModalOpen(false)
+          setSelectedGroup(null)
+        }}
+        selectedGroup={selectedGroup}
+        onSave={(data) => groupMutation.mutate(data)}
+        onDelete={(id) => deleteGroupMutation.mutate(id)}
+        isSaving={groupMutation.isPending}
+        isDeleting={deleteGroupMutation.isPending}
+      />
     </div>
   )
 }

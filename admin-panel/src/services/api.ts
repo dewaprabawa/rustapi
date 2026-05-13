@@ -116,17 +116,33 @@ export const deleteVocabularyItem = (id: string) =>
   api.delete(`/vocabulary/${id}`).then(r => r.data)
 
 // ============ VocabForge AI ============
-export const generateVocabSet = (data: { topic: string; level: string; word_count?: number; language?: string; dialogue_sentence_count?: number; set_type?: string }) =>
+export const generateVocabSet = (data: { 
+  topic: string; 
+  level: string; 
+  word_count?: number; 
+  language?: string; 
+  dialogue_sentence_count?: number; 
+  set_type?: string;
+  part_of_speech?: string; // New
+}) =>
   api.post("/ai/generate-vocab", {
     topic: data.topic,
     level: data.level,
     word_count: data.word_count,
     dialogue_sentence_count: data.dialogue_sentence_count,
     target_language: data.language,
-    set_type: data.set_type
+    set_type: data.set_type,
+    part_of_speech: data.part_of_speech
   }).then(r => r.data)
 
-export const saveVocabSet = (data: { preview: any; level: string; language: string; topic: string; set_type?: string }) =>
+export const saveVocabSet = (data: { 
+  preview: any; 
+  level: string; 
+  language: string; 
+  topic: string; 
+  set_type?: string;
+  group_id?: string; // New
+}) =>
   api.post("/ai/save-vocab", data).then(r => r.data)
 
 export const getVocabSets = (type?: string) =>
@@ -146,6 +162,19 @@ export const deleteVocabSet = (id: string) =>
 
 export const deleteVocabWord = (setId: string, wordId: string) =>
   api.delete(`/vocab-sets/${setId}/words/${wordId}`).then(r => r.data)
+
+// ============ Vocab Groups ============
+export const getVocabGroups = () =>
+  api.get("/vocab-groups").then(r => r.data)
+
+export const createVocabGroup = (data: any) =>
+  api.post("/vocab-groups", data).then(r => r.data)
+
+export const updateVocabGroup = (id: string, data: any) =>
+  api.put(`/vocab-groups/${id}`, data).then(r => r.data)
+
+export const deleteVocabGroup = (id: string) =>
+  api.delete(`/vocab-groups/${id}`).then(r => r.data)
 
 // ============ Conversation Requests ============
 export const getConversationRequests = () =>

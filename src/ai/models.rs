@@ -303,6 +303,7 @@ pub struct GenerateVocabRequest {
     pub word_count: Option<i32>,
     pub dialogue_sentence_count: Option<i32>,
     pub set_type: Option<String>, // "vocabulary", "phrasal_verbs"
+    pub part_of_speech: Option<String>, // New: target specific POS
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

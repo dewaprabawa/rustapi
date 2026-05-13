@@ -431,6 +431,10 @@ pub fn build_vocab_prompt(req: &GenerateVocabRequest) -> String {
     prompt.push_str(&format!("- Level: {} (CEFR scale)\n", req.level));
     prompt.push_str(&format!("- Target Language: {}\n", target_language));
     prompt.push_str(&format!("- Word Count: {}\n", word_count));
+    if let Some(pos) = &req.part_of_speech {
+        prompt.push_str(&format!("- Part of Speech: {}\n", pos));
+        prompt.push_str(&format!("CRUCIAL: ALL words generated MUST be {}.\n", pos));
+    }
     prompt.push_str(&format!("- Main Conversation Sentences: at least {}\n\n", dialogue_sentence_count));
 
     prompt.push_str("## Required JSON Structure\n");
