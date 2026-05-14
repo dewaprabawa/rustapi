@@ -302,8 +302,17 @@ pub struct GenerateVocabRequest {
     pub target_language: Option<String>,
     pub word_count: Option<i32>,
     pub dialogue_sentence_count: Option<i32>,
-    pub set_type: Option<String>, // "vocabulary", "phrasal_verbs"
-    pub part_of_speech: Option<String>, // New: target specific POS
+    pub set_type: Option<String>,
+    pub part_of_speech: Option<String>,
+    pub prompt_override: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct EnrichVocabWordRequest {
+    pub word: String,
+    pub level: Option<String>,
+    pub target_language: Option<String>,
+    pub part_of_speech: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -312,8 +321,11 @@ pub struct GeneratedVocabWord {
     pub translation: String,
     pub part_of_speech: String,
     pub definition: String,
+    #[serde(default)]
     pub pronunciation_guide: String,
     pub colloquial_usage: String,
+    #[serde(default)]
+    pub colloquial_usage_id: String,
     pub example_sentence: String,
     pub distractors: Vec<String>,
     pub item_dialogue: Option<Vec<GeneratedVocabDialogueLine>>,
@@ -334,8 +346,10 @@ pub struct GeneratedVocabPreview {
     pub title: String,
     pub title_id: String,
     pub words: Vec<GeneratedVocabWord>,
+    #[serde(default)]
     pub dialogue: Vec<GeneratedVocabDialogueLine>,
     pub branching_tree: Option<serde_json::Value>,
+    #[serde(default)]
     pub related_topics: Vec<String>,
 }
 

@@ -13,6 +13,7 @@ interface GeneratorModalProps {
     set_type: string
     part_of_speech: string
     group_id: string
+    prompt_override?: string
   }
   setBuilderForm: (form: any) => void
   hospitalityTopics: string[]
@@ -153,6 +154,17 @@ export const GeneratorModal: React.FC<GeneratorModalProps> = ({
                   <p className="text-[10px] text-blue-600 uppercase font-bold tracking-wider">Default System Language</p>
                 </div>
               </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-slate-700 mb-2">Prompt Override (Optional)</label>
+              <textarea 
+                className="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all text-slate-800 outline-none text-sm min-h-[100px] placeholder:text-slate-400"
+                placeholder="Add custom instructions for the AI (e.g., 'Focus on formal expressions', 'Include slang', etc.)"
+                value={builderForm.prompt_override || ""}
+                onChange={e => setBuilderForm({...builderForm, prompt_override: e.target.value})}
+              />
+              <p className="text-[10px] text-slate-400 mt-1 italic">This override only applies to the current generation and will not persist in global settings.</p>
             </div>
           </div>
 

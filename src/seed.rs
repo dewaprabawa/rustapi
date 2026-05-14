@@ -695,6 +695,7 @@ pub async fn seed_phrasal_verbs(client: &Client) {
                 },
             ]),
             branching_tree: None,
+            group_id: None,
         };
 
         let s_res = set_col.insert_one(set).await.expect("Failed to seed vocab set");
@@ -711,6 +712,7 @@ pub async fn seed_phrasal_verbs(client: &Client) {
                 definition: "to join with someone to work together".to_string(),
                 pronunciation_guide: "/tiːm ʌp/".to_string(),
                 colloquial_usage: "Common in business and projects".to_string(),
+                colloquial_usage_id: None,
                 example_sentence: "We should team up on this presentation.".to_string(),
                 distractors: vec!["fight".to_string(), "leave".to_string(), "ignore".to_string()],
                 item_dialogue: Some(vec![
@@ -740,6 +742,7 @@ pub async fn seed_phrasal_verbs(client: &Client) {
                 definition: "to continue from a previous point".to_string(),
                 pronunciation_guide: "/pɪk ʌp/".to_string(),
                 colloquial_usage: "Used when returning to a task".to_string(),
+                colloquial_usage_id: None,
                 example_sentence: "Let's pick up the discussion tomorrow.".to_string(),
                 distractors: vec!["drop off".to_string(), "cancel".to_string(), "stop".to_string()],
                 item_dialogue: Some(vec![

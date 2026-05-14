@@ -281,6 +281,16 @@ export const VocabSetDetail: React.FC<VocabSetDetailProps> = ({
                             setSelectedWords(newWords)
                           }}
                         />
+                        <input 
+                          className="w-full text-[11px] text-blue-600 bg-white border border-slate-200 rounded-lg px-3 py-1 outline-none"
+                          placeholder="Translation for Spoken Usage"
+                          value={word.colloquial_usage_id || ""}
+                          onChange={e => {
+                            const newWords = [...selectedWords]
+                            newWords[idx].colloquial_usage_id = e.target.value
+                            setSelectedWords(newWords)
+                          }}
+                        />
                       </div>
                       <div className="space-y-1">
                         <span className="px-1.5 py-0.5 bg-slate-100 text-slate-500 text-[10px] font-bold rounded uppercase">EXAMPLE</span>
@@ -301,9 +311,14 @@ export const VocabSetDetail: React.FC<VocabSetDetailProps> = ({
                         <span className="px-1.5 py-0.5 bg-slate-100 text-slate-500 text-[10px] font-bold rounded uppercase mt-0.5">IPA</span>
                         <p className="text-xs text-slate-600 italic">{word.pronunciation_guide}</p>
                       </div>
-                      <div className="flex items-start gap-2">
-                        <span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-500 text-[10px] font-bold rounded uppercase mt-0.5">SPOKEN</span>
-                        <p className="text-xs text-slate-600 leading-relaxed">{word.colloquial_usage}</p>
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-start gap-2">
+                          <span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-500 text-[10px] font-bold rounded uppercase mt-0.5">SPOKEN</span>
+                          <p className="text-xs text-slate-600 leading-relaxed">{word.colloquial_usage}</p>
+                        </div>
+                        {word.colloquial_usage_id && (
+                          <p className="text-[11px] text-blue-600/70 ml-14 italic">{word.colloquial_usage_id}</p>
+                        )}
                       </div>
                       <div className="p-3 bg-white rounded-xl border border-slate-100">
                         <p className="text-xs text-slate-500 italic">"{word.example_sentence}"</p>

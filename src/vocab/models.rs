@@ -27,6 +27,8 @@ pub struct VocabSet {
     pub example_dialogue: Option<Vec<VocabDialogueLine>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub branching_tree: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub group_id: Option<ObjectId>,
 }
 
 fn default_set_type() -> String {
@@ -51,6 +53,7 @@ pub struct VocabWord {
     pub definition: String,
     pub pronunciation_guide: String,
     pub colloquial_usage: String,
+    pub colloquial_usage_id: Option<String>,
     pub example_sentence: String,
     pub distractors: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -144,6 +147,7 @@ pub struct UpdateVocabWordRequest {
     pub definition: Option<String>,
     pub pronunciation_guide: Option<String>,
     pub colloquial_usage: Option<String>,
+    pub colloquial_usage_id: Option<String>,
     pub example_sentence: Option<String>,
     pub distractors: Option<Vec<String>>,
     pub item_dialogue: Option<Vec<VocabDialogueLine>>,
@@ -159,5 +163,6 @@ pub struct GenerateVocabRequest {
     pub word_count: i32,
     pub language: String,
     pub set_type: String,
-    pub part_of_speech: Option<String>, // New: target specific POS
+    pub part_of_speech: Option<String>,
+    pub prompt_override: Option<String>,
 }

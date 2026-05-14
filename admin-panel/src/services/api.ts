@@ -123,7 +123,8 @@ export const generateVocabSet = (data: {
   language?: string; 
   dialogue_sentence_count?: number; 
   set_type?: string;
-  part_of_speech?: string; // New
+  part_of_speech?: string;
+  prompt_override?: string;
 }) =>
   api.post("/ai/generate-vocab", {
     topic: data.topic,
@@ -132,8 +133,16 @@ export const generateVocabSet = (data: {
     dialogue_sentence_count: data.dialogue_sentence_count,
     target_language: data.language,
     set_type: data.set_type,
-    part_of_speech: data.part_of_speech
+    part_of_speech: data.part_of_speech,
+    prompt_override: data.prompt_override
   }).then(r => r.data)
+
+export const enrichVocabWord = (data: {
+  word: string;
+  level?: string;
+  target_language?: string;
+  part_of_speech?: string;
+}) => api.post("/ai/enrich-word", data).then(r => r.data)
 
 export const saveVocabSet = (data: { 
   preview: any; 

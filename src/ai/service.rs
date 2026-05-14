@@ -1,4 +1,4 @@
-use crate::ai::models::{GenerateCourseRequest, GeneratedCoursePreview, GenerateVocabRequest, GeneratedVocabPreview};
+use crate::ai::models::{GenerateCourseRequest, GeneratedCoursePreview, GenerateVocabRequest, GeneratedVocabPreview, EnrichVocabWordRequest};
 use crate::content::models::LlmApiKey;
 use crate::handlers::AppError;
 
@@ -435,7 +435,12 @@ pub fn build_vocab_prompt(req: &GenerateVocabRequest) -> String {
         prompt.push_str(&format!("- Part of Speech: {}\n", pos));
         prompt.push_str(&format!("CRUCIAL: ALL words generated MUST be {}.\n", pos));
     }
-    prompt.push_str(&format!("- Main Conversation Sentences: at least {}\n\n", dialogue_sentence_count));
+    prompt.push_str(&format!("- Main Conversation Sentences: at least {}\n", dialogue_sentence_count));
+    if let Some(override_text) = &req.prompt_override {
+        prompt.push_str(&format!("- Custom Instructions: {}\n", override_text));
+        prompt.push_str(&format!("CRUCIAL: You MUST follow these custom instructions above all other general guidelines.\n"));
+    }
+    prompt.push_str("\n");
 
     prompt.push_str("## Required JSON Structure\n");
     prompt.push_str("Return a single JSON object with a `title`, `title_id`, `words` array, `dialogue` array, and `related_topics` array.\n\nFor each item in `words`, include:\n");
@@ -443,9 +448,11 @@ pub fn build_vocab_prompt(req: &GenerateVocabRequest) -> String {
     prompt.push_str("- `translation`: Translation in the target language.\n");
     prompt.push_str("- `part_of_speech`: noun, verb, phrasal verb, etc.\n");
     prompt.push_str("- `definition`: Simple English definition.\n");
-    prompt.push_str("- `pronunciation_guide`: Simple phonetic spelling or IPA.\n");
+    prompt.push_str("- `pronunciation_guide`: Simple phonetic spelling or IPA for the ENGLISH word.\n");
     prompt.push_str("- `colloquial_usage`: How it is most commonly used in natural, daily speaking.\n");
+    prompt.push_str("- `colloquial_usage_id`: Translation of the colloquial usage in the target language.\n");
     prompt.push_str("- `example_sentence`: A highly natural, conversational sentence featuring the word.\n");
+    prompt.push_str("CRUCIAL: The `pronunciation_guide` MUST be for the English word (e.g., if the word is 'School', the guide should be 'skool', NOT the Indonesian pronunciation).\n");
     prompt.push_str("- `distractors`: An array of 3 incorrect translation options in the target language.\n");
     prompt.push_str("- `card_type`: The visual presentation style. One of: 'vocabulary', 'phrase', 'listening', 'speaking', 'situation', 'image', 'conversation'.\n");
     prompt.push_str("- `emoji`: A single relevant emoji for visual memory (e.g. 🛎️, 😡, 🛌).\n");
@@ -502,6 +509,38 @@ pub fn build_vocab_prompt(req: &GenerateVocabRequest) -> String {
     prompt.push_str(&serde_json::to_string_pretty(&schema).unwrap());
     prompt.push_str("\n\nOutput only valid JSON. Crucially, provide a robust branching_tree for the dialogue with at least 3 levels of depth.");
 
+    prompt
+}
+
+pub fn build_enrichment_prompt(req: &EnrichVocabWordRequest) -> String {
+    let target_language = req.target_language.as_deref().unwrap_or("Indonesian");
+    let level = req.level.as_deref().unwrap_or("B1");
+    
+    let mut prompt = String::new();
+    prompt.push_str("You are an expert language teacher assisting with manual vocabulary entry.\n\n");
+    prompt.push_str(&format!("Enrich the English word '{}' for level {} and target language {}.\n\n", req.word, level, target_language));
+    
+    if let Some(pos) = &req.part_of_speech {
+        prompt.push_str(&format!("CRUCIAL: The word must be treated as a {}.\n\n", pos));
+    }
+
+    prompt.push_str("Return a single JSON object for this word. Follow this structure EXACTLY:\n");
+    prompt.push_str("- `word`: The English word provided.\n");
+    prompt.push_str("- `translation`: Translation in the target language.\n");
+    prompt.push_str("- `part_of_speech`: noun, verb, phrasal verb, etc.\n");
+    prompt.push_str("- `definition`: Simple English definition.\n");
+    prompt.push_str("- `pronunciation_guide`: Simple phonetic spelling or IPA for the ENGLISH word.\n");
+    prompt.push_str("- `colloquial_usage`: How it is most commonly used in natural, daily speaking.\n");
+    prompt.push_str("- `colloquial_usage_id`: Translation of the colloquial usage in the target language.\n");
+    prompt.push_str("- `example_sentence`: A highly natural, conversational sentence featuring the word.\n");
+    prompt.push_str("- `distractors`: An array of 3 incorrect translation options in the target language.\n");
+    prompt.push_str("- `card_type`: One of: 'vocabulary', 'phrase', 'listening', 'speaking', 'situation', 'image', 'conversation'.\n");
+    prompt.push_str("- `emoji`: A relevant emoji.\n");
+    prompt.push_str("- `emotion`: Optional emotional context.\n");
+    prompt.push_str("- `item_dialogue`: A 2-line mini conversation (array of speaker/text_en/text_id).\n\n");
+
+    prompt.push_str("CRUCIAL: Return ONLY valid JSON. No markdown fences.\n");
+    
     prompt
 }
 

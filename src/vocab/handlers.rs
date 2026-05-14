@@ -73,6 +73,7 @@ pub async fn save_vocab_set(
             definition: w.definition,
             pronunciation_guide: w.pronunciation_guide,
             colloquial_usage: w.colloquial_usage,
+            colloquial_usage_id: Some(w.colloquial_usage_id),
             example_sentence: w.example_sentence,
             distractors: w.distractors,
             item_dialogue: w.item_dialogue.map(|lines| lines.into_iter().map(|l| crate::vocab::models::VocabDialogueLine {
@@ -227,6 +228,7 @@ pub async fn update_vocab_word(
     if let Some(v) = payload.definition { update_doc.insert("definition", v); }
     if let Some(v) = payload.pronunciation_guide { update_doc.insert("pronunciation_guide", v); }
     if let Some(v) = payload.colloquial_usage { update_doc.insert("colloquial_usage", v); }
+    if let Some(v) = payload.colloquial_usage_id { update_doc.insert("colloquial_usage_id", v); }
     if let Some(v) = payload.example_sentence { update_doc.insert("example_sentence", v); }
     if let Some(v) = payload.distractors { update_doc.insert("distractors", v); }
     if let Some(v) = payload.item_dialogue { 

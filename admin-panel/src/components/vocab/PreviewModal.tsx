@@ -213,6 +213,16 @@ export const PreviewModal: React.FC<PreviewModalProps> = ({
                         setPreviewData({...previewData, words: newWords})
                       }}
                     />
+                    <input 
+                      className="w-full text-[11px] text-blue-600 bg-indigo-50/30 border-none rounded-lg px-3 py-1 outline-none mt-1"
+                      placeholder="Translation for Spoken Usage"
+                      value={word.colloquial_usage_id || ""}
+                      onChange={e => {
+                        const newWords = [...previewData.words]
+                        newWords[idx].colloquial_usage_id = e.target.value
+                        setPreviewData({...previewData, words: newWords})
+                      }}
+                    />
                   </div>
                   <div className="p-4 bg-slate-50 rounded-2xl">
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Conversational Example</label>

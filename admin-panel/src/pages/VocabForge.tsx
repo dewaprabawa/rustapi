@@ -11,12 +11,14 @@ import { VocabGroups } from '../components/vocab/VocabGroups'
 import { GeneratorModal } from '../components/vocab/GeneratorModal'
 import { PreviewModal } from '../components/vocab/PreviewModal'
 import { GroupModal } from '../components/vocab/GroupModal'
+import { ManualEntryModal } from '../components/vocab/ManualEntryModal'
 
 export default function VocabForge() {
   const queryClient = useQueryClient()
   const [isGenerating, setIsGenerating] = useState(false)
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
   const [isBuilderOpen, setIsBuilderOpen] = useState(false)
+  const [isManualModalOpen, setIsManualModalOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<'library' | 'requests' | 'groups'>('library')
   const [hospitalityTopics, setHospitalityTopics] = useState<string[]>([])
   const [libraryTab, setLibraryTab] = useState<'vocabulary' | 'phrasal_verbs'>('vocabulary')
@@ -38,7 +40,8 @@ export default function VocabForge() {
     language: 'Indonesian',
     set_type: 'vocabulary',
     part_of_speech: '',
-    group_id: ''
+    group_id: '',
+    prompt_override: ''
   })
 
   useEffect(() => {
@@ -223,6 +226,7 @@ export default function VocabForge() {
         setActiveTab={setActiveTab}
         pendingRequestsCount={conversationRequests.filter((r: any) => r.status === 'pending').length}
         onGenerateClick={() => setIsBuilderOpen(true)}
+        onManualClick={() => setIsManualModalOpen(true)}
       />
 
       {activeTab === 'library' ? (
@@ -288,6 +292,8 @@ export default function VocabForge() {
         onGenerate={() => {
           setIsGenerating(true)
           generateMutation.mutate(builderForm)
+          // Clear prompt override after generation attempt
+          setBuilderForm(prev => ({ ...prev, prompt_override: '' }))
         }}
         isGenerating={isGenerating}
       />
@@ -323,6 +329,22 @@ export default function VocabForge() {
         onDelete={(id) => deleteGroupMutation.mutate(id)}
         isSaving={groupMutation.isPending}
         isDeleting={deleteGroupMutation.isPending}
+      />
+      <ManualEntryModal 
+        isOpen={isManualModalOpen}
+        onClose={() => setIsManualModalOpen(false)}
+        onSave={(data) => {
+          saveMutation.mutate({
+            preview: data,
+            level: 'B1', // Default, user can edit in manual modal or it can be passed from state
+            language: 'Indonesian',
+            topic: data.title,
+            set_type: 'vocabulary'
+          })
+          setIsManualModalOpen(false)
+        }}
+        level="B1"
+        language="Indonesian"
       />
     </div>
   )

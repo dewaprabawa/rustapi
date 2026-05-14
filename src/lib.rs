@@ -28,7 +28,7 @@ use crate::admin::handlers::{
 };
 use crate::ai::handlers::{
     fulfill_conversation_request, generate_course, generate_vocab, get_credit_usage,
-    list_conversation_requests, save_course,
+    list_conversation_requests, save_course, enrich_vocab_word,
 };
 use crate::content::handlers::*;
 use crate::game::handlers::*;
@@ -140,6 +140,7 @@ pub async fn create_app() -> Router {
         .route("/ai/generate-course", post(generate_course))
         .route("/ai/save-course", post(save_course))
         .route("/ai/generate-vocab", post(generate_vocab))
+        .route("/ai/enrich-word", post(enrich_vocab_word))
         .route("/ai/save-vocab", post(vocab::handlers::save_vocab_set))
         .route("/ai/credit-usage", get(get_credit_usage))
         // Auth

@@ -252,6 +252,57 @@ pub async fn generate_vocab(
     Ok((StatusCode::OK, Json(response)))
 }
 
+/// POST /admin/ai/enrich-word
+/// AI assistance for manual entry: takes a partial word and returns a fully populated word object.
+pub async fn enrich_vocab_word(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+    Json(payload): Json<EnrichVocabWordRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    let db = state.db.database("rustapi");
+    let key_col: Collection<LlmApiKey> = db.collection("llm_api_keys");
+    let cursor = key_col.find(doc! { "is_active": true }).await?;
+    let active_keys: Vec<LlmApiKey> = cursor.try_collect().await?;
+
+    if active_keys.is_empty() {
+        return Err(AppError::BadRequest("No active LLM API key found.".to_string()));
+    }
+
+    let prompt = build_enrichment_prompt(&payload);
+
+    let mut last_error = None;
+    let mut llm_response = None;
+
+    for key in active_keys {
+        match call_llm_for_course(&key, &prompt).await {
+            Ok(resp) => {
+                llm_response = Some(resp);
+                break;
+            }
+            Err(e) => {
+                last_error = Some(e);
+            }
+        }
+    }
+
+    let llm_resp = llm_response.ok_or(last_error.unwrap_or(AppError::InternalServerError))?;
+
+    // Parse the response (GeneratedVocabWord)
+    let cleaned = llm_resp.text.trim();
+    let cleaned = if cleaned.starts_with("```") {
+        let start = cleaned.find('\n').map(|i| i + 1).unwrap_or(0);
+        let end = cleaned.rfind("```").unwrap_or(cleaned.len());
+        &cleaned[start..end]
+    } else {
+        cleaned
+    };
+
+    let word: GeneratedVocabWord = serde_json::from_str(cleaned.trim())
+        .map_err(|e| AppError::BadRequest(format!("AI returned invalid JSON for word: {}", e)))?;
+
+    Ok((StatusCode::OK, Json(word)))
+}
+
 // ==================== Phase 3: Admin Conversation Request Queue ====================
 
 /// GET /admin/conversation-requests — list all pending student requests

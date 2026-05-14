@@ -7,13 +7,15 @@ interface VocabForgeHeaderProps {
   setActiveTab: (tab: 'library' | 'requests' | 'groups') => void
   pendingRequestsCount: number
   onGenerateClick: () => void
+  onManualClick: () => void
 }
 
 export const VocabForgeHeader: React.FC<VocabForgeHeaderProps> = ({
   activeTab,
   setActiveTab,
   pendingRequestsCount,
-  onGenerateClick
+  onGenerateClick,
+  onManualClick
 }) => {
   return (
     <div className="flex justify-between items-end">
@@ -62,6 +64,13 @@ export const VocabForgeHeader: React.FC<VocabForgeHeaderProps> = ({
             Groups
           </button>
         </div>
+        <button 
+          onClick={onManualClick}
+          className="flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold rounded-2xl shadow-sm transition-all hover:-translate-y-0.5 active:translate-y-0"
+        >
+          <Plus className="h-5 w-5 text-indigo-500" />
+          Add Manually
+        </button>
         <button 
           onClick={onGenerateClick}
           className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-2xl shadow-lg shadow-blue-600/20 transition-all hover:-translate-y-0.5 active:translate-y-0"
