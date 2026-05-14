@@ -1,38 +1,53 @@
 import axios from "axios"
  
 
-const API_URL = import.meta.env.VITE_API_URL || "/admin"
+const BASE_URL = import.meta.env.VITE_API_URL || ""
+const ADMIN_PREFIX = "/api/admin"
 
+// For endpoints requiring the /admin prefix
 export const api = axios.create({
-  baseURL: API_URL,
+  baseURL: `${BASE_URL}${ADMIN_PREFIX}`,
+  headers: {
+    "Content-Type": "application/json",
+  },
+})
+
+// For endpoints at the root (like student auth)
+export const rootApi = axios.create({
+  baseURL: BASE_URL,
   headers: {
     "Content-Type": "application/json",
   },
 })
 
 // Attach JWT token to every request
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("admin_token")
+const authInterceptor = (config: any) => {
+  const token = localStorage.getItem("auth_token")
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
   return config
-})
+}
+
+api.interceptors.request.use(authInterceptor)
+rootApi.interceptors.request.use(authInterceptor)
 
 // Auto-logout on 401
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      const currentPath = window.location.pathname
-      if (currentPath !== "/login") {
-        localStorage.removeItem("admin_token")
-        window.location.href = "/login"
-      }
+const responseInterceptor = (response: any) => response
+const errorInterceptor = (error: any) => {
+  if (error.response?.status === 401) {
+    const currentPath = window.location.pathname
+    if (currentPath !== "/login") {
+      localStorage.removeItem("auth_token")
+      localStorage.removeItem("user_type")
+      window.location.href = "/login"
     }
-    return Promise.reject(error)
   }
-)
+  return Promise.reject(error)
+}
+
+api.interceptors.response.use(responseInterceptor, errorInterceptor)
+rootApi.interceptors.response.use(responseInterceptor, errorInterceptor)
 
 // ============ Auth ============
 export const adminLogin = (email: string, password: string) =>
@@ -64,6 +79,9 @@ export const updateUser = (id: string, data: any) =>
 export const getCourses = () =>
   api.get("/courses").then(r => r.data)
 
+export const getStudentCourses = () =>
+  rootApi.get("/api/courses").then(r => r.data)
+
 export const createCourse = (data: any) =>
   api.post("/courses", data).then(r => r.data)
 
@@ -72,6 +90,9 @@ export const updateCourse = (id: string, data: any) =>
 
 export const deleteCourse = (id: string) =>
   api.delete(`/courses/${id}`).then(r => r.data)
+
+export const getCoursePath = (id: string) =>
+  rootApi.get(`/api/courses/${id}/path`).then(r => r.data)
 
 // ============ Modules ============
 export const getModules = () =>
@@ -86,9 +107,15 @@ export const updateModule = (id: string, data: any) =>
 export const deleteModule = (id: string) =>
   api.delete(`/modules/${id}`).then(r => r.data)
 
+export const reorderModules = (ids: string[]) =>
+  api.patch("/modules/reorder", { ids }).then(r => r.data)
+
 // ============ Lessons ============
 export const getLessons = () =>
   api.get("/lessons").then(r => r.data)
+
+export const getLesson = (id: string) =>
+  api.get(`/lessons/${id}`).then(r => r.data)
 
 export const createLesson = (data: any) =>
   api.post("/lessons", data).then(r => r.data)
@@ -98,6 +125,12 @@ export const updateLesson = (id: string, data: any) =>
 
 export const deleteLesson = (id: string) =>
   api.delete(`/lessons/${id}`).then(r => r.data)
+
+export const reorderLessons = (ids: string[]) =>
+  api.patch("/lessons/reorder", { ids }).then(r => r.data)
+
+export const getLessonSession = (id: string) =>
+  rootApi.get(`/api/lessons/${id}/session`).then(r => r.data)
 
 // ============ Vocabulary ============
 export const getVocabulary = (lessonId?: string) =>
@@ -490,3 +523,7 @@ export const updateEbook = (id: string, data: { lessons?: any[], status?: string
 
 export const exportEbook = (id: string) =>
   api.post(`/ebook/${id}/export`).then(r => r.data)
+
+// ============ Progress ============
+export const submitLessonCompletion = (lessonId: string, xp: number) =>
+  rootApi.post("/progress/xp", { lesson_id: lessonId, xp }).then(r => r.data)

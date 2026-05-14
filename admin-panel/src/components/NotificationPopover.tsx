@@ -96,7 +96,7 @@ export default function NotificationPopover() {
               Recent Activity
             </h3>
             <Link 
-              to="/notifications" 
+              to="/admin/notifications" 
               onClick={() => setIsOpen(false)}
               className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center"
             >

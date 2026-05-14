@@ -179,6 +179,7 @@ pub struct Lesson {
     pub instruction_id: Option<String>, // Bahasa Instruction Layer
     pub culture_notes: Option<String>, // Spec 3.3
     pub audio_url: Option<String>,
+    pub video_url: Option<String>,
     pub level: ContentLevel,
     pub category: ContentCategory,
     pub xp_reward: i32,
@@ -202,6 +203,7 @@ pub struct CreateLessonRequest {
     pub instruction_id: Option<String>,
     pub culture_notes: Option<String>,
     pub audio_url: Option<String>,
+    pub video_url: Option<String>,
     pub level: ContentLevel,
     pub category: ContentCategory,
     pub xp_reward: Option<i32>,
@@ -219,6 +221,7 @@ pub struct UpdateLessonRequest {
     pub instruction_id: Option<String>,
     pub culture_notes: Option<String>,
     pub audio_url: Option<String>,
+    pub video_url: Option<String>,
     pub level: Option<ContentLevel>,
     pub category: Option<ContentCategory>,
     pub xp_reward: Option<i32>,
@@ -443,3 +446,25 @@ mod tests {
         assert!(res.is_ok());
     }
 }
+
+// ============ Curriculum Path & Reordering ============
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ReorderRequest {
+    pub ids: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ModulePathResponse {
+    #[serde(flatten)]
+    pub module: Module,
+    pub lessons: Vec<Lesson>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CoursePathResponse {
+    #[serde(flatten)]
+    pub course: Course,
+    pub modules: Vec<ModulePathResponse>,
+}
+

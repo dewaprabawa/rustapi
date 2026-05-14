@@ -1,28 +1,53 @@
+import React, { useState } from "react"
 import { X, Volume2 } from "lucide-react"
 import { cn, normalizeDate } from "../../lib/utils"
 import { useQuery } from "@tanstack/react-query"
-import { getVocabulary } from "../../services/api"
+import { getVocabulary, getLessonConfig, getLevelTemplate } from "../../services/api"
+import { CurriculumTreeBuilder } from "./CurriculumTreeBuilder"
+import { LearningPath } from "../student-preview/LearningPath"
 
 interface DetailModalProps {
   isDetailModalOpen: boolean
   detailItem: any
   activeTab: 'courses' | 'modules' | 'lessons'
   closeDetailModal: () => void
+  onManageSession?: (lessonId: string) => void
+  openEditModal?: (item: any, tab: 'courses'|'modules'|'lessons') => void
+  openCreateModal?: (tab: 'courses'|'modules'|'lessons', initialData?: any) => void
 }
 
 export default function DetailModal({
   isDetailModalOpen,
   detailItem,
   activeTab,
-  closeDetailModal
+  closeDetailModal,
+  onManageSession,
+  openEditModal,
+  openCreateModal
 }: DetailModalProps) {
   const lessonId = detailItem?._id?.$oid || detailItem?.id;
+  const [courseView, setCourseView] = useState<'builder' | 'preview'>('builder');
 
   const { data: vocabData, isLoading: isLoadingVocab } = useQuery({
     queryKey: ['lessonVocab', lessonId],
     queryFn: () => getVocabulary(lessonId),
     enabled: isDetailModalOpen && activeTab === 'lessons' && !!lessonId,
   })
+
+  const { data: sessionConfig, isLoading: isLoadingSession } = useQuery({
+    queryKey: ['lessonSessionConfig', lessonId],
+    queryFn: () => getLessonConfig(lessonId),
+    enabled: isDetailModalOpen && activeTab === 'lessons' && !!lessonId,
+  })
+
+  const { data: levelTemplate } = useQuery({
+    queryKey: ['levelTemplate', detailItem?.level],
+    queryFn: () => getLevelTemplate(detailItem?.level),
+    enabled: isDetailModalOpen && activeTab === 'lessons' && !!detailItem?.level,
+  })
+
+  const phases = sessionConfig?.phases || levelTemplate?.phases || [];
+  const sortedPhases = [...phases].sort((a: any, b: any) => a.order - b.order);
 
   if (!isDetailModalOpen || !detailItem) return null
 
@@ -36,6 +61,11 @@ export default function DetailModal({
           <button onClick={closeDetailModal} className="text-slate-400 hover:text-slate-600"><X className="h-5 w-5" /></button>
         </div>
         <div className="p-6 overflow-y-auto flex-1">
+          {activeTab === 'courses' && detailItem.cover_image_url && (
+            <div className="mb-6 rounded-2xl overflow-hidden border border-slate-100 shadow-sm h-48">
+              <img src={detailItem.cover_image_url} alt={detailItem.title} className="w-full h-full object-cover" />
+            </div>
+          )}
           <div className="space-y-6">
             <div>
               <span className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">ID</span>
@@ -120,6 +150,113 @@ export default function DetailModal({
                 </span>
               </div>
             </div>
+
+            {/* CURRICULUM TREE BUILDER & PREVIEW for Courses */}
+            {activeTab === 'courses' && openEditModal && openCreateModal && (
+              <div className="pt-6 border-t border-slate-100">
+                <div className="flex bg-slate-100 p-1 rounded-xl mb-6 w-fit">
+                  <button 
+                    onClick={() => setCourseView('builder')}
+                    className={cn("px-4 py-1.5 text-sm font-medium rounded-lg transition-colors", courseView === 'builder' ? "bg-white shadow text-slate-800" : "text-slate-500 hover:text-slate-700")}
+                  >
+                    Manage Curriculum
+                  </button>
+                  <button 
+                    onClick={() => setCourseView('preview')}
+                    className={cn("px-4 py-1.5 text-sm font-medium rounded-lg transition-colors", courseView === 'preview' ? "bg-white shadow text-slate-800" : "text-slate-500 hover:text-slate-700")}
+                  >
+                    Student Preview
+                  </button>
+                </div>
+
+                {courseView === 'builder' ? (
+                  <CurriculumTreeBuilder 
+                    courseId={detailItem._id?.$oid || detailItem.id} 
+                    openEditModal={openEditModal} 
+                    openCreateModal={openCreateModal} 
+                  />
+                ) : (
+                  <div className="bg-slate-50 rounded-2xl border border-slate-200 shadow-inner max-h-[600px] overflow-y-auto">
+                    <LearningPath courseId={detailItem._id?.$oid || detailItem.id} />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'lessons' && (
+              <div className="pt-6 border-t border-slate-100">
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                    Session Flow (Learning Path)
+                    {!sessionConfig?.phases && (
+                      <span className="px-2 py-0.5 bg-slate-100 text-slate-500 text-[10px] font-medium rounded-full">
+                        Using Level Default
+                      </span>
+                    )}
+                  </span>
+                  {onManageSession && (
+                    <button 
+                      onClick={() => onManageSession(lessonId)}
+                      className="text-[11px] font-bold text-blue-600 hover:text-blue-700 bg-blue-50 px-3 py-1 rounded-lg transition-colors"
+                    >
+                      Manage Session
+                    </button>
+                  )}
+                </div>
+
+                {isLoadingSession ? (
+                  <div className="text-sm text-slate-400 py-4 text-center">Loading session configuration...</div>
+                ) : sortedPhases.length === 0 ? (
+                  <div className="text-sm text-slate-400 py-4 text-center bg-slate-50 rounded-xl border border-slate-100">
+                    No session flow defined for this lesson.
+                  </div>
+                ) : (
+                  <div className="space-y-3 relative">
+                    {/* Vertical Connecting Line */}
+                    <div className="absolute left-[19px] top-4 bottom-4 w-0.5 bg-slate-100 z-0"></div>
+                    
+                    {sortedPhases.map((phase: any, idx: number) => (
+                      <div key={idx} className={cn(
+                        "relative z-10 flex gap-4 p-3 rounded-2xl border transition-all",
+                        phase.enabled ? "bg-white border-slate-100 shadow-sm" : "bg-slate-50/50 border-slate-50 opacity-60"
+                      )}>
+                        <div className={cn(
+                          "w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shrink-0",
+                          phase.enabled ? "bg-blue-50 text-blue-600" : "bg-slate-200 text-slate-400"
+                        )}>
+                          {phase.order}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-1">
+                            <h5 className="font-bold text-slate-800 capitalize text-sm">{phase.phase_type.replace('_', ' ')}</h5>
+                            {!phase.enabled && <span className="text-[10px] font-bold text-slate-400 uppercase">Disabled</span>}
+                          </div>
+                          
+                          {/* Phase Specific Summary */}
+                          <div className="text-[11px] text-slate-500 space-y-1">
+                            {phase.phase_type === 'flashcard' && (
+                              <p>• {phase.settings?.auto_play_audio ? 'Auto-play Audio' : 'Manual Audio'} • {phase.settings?.show_translation ? 'Show Translation' : 'Hide Translation'}</p>
+                            )}
+                            {phase.phase_type === 'vocab_drill' && (
+                              <p>• {phase.settings?.max_drill_count || 5} rounds • Types: {(phase.settings?.drill_types || ['All']).join(', ')}</p>
+                            )}
+                            {phase.phase_type === 'game' && (
+                              <p>• Difficulty: {phase.settings?.difficulty || 'Medium'} • Games: {(phase.settings?.game_types || ['Random']).join(', ')}</p>
+                            )}
+                            {phase.phase_type === 'pronunciation' && (
+                              <p>• {phase.settings?.sentence_count || 3} sentences • Min Accuracy: {phase.settings?.min_accuracy_score || 80}%</p>
+                            )}
+                            {phase.phase_type === 'conversation' && (
+                              <p>• {phase.settings?.turn_count || 5} turns • Custom Context: {phase.settings?.scenario_context ? 'Yes' : 'No'}</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {activeTab === 'lessons' && (
               <div className="pt-6 border-t border-slate-100">

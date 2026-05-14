@@ -408,6 +408,7 @@ pub async fn create_lesson(
         instruction_id: payload.instruction_id,
         culture_notes: payload.culture_notes,
         audio_url: payload.audio_url,
+        video_url: payload.video_url,
         level: payload.level,
         category: payload.category,
         xp_reward: payload.xp_reward.unwrap_or(10),
@@ -519,6 +520,9 @@ pub async fn update_lesson(
     if let Some(v) = payload.audio_url {
         update.insert("audio_url", v);
     }
+    if let Some(v) = payload.video_url {
+        update.insert("video_url", v);
+    }
     if let Some(v) = payload.xp_reward {
         update.insert("xp_reward", v);
     }
@@ -599,9 +603,10 @@ pub async fn create_vocabulary(
 }
 
 /// GET /admin/vocabulary?lesson_id=xxx
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, Default)]
 pub struct VocabQuery {
-    pub lesson_id: String,
+    #[serde(default)]
+    pub lesson_id: Option<String>,
 }
 
 pub async fn list_vocabulary(
@@ -609,11 +614,21 @@ pub async fn list_vocabulary(
     _admin: Admin,
     Query(params): Query<VocabQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    let lesson_id = ObjectId::parse_str(&params.lesson_id)
-        .map_err(|_| AppError::NotFound("Not found".to_string()))?;
     let collection: Collection<Vocabulary> = state.db.database("rustapi").collection("vocabulary");
 
-    let cursor = collection.find(doc! { "lesson_id": lesson_id }).await?;
+    let filter = if let Some(lid) = params.lesson_id {
+        if lid.is_empty() {
+            doc! {}
+        } else {
+            let lesson_oid = ObjectId::parse_str(&lid)
+                .map_err(|_| AppError::NotFound("Not found".to_string()))?;
+            doc! { "lesson_id": lesson_oid }
+        }
+    } else {
+        doc! {}
+    };
+
+    let cursor = collection.find(filter).await?;
     let data: Vec<Vocabulary> = cursor.try_collect().await?;
 
     Ok(Json(data))
@@ -736,11 +751,21 @@ pub async fn list_dialogues(
     _admin: Admin,
     Query(params): Query<VocabQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    let lesson_id = ObjectId::parse_str(&params.lesson_id)
-        .map_err(|_| AppError::NotFound("Not found".to_string()))?;
     let collection: Collection<Dialogue> = state.db.database("rustapi").collection("dialogues");
 
-    let cursor = collection.find(doc! { "lesson_id": lesson_id }).await?;
+    let filter = if let Some(lid) = params.lesson_id {
+        if lid.is_empty() {
+            doc! {}
+        } else {
+            let lesson_oid = ObjectId::parse_str(&lid)
+                .map_err(|_| AppError::NotFound("Not found".to_string()))?;
+            doc! { "lesson_id": lesson_oid }
+        }
+    } else {
+        doc! {}
+    };
+
+    let cursor = collection.find(filter).await?;
     let data: Vec<Dialogue> = cursor.try_collect().await?;
 
     Ok(Json(data))
@@ -861,11 +886,21 @@ pub async fn list_quizzes(
     _admin: Admin,
     Query(params): Query<VocabQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    let lesson_id = ObjectId::parse_str(&params.lesson_id)
-        .map_err(|_| AppError::NotFound("Not found".to_string()))?;
     let collection: Collection<Quiz> = state.db.database("rustapi").collection("quizzes");
 
-    let cursor = collection.find(doc! { "lesson_id": lesson_id }).await?;
+    let filter = if let Some(lid) = params.lesson_id {
+        if lid.is_empty() {
+            doc! {}
+        } else {
+            let lesson_oid = ObjectId::parse_str(&lid)
+                .map_err(|_| AppError::NotFound("Not found".to_string()))?;
+            doc! { "lesson_id": lesson_oid }
+        }
+    } else {
+        doc! {}
+    };
+
+    let cursor = collection.find(filter).await?;
     let data: Vec<Quiz> = cursor.try_collect().await?;
 
     Ok(Json(data))
@@ -1722,4 +1757,98 @@ pub async fn update_ai_prompt(
         .await?
         .unwrap();
     Ok(Json(updated))
+}
+
+// ==================== CURRICULUM PATH & REORDERING ====================
+
+/// GET /api/courses/:id/path
+pub async fn get_course_path(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, AppError> {
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::NotFound("Invalid course ID".to_string()))?;
+    
+    // Fetch course
+    let courses_col: Collection<Course> = state.db.database("rustapi").collection("courses");
+    let course = courses_col.find_one(doc! { "_id": oid }).await?.ok_or_else(|| AppError::NotFound("Course not found".to_string()))?;
+
+    // Fetch modules sorted by order
+    let modules_col: Collection<Module> = state.db.database("rustapi").collection("modules");
+    let mut cursor = modules_col.find(doc! { "course_id": oid })
+        .sort(doc! { "order": 1 })
+        .await?;
+    let modules: Vec<Module> = cursor.try_collect().await?;
+
+    // Fetch lessons for all these modules
+    let lessons_col: Collection<Lesson> = state.db.database("rustapi").collection("lessons");
+    let module_ids: Vec<ObjectId> = modules.iter().filter_map(|m| m.id).collect();
+    let mut cursor = lessons_col.find(doc! { "module_id": { "$in": module_ids } })
+        .sort(doc! { "order": 1 })
+        .await?;
+    let all_lessons: Vec<Lesson> = cursor.try_collect().await?;
+
+    // Group lessons by module_id
+    let mut module_path_responses = Vec::new();
+    for module in modules {
+        let mut lessons_for_module = Vec::new();
+        if let Some(m_id) = module.id {
+            for lesson in &all_lessons {
+                if lesson.module_id == m_id {
+                    lessons_for_module.push(lesson.clone());
+                }
+            }
+        }
+        module_path_responses.push(ModulePathResponse {
+            module,
+            lessons: lessons_for_module,
+        });
+    }
+
+    let response = CoursePathResponse {
+        course,
+        modules: module_path_responses,
+    };
+
+    Ok(Json(response))
+}
+
+/// PATCH /admin/modules/reorder
+pub async fn reorder_modules(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+    Json(payload): Json<ReorderRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    let collection: Collection<Module> = state.db.database("rustapi").collection("modules");
+    
+    // Iterate and update each module's order sequentially
+    for (i, id_str) in payload.ids.iter().enumerate() {
+        if let Ok(oid) = ObjectId::parse_str(id_str) {
+            let _ = collection.update_one(
+                doc! { "_id": oid },
+                doc! { "$set": { "order": i as i32 } }
+            ).await;
+        }
+    }
+    
+    Ok(Json(serde_json::json!({ "message": "Modules reordered successfully" })))
+}
+
+/// PATCH /admin/lessons/reorder
+pub async fn reorder_lessons(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+    Json(payload): Json<ReorderRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    let collection: Collection<Lesson> = state.db.database("rustapi").collection("lessons");
+    
+    for (i, id_str) in payload.ids.iter().enumerate() {
+        if let Ok(oid) = ObjectId::parse_str(id_str) {
+            let _ = collection.update_one(
+                doc! { "_id": oid },
+                doc! { "$set": { "order": i as i32 } }
+            ).await;
+        }
+    }
+    
+    Ok(Json(serde_json::json!({ "message": "Lessons reordered successfully" })))
 }

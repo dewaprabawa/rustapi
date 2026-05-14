@@ -12,6 +12,9 @@ interface PhaseSettings {
   min_accuracy_score?: number
   speed?: string
   turn_count?: number
+  video_url?: string
+  specific_vocab_ids?: string[]
+  specific_game_ids?: string[]
 }
 
 interface PhaseConfig {
@@ -26,6 +29,9 @@ interface PhaseEditorProps {
   onChange: (p: PhaseConfig) => void
   lesson?: any
   vocabulary?: any[]
+  games?: any[]
+  allVocab?: any[]
+  allGames?: any[]
   onLessonUpdate?: (l: any) => void
   onVocabUpdate?: (v: any) => void
   onOverrideUpdate?: (field: string, value: any) => void
@@ -45,20 +51,25 @@ export const PhaseEditor: React.FC<PhaseEditorProps> = ({
   onChange,
   lesson,
   vocabulary,
+  games,
+  allVocab,
+  allGames,
   onLessonUpdate,
   onVocabUpdate,
   onOverrideUpdate,
 }) => {
   const [tab, setTab] = useState<"settings" | "content">("settings")
+  const [showLibrary, setShowLibrary] = useState(false)
   const s = phase.settings
-  const hasContent = lesson || (vocabulary && vocabulary.length > 0) || phase.phase_type === "pronunciation" || phase.phase_type === "conversation"
+  const hasContent = lesson || (vocabulary && vocabulary.length > 0) || phase.phase_type === "pronunciation" || phase.phase_type === "conversation" || phase.phase_type === "game"
 
   return (
-    <div
-      className={`rounded-xl border p-4 transition-colors ${
-        phase.enabled ? "border-slate-200 bg-white" : "border-slate-100 bg-slate-50 opacity-60"
-      }`}
-    >
+    <>
+      <div
+        className={`rounded-xl border p-4 transition-colors ${
+          phase.enabled ? "border-slate-200 bg-white" : "border-slate-100 bg-slate-50 opacity-60"
+        }`}
+      >
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
@@ -115,6 +126,20 @@ export const PhaseEditor: React.FC<PhaseEditorProps> = ({
                 <option>medium</option>
                 <option>hard</option>
               </select>
+            </div>
+          )}
+
+          {phase.phase_type === "game" && (
+            <div className="col-span-2">
+              <label className="block text-[10px] font-semibold text-slate-400 mb-0.5">Video URL</label>
+              <input
+                className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-xs"
+                placeholder="https://example.com/video.mp4"
+                value={s.video_url || ""}
+                onChange={(e) =>
+                  onChange({ ...phase, settings: { ...s, video_url: e.target.value } })
+                }
+              />
             </div>
           )}
 
@@ -221,23 +246,143 @@ export const PhaseEditor: React.FC<PhaseEditorProps> = ({
 
           {/* Vocab content */}
           {(phase.phase_type === "vocab_drill" || phase.phase_type === "flashcard") && vocabulary && (
-            <div className="space-y-2">
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Vocabulary Stack ({vocabulary.length})</label>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Vocabulary Source</label>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => onChange({ ...phase, settings: { ...s, specific_vocab_ids: undefined } })}
+                    className={cn("px-2 py-1 rounded text-[10px] font-bold", !s.specific_vocab_ids ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500")}
+                  >
+                    ALL LESSON VOCAB
+                  </button>
+                  <button 
+                    onClick={() => onChange({ ...phase, settings: { ...s, specific_vocab_ids: s.specific_vocab_ids || [] } })}
+                    className={cn("px-2 py-1 rounded text-[10px] font-bold", s.specific_vocab_ids ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500")}
+                  >
+                    SELECT SPECIFIC
+                  </button>
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
-                {vocabulary.map((v: any, idx: number) => (
-                  <div key={idx} className="flex flex-col gap-1 p-2 rounded-lg bg-slate-50 border border-slate-100">
-                    <input
-                      className="bg-transparent text-[10px] font-bold text-slate-800 outline-none"
-                      value={v.word || ""}
-                      onChange={(e) => onVocabUpdate && onVocabUpdate({ ...v, word: e.target.value, _dirty: true })}
-                    />
-                    <input
-                      className="bg-transparent text-[10px] text-slate-500 outline-none italic"
-                      value={v.translation || ""}
-                      onChange={(e) => onVocabUpdate && onVocabUpdate({ ...v, translation: e.target.value, _dirty: true })}
-                    />
-                  </div>
-                ))}
+                {vocabulary.map((v: any, idx: number) => {
+                  const vId = v._id?.$oid || v._id;
+                  const isSelected = !s.specific_vocab_ids || s.specific_vocab_ids.includes(vId);
+                  
+                  return (
+                    <div 
+                      key={idx} 
+                      onClick={() => {
+                        const current = s.specific_vocab_ids || vocabulary.map(x => x._id?.$oid || x._id);
+                        const next = current.includes(vId) 
+                          ? current.filter(id => id !== vId)
+                          : [...current, vId];
+                        onChange({ ...phase, settings: { ...s, specific_vocab_ids: next } });
+                      }}
+                      className={cn(
+                        "flex items-center gap-3 p-2 rounded-lg border cursor-pointer transition-all",
+                        isSelected ? "bg-blue-50 border-blue-200" : "bg-slate-50 border-slate-100 opacity-50"
+                      )}
+                    >
+                      <input 
+                        type="checkbox" 
+                        readOnly 
+                        checked={isSelected}
+                        className="rounded border-slate-300 text-blue-600"
+                      />
+                      <div className="flex flex-col">
+                        <p className="text-[10px] font-bold text-slate-800">{v.word}</p>
+                        <p className="text-[10px] text-slate-500 italic">{v.translation}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {s.specific_vocab_ids && (
+                <button 
+                  onClick={() => setShowLibrary(true)}
+                  className="w-full py-2 border-2 border-dashed border-slate-200 rounded-xl text-[10px] font-bold text-slate-400 hover:border-blue-200 hover:text-blue-500 transition-all"
+                >
+                  + PICK FROM GLOBAL LIBRARY
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Game content */}
+          {phase.phase_type === "game" && (
+            <div className="space-y-4">
+               <div className="flex items-center justify-between">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Game Source</label>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => onChange({ ...phase, settings: { ...s, specific_game_ids: undefined } })}
+                    className={cn("px-2 py-1 rounded text-[10px] font-bold", !s.specific_game_ids ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500")}
+                  >
+                    ALL LESSON GAMES
+                  </button>
+                  <button 
+                    onClick={() => onChange({ ...phase, settings: { ...s, specific_game_ids: s.specific_game_ids || [] } })}
+                    className={cn("px-2 py-1 rounded text-[10px] font-bold", s.specific_game_ids ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500")}
+                  >
+                    SELECT SPECIFIC
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto pr-1">
+                {(games || []).map((g: any, idx: number) => {
+                  const gId = g._id?.$oid || g._id;
+                  const isSelected = !s.specific_game_ids || s.specific_game_ids.includes(gId);
+
+                  return (
+                    <div 
+                      key={idx} 
+                      onClick={() => {
+                        const current = s.specific_game_ids || (games || []).map(x => x._id?.$oid || x._id);
+                        const next = current.includes(gId) 
+                          ? current.filter(id => id !== gId)
+                          : [...current, gId];
+                        onChange({ ...phase, settings: { ...s, specific_game_ids: next } });
+                      }}
+                      className={cn(
+                        "flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all",
+                        isSelected ? "bg-blue-50 border-blue-200" : "bg-slate-50 border-slate-100 opacity-50"
+                      )}
+                    >
+                      <input 
+                        type="checkbox" 
+                        readOnly 
+                        checked={isSelected}
+                        className="rounded border-slate-300 text-blue-600"
+                      />
+                      <div className="flex-1">
+                        <div className="flex justify-between items-start">
+                          <p className="text-[10px] font-black text-slate-800 uppercase">{g.game_type}</p>
+                          <span className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-600 uppercase">{g.difficulty}</span>
+                        </div>
+                        <p className="text-xs font-bold text-slate-900">{g.title}</p>
+                        <p className="text-[10px] text-slate-500 line-clamp-1">{g.instructions}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="flex gap-2">
+                <button className="flex-1 py-2.5 bg-slate-900 text-white rounded-xl text-[10px] font-bold uppercase tracking-wider hover:bg-slate-800 transition-colors">
+                  + CREATE NEW GAME FOR LESSON
+                </button>
+                {s.specific_game_ids && (
+                  <button 
+                    onClick={() => setShowLibrary(true)}
+                    className="px-4 py-2.5 border-2 border-dashed border-slate-200 rounded-xl text-[10px] font-bold text-slate-400 hover:border-blue-200 hover:text-blue-500 transition-all"
+                  >
+                    PICK FROM LIBRARY
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -293,5 +438,91 @@ export const PhaseEditor: React.FC<PhaseEditorProps> = ({
         </div>
       )}
     </div>
+
+    {/* Global Library Modal */}
+    {showLibrary && (
+      <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col border border-slate-200">
+          <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+            <div>
+              <h3 className="text-2xl font-black text-slate-900 leading-tight">
+                {phase.phase_type === 'game' ? 'Gamification Library' : 'VocabForge Library'}
+              </h3>
+              <p className="text-sm text-slate-500 font-medium">Select items to inject into this session phase</p>
+            </div>
+            <button 
+              onClick={() => setShowLibrary(false)}
+              className="w-12 h-12 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:border-slate-300 transition-all shadow-sm"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-8 space-y-3">
+            {(phase.phase_type === 'game' ? allGames : allVocab)?.map((item: any) => {
+              const itemId = item._id?.$oid || item._id;
+              const isSelected = phase.phase_type === 'game' 
+                ? s.specific_game_ids?.includes(itemId)
+                : s.specific_vocab_ids?.includes(itemId);
+
+              return (
+                <div 
+                  key={itemId}
+                  onClick={() => {
+                    if (phase.phase_type === 'game') {
+                      const current = s.specific_game_ids || [];
+                      const next = isSelected ? current.filter(id => id !== itemId) : [...current, itemId];
+                      onChange({ ...phase, settings: { ...s, specific_game_ids: next } });
+                    } else {
+                      const current = s.specific_vocab_ids || [];
+                      const next = isSelected ? current.filter(id => id !== itemId) : [...current, itemId];
+                      onChange({ ...phase, settings: { ...s, specific_vocab_ids: next } });
+                    }
+                  }}
+                  className={cn(
+                    "flex items-center gap-4 p-5 rounded-3xl border-2 transition-all cursor-pointer group",
+                    isSelected 
+                      ? "bg-blue-50 border-blue-600 shadow-md translate-x-1" 
+                      : "bg-white border-slate-100 hover:border-slate-200 hover:bg-slate-50"
+                  )}
+                >
+                  <div className={cn(
+                    "w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all",
+                    isSelected ? "bg-blue-600 border-blue-600" : "border-slate-200 group-hover:border-slate-300"
+                  )}>
+                    {isSelected && <Plus className="w-4 h-4 text-white rotate-45" />}
+                  </div>
+                  
+                  <div className="flex-1">
+                    <p className="text-sm font-black text-slate-900">
+                      {phase.phase_type === 'game' ? item.title : item.word}
+                    </p>
+                    <p className="text-xs text-slate-500 font-medium">
+                      {phase.phase_type === 'game' ? item.game_type : item.translation}
+                    </p>
+                  </div>
+
+                  {phase.phase_type === 'game' && (
+                    <span className="text-[10px] font-black px-3 py-1 rounded-full bg-slate-100 text-slate-500 uppercase tracking-widest">
+                      {item.difficulty}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="p-8 bg-slate-50 border-t border-slate-100 flex justify-end">
+            <button 
+              onClick={() => setShowLibrary(false)}
+              className="px-8 py-4 bg-slate-900 text-white rounded-2xl text-sm font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-xl shadow-slate-900/20"
+            >
+              Done Selection
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+  </>
   )
 }

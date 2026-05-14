@@ -9,6 +9,7 @@ import {
   updateLesson,
   getVocabulary,
   updateVocabulary,
+  getGames,
 } from "../services/api"
 
 // Sub-components
@@ -23,11 +24,14 @@ export default function SessionConfig() {
   const [templates, setTemplates] = useState<any[]>([])
   const [configs, setConfigs] = useState<any[]>([])
   const [lessons, setLessons] = useState<any[]>([])
+  const [allVocab, setAllVocab] = useState<any[]>([])
+  const [allGames, setAllGames] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [editTemplate, setEditTemplate] = useState<any | null>(null)
   const [editConfig, setEditConfig] = useState<any | null>(null)
   const [activeVocab, setActiveVocab] = useState<any[]>([])
+  const [activeGames, setActiveGames] = useState<any[]>([])
   const [toast, setToast] = useState("")
 
   useEffect(() => {
@@ -37,8 +41,10 @@ export default function SessionConfig() {
   useEffect(() => {
     if (editConfig?.lesson_id) {
       loadVocab(editConfig.lesson_id)
+      loadGames(editConfig.lesson_id)
     } else {
       setActiveVocab([])
+      setActiveGames([])
     }
   }, [editConfig?.lesson_id])
 
@@ -51,13 +57,30 @@ export default function SessionConfig() {
     }
   }
 
+  const loadGames = async (lessonId: string) => {
+    try {
+      const g = await getGames(lessonId)
+      setActiveGames(Array.isArray(g) ? g : [])
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
   const loadAll = async () => {
     setLoading(true)
     try {
-      const [t, c, l] = await Promise.all([getLevelTemplates(), getLessonConfigs(), getLessons()])
+      const [t, c, l, av, ag] = await Promise.all([
+        getLevelTemplates(), 
+        getLessonConfigs(), 
+        getLessons(),
+        getVocabulary(),
+        getGames()
+      ])
       setTemplates(Array.isArray(t) ? t : [])
       setConfigs(Array.isArray(c) ? c : [])
       setLessons(l && l.data ? l.data : (Array.isArray(l) ? l : []))
+      setAllVocab(Array.isArray(av) ? av : [])
+      setAllGames(Array.isArray(ag) ? ag : [])
     } catch (e) {
       console.error(e)
     }
@@ -193,6 +216,9 @@ export default function SessionConfig() {
               onSave={saveConfig}
               saving={saving}
               activeVocab={activeVocab}
+              activeGames={activeGames}
+              allVocab={allVocab}
+              allGames={allGames}
               onLessonUpdate={handleLessonUpdate}
               onVocabUpdate={handleVocabUpdate}
               onOverrideUpdate={handleOverrideUpdate}

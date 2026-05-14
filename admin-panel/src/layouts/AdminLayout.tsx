@@ -28,20 +28,20 @@ export default function AdminLayout() {
   const { admin, logout } = useAuth()
 
   const navItems = [
-    { name: "Dashboard", path: "/", icon: LayoutDashboard },
-    { name: "Courses & Content", path: "/courses", icon: BookOpen },
-    { name: "VocabForge AI", path: "/vocab-forge", icon: Sparkles },
-    { name: "Ebook Forge", path: "/ebook-forge", icon: BookMarked },
-    { name: "AI Generator", path: "/ai-generator", icon: Sparkles },
-    { name: "Users", path: "/users", icon: Users },
-    { name: "AI Scenarios", path: "/scenarios", icon: BrainCircuit },
-    { name: "Speaking Monitor", path: "/speaking-monitor", icon: Activity },
-    { name: "SpeakUp Fluency", path: "/speakup", icon: Mic },
-    { name: "Gamification", path: "/gamification", icon: Trophy },
-    { name: "Session Config", path: "/session-config", icon: SlidersHorizontal },
-    { name: "Monetization", path: "/monetization", icon: CreditCard },
-    { name: "Notifications", path: "/notifications", icon: Bell },
-    { name: "Settings", path: "/settings", icon: Settings },
+    { name: "Dashboard", path: "/admin", icon: LayoutDashboard },
+    { name: "Courses & Content", path: "/admin/courses", icon: BookOpen },
+    { name: "VocabForge AI", path: "/admin/vocab-forge", icon: Sparkles },
+    { name: "Ebook Forge", path: "/admin/ebook-forge", icon: BookMarked },
+    { name: "AI Generator", path: "/admin/ai-generator", icon: Sparkles },
+    { name: "Users", path: "/admin/users", icon: Users },
+    { name: "AI Scenarios", path: "/admin/scenarios", icon: BrainCircuit },
+    { name: "Speaking Monitor", path: "/admin/speaking-monitor", icon: Activity },
+    { name: "SpeakUp Fluency", path: "/admin/speakup", icon: Mic },
+    { name: "Gamification", path: "/admin/gamification", icon: Trophy },
+    { name: "Session Config", path: "/admin/session-config", icon: SlidersHorizontal },
+    { name: "Monetization", path: "/admin/monetization", icon: CreditCard },
+    { name: "Notifications", path: "/admin/notifications", icon: Bell },
+    { name: "Settings", path: "/admin/settings", icon: Settings },
   ]
 
   const [isCollapsed, setIsCollapsed] = useState(() => {
@@ -90,7 +90,7 @@ export default function AdminLayout() {
 
         <nav className="flex-1 py-6 px-3 space-y-1 overflow-y-auto">
           {navItems.map((item) => {
-            const isActive = location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path))
+            const isActive = location.pathname === item.path || (item.path !== '/admin' && location.pathname.startsWith(item.path))
             return (
               <Link
                 key={item.name}

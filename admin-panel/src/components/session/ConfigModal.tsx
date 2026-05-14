@@ -9,6 +9,9 @@ interface ConfigModalProps {
   onSave: () => void
   saving: boolean
   activeVocab: any[]
+  activeGames: any[]
+  allVocab: any[]
+  allGames: any[]
   onLessonUpdate: (l: any) => void
   onVocabUpdate: (v: any) => void
   onOverrideUpdate: (field: string, value: any) => void
@@ -22,6 +25,9 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
   onSave,
   saving,
   activeVocab,
+  activeGames,
+  allVocab,
+  allGames,
   onLessonUpdate,
   onVocabUpdate,
   onOverrideUpdate
@@ -108,22 +114,94 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
         </div>
 
         {editConfig.phases ? (
-          editConfig.phases.map((phase: any, idx: number) => (
-            <PhaseEditor
-              key={idx}
-              phase={phase}
-              onChange={(updated) => {
-                const phases = [...editConfig.phases]
-                phases[idx] = updated
-                setEditConfig({ ...editConfig, phases })
-              }}
-              lesson={lesson}
-              vocabulary={activeVocab}
-              onLessonUpdate={onLessonUpdate}
-              onVocabUpdate={onVocabUpdate}
-              onOverrideUpdate={onOverrideUpdate}
-            />
-          ))
+          <div className="space-y-4">
+            {editConfig.phases.sort((a: any, b: any) => a.order - b.order).map((phase: any, idx: number) => (
+              <div key={idx} className="relative group">
+                <div className="absolute -left-10 top-4 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button 
+                    onClick={() => {
+                      const newPhases = [...editConfig.phases];
+                      if (idx > 0) {
+                        const tmp = newPhases[idx].order;
+                        newPhases[idx].order = newPhases[idx-1].order;
+                        newPhases[idx-1].order = tmp;
+                        setEditConfig({ ...editConfig, phases: newPhases });
+                      }
+                    }}
+                    className="p-1 hover:bg-slate-100 rounded text-slate-400"
+                  >
+                    ▲
+                  </button>
+                  <button 
+                    onClick={() => {
+                      const newPhases = [...editConfig.phases];
+                      if (idx < newPhases.length - 1) {
+                        const tmp = newPhases[idx].order;
+                        newPhases[idx].order = newPhases[idx+1].order;
+                        newPhases[idx+1].order = tmp;
+                        setEditConfig({ ...editConfig, phases: newPhases });
+                      }
+                    }}
+                    className="p-1 hover:bg-slate-100 rounded text-slate-400"
+                  >
+                    ▼
+                  </button>
+                  <button 
+                    onClick={() => {
+                      if (window.confirm("Delete this phase?")) {
+                        const newPhases = editConfig.phases.filter((_: any, i: number) => i !== idx);
+                        setEditConfig({ ...editConfig, phases: newPhases });
+                      }
+                    }}
+                    className="p-1 hover:bg-red-50 rounded text-red-400"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <PhaseEditor
+                  phase={phase}
+                  onChange={(updated) => {
+                    const phases = [...editConfig.phases]
+                    phases[idx] = updated
+                    setEditConfig({ ...editConfig, phases })
+                  }}
+                  lesson={lesson}
+                  vocabulary={activeVocab}
+                  games={activeGames}
+                  allVocab={allVocab}
+                  allGames={allGames}
+                  onLessonUpdate={onLessonUpdate}
+                  onVocabUpdate={onVocabUpdate}
+                  onOverrideUpdate={onOverrideUpdate}
+                />
+              </div>
+            ))}
+
+            <div className="pt-2">
+              <select 
+                className="w-full border-2 border-dashed border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-400 hover:border-blue-300 hover:text-blue-500 transition-all appearance-none text-center cursor-pointer"
+                onChange={(e) => {
+                  if (!e.target.value) return;
+                  const newPhase = {
+                    phase_type: e.target.value,
+                    enabled: true,
+                    order: editConfig.phases.length,
+                    settings: {}
+                  };
+                  setEditConfig({ ...editConfig, phases: [...editConfig.phases, newPhase] });
+                  e.target.value = "";
+                }}
+              >
+                <option value="">+ ADD NEW PHASE TO SESSION</option>
+                <option value="read">📖 Read</option>
+                <option value="flashcard">🃏 Flashcard</option>
+                <option value="vocab_drill">🧩 Vocab Drill</option>
+                <option value="game">🎮 Game</option>
+                <option value="pronunciation">🎤 Pronunciation</option>
+                <option value="conversation">💬 Conversation</option>
+              </select>
+            </div>
+          </div>
         ) : (
           <div className="bg-slate-50 rounded-xl border border-dashed border-slate-200 p-4 text-center text-xs text-slate-400 italic">
             Currently inheriting phases from {template?.level || "template"}

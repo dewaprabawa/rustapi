@@ -66,10 +66,10 @@ export default function Dashboard() {
   ]
 
   const shortcuts = [
-    { name: "VocabForge AI", description: "Generate new vocab sets", icon: Sparkles, path: "/vocab-forge", color: "bg-amber-50 text-amber-600 border-amber-100" },
-    { name: "Speaking Practice", description: "Manage AI roleplay", icon: MessageSquare, path: "/scenarios", color: "bg-indigo-50 text-indigo-600 border-indigo-100" },
-    { name: "Course Builder", description: "Curate learning paths", icon: Plus, path: "/courses", color: "bg-blue-50 text-blue-600 border-blue-100" },
-    { name: "Live Monitor", description: "View student sessions", icon: Activity, path: "/speaking-monitor", color: "bg-rose-50 text-rose-600 border-rose-100" },
+    { name: "VocabForge AI", description: "Generate new vocab sets", icon: Sparkles, path: "/admin/vocab-forge", color: "bg-amber-50 text-amber-600 border-amber-100" },
+    { name: "Speaking Practice", description: "Manage AI roleplay", icon: MessageSquare, path: "/admin/scenarios", color: "bg-indigo-50 text-indigo-600 border-indigo-100" },
+    { name: "Course Builder", description: "Curate learning paths", icon: Plus, path: "/admin/courses", color: "bg-blue-50 text-blue-600 border-blue-100" },
+    { name: "Live Monitor", description: "View student sessions", icon: Activity, path: "/admin/speaking-monitor", color: "bg-rose-50 text-rose-600 border-rose-100" },
   ]
 
   return (
@@ -81,7 +81,7 @@ export default function Dashboard() {
           <p className="text-slate-500 mt-1">Welcome back! Here's what's happening with your platform today.</p>
         </div>
         <div className="hidden md:flex gap-3">
-          <Link to="/ai-generator" className="flex items-center px-4 py-2 bg-slate-800 text-white rounded-xl text-sm font-semibold hover:bg-slate-700 transition-all shadow-lg shadow-slate-200">
+          <Link to="/admin/ai-generator" className="flex items-center px-4 py-2 bg-slate-800 text-white rounded-xl text-sm font-semibold hover:bg-slate-700 transition-all shadow-lg shadow-slate-200">
             <Zap className="h-4 w-4 mr-2 text-amber-400 fill-amber-400" />
             AI Generator
           </Link>
@@ -152,7 +152,7 @@ export default function Dashboard() {
           <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 p-8">
             <div className="flex items-center justify-between mb-8">
               <h2 className="text-xl font-bold text-slate-800">Recent Users</h2>
-              <Link to="/users" className="text-sm font-bold text-indigo-600 hover:text-indigo-700 flex items-center">
+              <Link to="/admin/users" className="text-sm font-bold text-indigo-600 hover:text-indigo-700 flex items-center">
                 View All <ArrowUpRight className="ml-1 h-4 w-4" />
               </Link>
             </div>
@@ -207,7 +207,7 @@ export default function Dashboard() {
             <p className="text-indigo-100 text-sm leading-relaxed mb-8 opacity-90">
               Use our built-in AI tools to generate vocabulary sets, roleplay scenarios, and even full course structures in seconds.
             </p>
-            <Link to="/vocab-forge" className="inline-flex items-center justify-center w-full py-4 bg-white text-indigo-600 rounded-2xl font-bold shadow-lg hover:bg-indigo-50 transition-all">
+            <Link to="/admin/vocab-forge" className="inline-flex items-center justify-center w-full py-4 bg-white text-indigo-600 rounded-2xl font-bold shadow-lg hover:bg-indigo-50 transition-all">
               Launch VocabForge
             </Link>
           </div>

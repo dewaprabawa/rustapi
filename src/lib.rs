@@ -60,8 +60,9 @@ use crate::voice::handlers::{
 };
 // Removed duplicate/glob speaking import to resolve ambiguity
 use axum::{
+    extract::{DefaultBodyLimit, Extension},
+    routing::{delete, get, post, put, patch},
     Router,
-    routing::{delete, get, post, put},
 };
 use mongodb::Client;
 use std::sync::Arc;
@@ -156,9 +157,12 @@ pub async fn create_app() -> Router {
             "/courses/:id",
             get(get_course).put(update_course).delete(delete_course),
         )
+        .route("/courses/:id/path", get(get_course_path))
         .route("/modules", get(list_modules).post(create_module))
+        .route("/modules/reorder", patch(reorder_modules))
         .route("/modules/:id", put(update_module).delete(delete_module))
         .route("/lessons", get(list_lessons).post(create_lesson))
+        .route("/lessons/reorder", patch(reorder_lessons))
         .route("/lessons/:id", put(update_lesson).delete(delete_lesson))
         .route("/vocabulary", get(list_vocabulary).post(create_vocabulary))
         .route(
@@ -306,6 +310,7 @@ pub async fn create_app() -> Router {
     let public_content_routes = Router::new()
         .route("/recommendations", get(public_recommendations))
         .route("/courses", get(public_list_courses))
+        .route("/courses/:id/path", get(get_course_path))
         .route("/courses/:id/modules", get(public_list_modules))
         .route("/modules/:id/lessons", get(public_list_lessons))
         .route("/lessons/:id", get(public_get_lesson))
@@ -414,20 +419,20 @@ pub async fn create_app() -> Router {
         .route("/auth/profile-image", post(upload_profile_image))
         .route("/auth/fcm-token", put(update_fcm_token))
         // Admin panel
-        .nest("/admin", admin_routes)
-        .route("/admin/hello", get(|| async { "Hello from Speaking API!" }))
+        .nest("/api/admin", admin_routes)
+        .route("/api/admin/hello", get(|| async { "Hello from Speaking API!" }))
         // Explicit Speaking routes to bypass any potential shadowing
-        .route("/admin/speaking/scenarios", get(speaking_handlers::admin_list_all_scenarios).post(speaking_handlers::create_speaking_scenario))
+        .route("/api/admin/speaking/scenarios", get(speaking_handlers::admin_list_all_scenarios).post(speaking_handlers::create_speaking_scenario))
         .route(
-            "/admin/speaking/scenarios/:id",
+            "/api/admin/speaking/scenarios/:id",
             get(speaking_handlers::get_speaking_scenario)
                 .put(speaking_handlers::update_speaking_scenario)
                 .delete(speaking_handlers::delete_speaking_scenario),
         )
-        .route("/admin/speaking/scenarios/ai-generate", post(speaking_handlers::ai_generate_speaking_scenario))
-        .route("/admin/speaking/test/start/:id", post(speaking_handlers::start_test_session))
-        .route("/admin/speaking/test/turn/:id", post(speaking_handlers::test_session_turn))
-        .route("/admin/speaking/sessions", get(speaking_handlers::list_all_sessions))
+        .route("/api/admin/speaking/scenarios/ai-generate", post(speaking_handlers::ai_generate_speaking_scenario))
+        .route("/api/admin/speaking/test/start/:id", post(speaking_handlers::start_test_session))
+        .route("/api/admin/speaking/test/turn/:id", post(speaking_handlers::test_session_turn))
+        .route("/api/admin/speaking/sessions", get(speaking_handlers::list_all_sessions))
         // Public content
         .nest("/api", public_content_routes)
         // Student vocab

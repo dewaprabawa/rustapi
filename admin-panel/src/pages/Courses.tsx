@@ -14,6 +14,7 @@ import ContentTable from "../components/courses/ContentTable"
 import DetailModal from "../components/courses/DetailModal"
 import HistoryModal from "../components/courses/HistoryModal"
 import CreateEditModal from "../components/courses/CreateEditModal"
+import SessionConfigModal from "../components/courses/SessionConfigModal"
 
 export default function Courses() {
   const [activeTab, setActiveTab] = useState<'courses' | 'modules' | 'lessons'>('courses')
@@ -29,7 +30,7 @@ export default function Courses() {
     skill_focus: [], target_age: 'all', estimated_duration: '4 weeks',
     is_paid: false, enrollment_cap: null, visibility: 'public',
     course_id: '', module_id: '', content: '', xp_reward: 10,
-    tags: [], cover_image_url: ''
+    tags: [], cover_image_url: '', video_url: '', audio_url: ''
   })
 
   const [isGeneratingAI, setIsGeneratingAI] = useState(false)
@@ -38,10 +39,20 @@ export default function Courses() {
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false)
   const [historyEntityId, setHistoryEntityId] = useState<string | null>(null)
 
+  const [isSessionModalOpen, setIsSessionModalOpen] = useState(false)
+  const [sessionTarget, setSessionTarget] = useState<any>(null)
+
   const handleAIHelper = async () => {
     setIsGeneratingAI(true)
     try {
-      const context = `${formData.category || 'hotel'} ${formData.level || 'beginner'}`
+      // Build context from available fields
+      let context = `${formData.category || ''} ${formData.level || ''} ${formData.title || ''}`.trim();
+      
+      // If there's an override prompt, use it as the primary context
+      if (formData.ai_override_prompt?.trim()) {
+        context = `[OVERRIDE CONTEXT: ${formData.ai_override_prompt}] | [EXISTING DATA: ${context}]`;
+      }
+
       const data = await aiGenerateContent(activeTab.slice(0, -1), context)
 
       const safeData = { ...data }
@@ -185,23 +196,29 @@ export default function Courses() {
     }
   })
 
-  const openCreateModal = () => {
+  const openCreateModal = (targetTab?: 'courses' | 'modules' | 'lessons', initialData?: any) => {
+    const tabToUse = targetTab || activeTab;
+    if (targetTab) setActiveTab(targetTab);
+    
     setEditingId(null)
     setFormData({
       title: '', title_id: '', description: '', description_id: '',
       category: 'general', level: 'a1', status: 'draft',
       skill_focus: [], target_age: 'all', estimated_duration: '4 weeks',
       is_paid: false, enrollment_cap: null, visibility: 'public',
-      course_id: courses?.[0]?._id?.$oid || courses?.[0]?.id || '',
-      module_id: modules?.[0]?._id?.$oid || modules?.[0]?.id || '',
+      course_id: initialData?.course_id || courses?.[0]?._id?.$oid || courses?.[0]?.id || '',
+      module_id: initialData?.module_id || modules?.[0]?._id?.$oid || modules?.[0]?.id || '',
       content: '', content_id: '', xp_reward: 10,
       instruction: '', instruction_id: '', culture_notes: '',
-      tags: [], cover_image_url: ''
+      tags: [], cover_image_url: '',
+      video_url: '', audio_url: '',
+      ai_override_prompt: ''
     })
     setIsModalOpen(true)
   }
 
-  const openEditModal = (item: any) => {
+  const openEditModal = (item: any, targetTab?: 'courses' | 'modules' | 'lessons') => {
+    if (targetTab) setActiveTab(targetTab);
     const id = item._id?.$oid || item.id
     setEditingId(id)
     setFormData({ ...item })
@@ -223,12 +240,21 @@ export default function Courses() {
     setDetailItem(null)
   }
 
+  const handleManageSession = (lessonId: string) => {
+    const lesson = lessonsData?.data?.find((l: any) => (l._id?.$oid || l.id) === lessonId) || 
+                   lessonsData?.find((l: any) => (l._id?.$oid || l.id) === lessonId);
+    if (lesson) {
+      setSessionTarget(lesson)
+      setIsSessionModalOpen(true)
+    }
+  }
+
   const handleSubmit = () => {
     // Clean up data based on active tab
     const payload = { ...formData }
 
     // Strip internal fields that should never be sent
-    delete payload._id; delete payload.id; delete payload.created_at; delete payload.updated_at;
+    delete payload._id; delete payload.id; delete payload.created_at; delete payload.updated_at; delete payload.ai_override_prompt;
 
     if (activeTab === 'courses') {
       delete payload.course_id; delete payload.module_id; delete payload.content; delete payload.content_id;
@@ -317,7 +343,7 @@ export default function Courses() {
         </div>
 
         <button
-          onClick={openCreateModal}
+          onClick={() => openCreateModal()}
           className="flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl shadow-lg shadow-indigo-200 transition-all transform hover:-translate-y-0.5"
         >
           <Plus className="mr-2 h-4 w-4" />
@@ -373,6 +399,9 @@ export default function Courses() {
         detailItem={detailItem}
         activeTab={activeTab}
         closeDetailModal={closeDetailModal}
+        onManageSession={handleManageSession}
+        openEditModal={openEditModal}
+        openCreateModal={openCreateModal}
       />
 
       <HistoryModal 
@@ -381,6 +410,14 @@ export default function Courses() {
         versions={versions}
         versionsLoading={versionsLoading}
         rollbackMutation={rollbackMutation}
+      />
+
+      <SessionConfigModal 
+        isOpen={isSessionModalOpen}
+        onClose={() => setIsSessionModalOpen(false)}
+        lessonId={sessionTarget?._id?.$oid || sessionTarget?.id}
+        lessonTitle={sessionTarget?.title}
+        lessonLevel={sessionTarget?.level}
       />
 
     </div>

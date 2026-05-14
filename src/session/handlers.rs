@@ -82,12 +82,20 @@ pub async fn get_lesson_session(
                 "xp_reward": 5,
             }),
             SessionPhaseType::Flashcard => {
-                if vocabulary.is_empty() {
-                    // Fallback: skip flashcard phase if no vocabulary
+                let mut words_source = vocabulary.clone();
+                if let Some(specific_ids) = &phase.settings.specific_vocab_ids {
+                    if !specific_ids.is_empty() {
+                        let col: Collection<Vocabulary> = db.collection("vocabulary");
+                        let cursor = col.find(doc! { "_id": { "$in": specific_ids } }).await?;
+                        words_source = cursor.try_collect().await?;
+                    }
+                }
+
+                if words_source.is_empty() {
                     eprintln!("[WARN] Flashcard phase skipped: no vocabulary for lesson {}", lesson_id_str);
                     continue;
                 }
-                let words: Vec<serde_json::Value> = vocabulary.iter().map(|v| json!({
+                let words: Vec<serde_json::Value> = words_source.iter().map(|v| json!({
                     "id": v.id.map(|id| id.to_hex()),
                     "word": v.word,
                     "translation": v.translation,
@@ -104,7 +112,16 @@ pub async fn get_lesson_session(
                 })
             },
             SessionPhaseType::VocabDrill => {
-                let drills = build_vocab_drills(&vocabulary, &phase.settings);
+                let mut words_source = vocabulary.clone();
+                if let Some(specific_ids) = &phase.settings.specific_vocab_ids {
+                    if !specific_ids.is_empty() {
+                        let col: Collection<Vocabulary> = db.collection("vocabulary");
+                        let cursor = col.find(doc! { "_id": { "$in": specific_ids } }).await?;
+                        words_source = cursor.try_collect().await?;
+                    }
+                }
+
+                let drills = build_vocab_drills(&words_source, &phase.settings);
                 if drills.is_empty() {
                     eprintln!("[WARN] VocabDrill phase skipped: no drills generated for lesson {}", lesson_id_str);
                     continue;
@@ -115,9 +132,18 @@ pub async fn get_lesson_session(
                 })
             },
             SessionPhaseType::Game => {
+                let mut games_source = games.clone();
+                if let Some(specific_ids) = &phase.settings.specific_game_ids {
+                    if !specific_ids.is_empty() {
+                        let col: Collection<GameContent> = db.collection("games");
+                        let cursor = col.find(doc! { "_id": { "$in": specific_ids } }).await?;
+                        games_source = cursor.try_collect().await?;
+                    }
+                }
+
                 let difficulty = phase.settings.difficulty.clone().unwrap_or_else(|| "easy".into());
-                let game_data: Vec<serde_json::Value> = games.iter()
-                    .filter(|g| g.difficulty.to_lowercase() == difficulty.to_lowercase())
+                let game_data: Vec<serde_json::Value> = games_source.iter()
+                    .filter(|g| g.difficulty.to_lowercase() == difficulty.to_lowercase() || phase.settings.specific_game_ids.is_some())
                     .map(|g| json!({
                         "id": g.id.map(|id| id.to_hex()),
                         "game_type": g.game_type,
@@ -134,6 +160,7 @@ pub async fn get_lesson_session(
                 }
                 json!({
                     "games": game_data,
+                    "video_url": phase.settings.video_url,
                     "xp_reward": 20,
                     "difficulty": difficulty,
                 })

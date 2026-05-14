@@ -1,5 +1,6 @@
 import React from 'react'
-import { X, Globe, Sparkles, Loader2 } from 'lucide-react'
+import { X, Globe, Sparkles, Loader2, BookOpen } from 'lucide-react'
+import { cn } from '../../lib/utils'
 
 interface GeneratorModalProps {
   isOpen: boolean
@@ -20,6 +21,9 @@ interface GeneratorModalProps {
   vocabGroups: any[]
   onGenerate: () => void
   isGenerating: boolean
+  courses?: any[]
+  modules?: any[]
+  lessons?: any[]
 }
 
 export const GeneratorModal: React.FC<GeneratorModalProps> = ({
@@ -30,8 +34,14 @@ export const GeneratorModal: React.FC<GeneratorModalProps> = ({
   hospitalityTopics,
   vocabGroups,
   onGenerate,
-  isGenerating
+  isGenerating,
+  courses = [],
+  modules = [],
+  lessons = []
 }) => {
+  const [useCurriculum, setUseCurriculum] = React.useState(false)
+  const [selectedCourse, setSelectedCourse] = React.useState('')
+  const [selectedModule, setSelectedModule] = React.useState('')
   if (!isOpen) return null
 
   return (
@@ -49,6 +59,105 @@ export const GeneratorModal: React.FC<GeneratorModalProps> = ({
         
         <div className="p-8 space-y-6">
           <div className="space-y-4">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm font-bold text-slate-700">Generation Basis</label>
+                <div className="flex bg-slate-100 p-1 rounded-xl">
+                  <button 
+                    onClick={() => setUseCurriculum(false)}
+                    className={cn(
+                      "px-3 py-1 text-[10px] font-bold rounded-lg transition-all",
+                      !useCurriculum ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                    )}
+                  >
+                    Custom Topic
+                  </button>
+                  <button 
+                    onClick={() => setUseCurriculum(true)}
+                    className={cn(
+                      "px-3 py-1 text-[10px] font-bold rounded-lg transition-all",
+                      useCurriculum ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                    )}
+                  >
+                    From Curriculum
+                  </button>
+                </div>
+              </div>
+
+              {!useCurriculum ? (
+                <div>
+                  <label className="block text-[11px] font-black text-slate-400 uppercase tracking-wider mb-2">Target Topic</label>
+                  <input 
+                    type="text"
+                    list="hospitality-topics"
+                    className="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all text-slate-800 outline-none placeholder:text-slate-400 font-medium"
+                    placeholder={builderForm.set_type === 'phrasal_verbs' ? "e.g. Workplace, Dating, Travel..." : "e.g. Front Desk, Housekeeping..."}
+                    value={builderForm.topic}
+                    onChange={e => setBuilderForm({...builderForm, topic: e.target.value})}
+                  />
+                  <datalist id="hospitality-topics">
+                    {hospitalityTopics.map(topic => (
+                      <option key={topic} value={topic} />
+                    ))}
+                  </datalist>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase">Course</label>
+                    <select 
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold outline-none"
+                      value={selectedCourse}
+                      onChange={e => {
+                        setSelectedCourse(e.target.value)
+                        setSelectedModule('')
+                        setBuilderForm({...builderForm, topic: ''})
+                      }}
+                    >
+                      <option value="">Select Course</option>
+                      {courses.map((c: any) => (
+                        <option key={c._id?.$oid || c.id} value={c._id?.$oid || c.id}>{c.title}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase">Module</label>
+                    <select 
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold outline-none disabled:opacity-50"
+                      value={selectedModule}
+                      disabled={!selectedCourse}
+                      onChange={e => {
+                        setSelectedModule(e.target.value)
+                        setBuilderForm({...builderForm, topic: ''})
+                      }}
+                    >
+                      <option value="">Select Module</option>
+                      {modules.filter((m: any) => (m.course_id?.$oid || m.course_id) === selectedCourse).map((m: any) => (
+                        <option key={m._id?.$oid || m.id} value={m._id?.$oid || m.id}>{m.title}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase">Lesson</label>
+                    <select 
+                      className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold outline-none disabled:opacity-50"
+                      value={builderForm.topic}
+                      disabled={!selectedModule}
+                      onChange={e => {
+                        const lessonTitle = lessons.find((l: any) => (l._id?.$oid || l.id) === e.target.value)?.title || ''
+                        setBuilderForm({...builderForm, topic: lessonTitle})
+                      }}
+                    >
+                      <option value="">Select Lesson</option>
+                      {lessons.filter((l: any) => (l.module_id?.$oid || l.module_id) === selectedModule).map((l: any) => (
+                        <option key={l._id?.$oid || l.id} value={l._id?.$oid || l.id}>{l.title}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
+            
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-2">Content Type</label>
@@ -62,25 +171,6 @@ export const GeneratorModal: React.FC<GeneratorModalProps> = ({
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">Target Topic</label>
-                <input 
-                  type="text"
-                  list="hospitality-topics"
-                  className="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all text-slate-800 outline-none placeholder:text-slate-400"
-                  placeholder={builderForm.set_type === 'phrasal_verbs' ? "e.g. Workplace, Dating, Travel..." : "e.g. Front Desk, Housekeeping..."}
-                  value={builderForm.topic}
-                  onChange={e => setBuilderForm({...builderForm, topic: e.target.value})}
-                />
-              </div>
-            </div>
-              <datalist id="hospitality-topics">
-                {hospitalityTopics.map(topic => (
-                  <option key={topic} value={topic} />
-                ))}
-              </datalist>
-            
-            <div className="grid grid-cols-3 gap-4">
-              <div>
                 <label className="block text-sm font-bold text-slate-700 mb-2">CEFR Level</label>
                 <select 
                   className="w-full px-5 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all text-slate-800 outline-none"
@@ -92,6 +182,9 @@ export const GeneratorModal: React.FC<GeneratorModalProps> = ({
                   ))}
                 </select>
               </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-2">Word Count</label>
                 <input 

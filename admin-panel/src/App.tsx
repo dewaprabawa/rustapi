@@ -1,7 +1,8 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom"
-import { AuthProvider } from "./contexts/AuthContext"
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
+import { AuthProvider, useAuth } from "./contexts/AuthContext"
 import ProtectedRoute from "./components/ProtectedRoute"
 import AdminLayout from "./layouts/AdminLayout"
+import StudentLayout from "./layouts/StudentLayout"
 
 import Login from "./pages/Login"
 import Dashboard from "./pages/Dashboard"
@@ -18,6 +19,8 @@ import VocabForge from "./pages/VocabForge"
 import SpeakUpManager from "./pages/SpeakUpManager"
 import SessionConfig from "./pages/SessionConfig"
 import EbookForge from "./pages/EbookForge"
+import StudentDashboard from "./pages/student/StudentDashboard"
+import SessionPlayer from "./pages/student/SessionPlayer"
 
 function App() {
   return (
@@ -26,10 +29,21 @@ function App() {
         <Routes>
           {/* Public route */}
           <Route path="/login" element={<Login />} />
+          <Route path="/courses" element={<Navigate to="/admin/courses" replace />} />
+
+          {/* Root Dispatcher */}
+          <Route
+            path="/"
+            element={
+              <ProtectedRoute>
+                <Dispatcher />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Protected admin routes */}
           <Route
-            path="/"
+            path="/admin"
             element={
               <ProtectedRoute>
                 <AdminLayout />
@@ -50,20 +64,42 @@ function App() {
             <Route path="speakup" element={<SpeakUpManager />} />
             <Route path="session-config" element={<SessionConfig />} />
             <Route path="ebook-forge" element={<EbookForge />} />
-            <Route
-              path="*"
-              element={
-                <div className="p-12 bg-white rounded-2xl text-center border border-slate-100">
-                  <h2 className="text-xl font-semibold text-slate-400">Page not found</h2>
-                  <p className="text-sm text-slate-400 mt-2">The page you're looking for doesn't exist.</p>
-                </div>
-              }
-            />
           </Route>
+
+          {/* Protected student routes */}
+          <Route
+            path="/portal"
+            element={
+              <ProtectedRoute>
+                <StudentLayout />
+              </ProtectedRoute>
+            }
+          >
+            <Route index element={<StudentDashboard />} />
+            <Route path="learn/:lessonId" element={<SessionPlayer />} />
+            {/* Future student routes will go here */}
+          </Route>
+
+          <Route
+            path="*"
+            element={
+              <div className="p-12 bg-white rounded-2xl text-center border border-slate-100">
+                <h2 className="text-xl font-semibold text-slate-400">Page not found</h2>
+                <p className="text-sm text-slate-400 mt-2">The page you're looking for doesn't exist.</p>
+              </div>
+            }
+          />
         </Routes>
       </BrowserRouter>
     </AuthProvider>
   )
+}
+
+function Dispatcher() {
+  const { userType } = useAuth()
+  if (userType === "admin") return <Navigate to="/admin" replace />
+  if (userType === "student") return <Navigate to="/portal" replace />
+  return <Navigate to="/login" replace />
 }
 
 export default App

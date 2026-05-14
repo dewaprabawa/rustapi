@@ -74,6 +74,11 @@ pub struct PhaseSettings {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub speed: Option<String>,
 
+    // ── Video settings ──
+    /// Video URL for the phase (e.g. for games)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub video_url: Option<String>,
+
     // ── Conversation settings ──
     /// Number of AI conversation turns
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -81,6 +86,14 @@ pub struct PhaseSettings {
     /// Override scenario prompt
     #[serde(skip_serializing_if = "Option::is_none")]
     pub scenario_context: Option<String>,
+
+    // ── Global Library Linkages ──
+    /// Manually selected vocabulary IDs
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub specific_vocab_ids: Option<Vec<ObjectId>>,
+    /// Manually selected game IDs
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub specific_game_ids: Option<Vec<ObjectId>>,
 }
 
 // ─── Level Template ────────────────────────────────────────────────

@@ -1,5 +1,11 @@
 import { useState, useEffect } from 'react'
-import { generateVocabSet, saveVocabSet, getVocabSets, getVocabSetWords, getConversationRequests, generateConversationScenario, testTts, deleteVocabSet, deleteVocabWord, getMasterData, updateVocabSet, updateVocabWord, getVocabGroups, createVocabGroup, updateVocabGroup, deleteVocabGroup } from '../services/api'
+import { 
+  generateVocabSet, saveVocabSet, getVocabSets, getVocabSetWords, 
+  getConversationRequests, generateConversationScenario, testTts, 
+  deleteVocabSet, deleteVocabWord, getMasterData, updateVocabSet, 
+  updateVocabWord, getVocabGroups, createVocabGroup, updateVocabGroup, 
+  deleteVocabGroup, getCourses, getModules, getLessons 
+} from '../services/api'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 // Sub-components
@@ -66,6 +72,21 @@ export default function VocabForge() {
   const { data: conversationRequests = [], isLoading: isLoadingRequests } = useQuery({
     queryKey: ['conversationRequests'],
     queryFn: getConversationRequests
+  })
+
+  const { data: courses = [] } = useQuery({
+    queryKey: ['courses'],
+    queryFn: getCourses
+  })
+
+  const { data: modules = [] } = useQuery({
+    queryKey: ['modules'],
+    queryFn: getModules
+  })
+
+  const { data: lessons = [] } = useQuery({
+    queryKey: ['lessons'],
+    queryFn: getLessons
   })
 
   // Mutations
@@ -289,6 +310,9 @@ export default function VocabForge() {
         setBuilderForm={setBuilderForm}
         hospitalityTopics={hospitalityTopics}
         vocabGroups={vocabGroups}
+        courses={courses?.data || courses || []}
+        modules={modules?.data || modules || []}
+        lessons={lessons?.data || lessons || []}
         onGenerate={() => {
           setIsGenerating(true)
           generateMutation.mutate(builderForm)

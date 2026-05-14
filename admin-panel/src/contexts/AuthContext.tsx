@@ -1,73 +1,125 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react"
-import { api } from "../services/api"
+import { api, rootApi } from "../services/api"
 
-interface AdminUser {
-  _id?: { $oid: string }
+interface BaseUser {
+  _id?: { $oid: string } | string
   email: string
   name?: string
   profile_image_url?: string
-  role?: string
-  is_active?: boolean
-  updated_at?: any
 }
 
+interface AdminUser extends BaseUser {
+  role?: "admin" | "superadmin"
+  is_active?: boolean
+}
+
+interface StudentUser extends BaseUser {
+  persona?: any
+  progress?: any
+  level?: number
+  xp?: number
+}
+
+type UserType = "admin" | "student"
+
 interface AuthContextType {
-  admin: AdminUser | null
+  user: AdminUser | StudentUser | null
+  userType: UserType | null
   token: string | null
   isAuthenticated: boolean
   isLoading: boolean
   login: (email: string, password: string) => Promise<void>
   logout: () => void
-  setAdmin: (admin: AdminUser | null) => void
+  setUser: (user: AdminUser | StudentUser | null, type: UserType | null) => void
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [admin, setAdmin] = useState<AdminUser | null>(null)
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem("admin_token"))
+  const [user, setUserState] = useState<AdminUser | StudentUser | null>(null)
+  const [userType, setUserType] = useState<UserType | null>(null)
+  const [token, setToken] = useState<string | null>(() => localStorage.getItem("auth_token"))
   const [isLoading, setIsLoading] = useState(true)
 
-  // Verify token on mount by calling /admin/me
+  const setUser = useCallback((newUser: AdminUser | StudentUser | null, type: UserType | null) => {
+    setUserState(newUser)
+    setUserType(type)
+  }, [])
+
+  // Verify token on mount
   useEffect(() => {
     const verifyToken = async () => {
-      const stored = localStorage.getItem("admin_token")
-      if (!stored) {
+      const storedToken = localStorage.getItem("auth_token")
+      const storedType = localStorage.getItem("user_type") as UserType
+      
+      if (!storedToken || !storedType) {
         setIsLoading(false)
         return
       }
+
       try {
-        const res = await api.get("/me")
-        setAdmin(res.data)
-        setToken(stored)
-      } catch {
-        // Token is invalid or expired
-        localStorage.removeItem("admin_token")
+        // First try admin verification if it was an admin
+        if (storedType === "admin") {
+          const res = await api.get("/me")
+          setUser(res.data, "admin")
+        } else {
+          // Otherwise try student verification
+          const res = await rootApi.get("/auth/me")
+          setUser(res.data, "student")
+        }
+        setToken(storedToken)
+      } catch (err) {
+        console.error("Session verification failed", err)
+        localStorage.removeItem("auth_token")
+        localStorage.removeItem("user_type")
         setToken(null)
-        setAdmin(null)
+        setUser(null, null)
       } finally {
         setIsLoading(false)
       }
     }
     verifyToken()
-  }, [])
+  }, [setUser])
 
   const login = useCallback(async (email: string, password: string) => {
-    const res = await api.post("/login", { email, password })
-    const { token: newToken, admin: adminData } = res.data
-    localStorage.setItem("admin_token", newToken)
-    setToken(newToken)
-    setAdmin(adminData)
-  }, [])
+    try {
+      // 1. Try Admin Login first
+      try {
+        const res = await api.post("/login", { email, password })
+        const { token: newToken, admin: adminData } = res.data
+        localStorage.setItem("auth_token", newToken)
+        localStorage.setItem("user_type", "admin")
+        setToken(newToken)
+        setUser(adminData, "admin")
+        return
+      } catch (adminErr: any) {
+        // If it's not a 401/404, or if we want to proceed to student login
+        if (adminErr.response?.status !== 401 && adminErr.response?.status !== 404) {
+          throw adminErr
+        }
+      }
+
+      // 2. Try Student Login
+      const res = await rootApi.post("/auth/login", { email, password })
+      const { token: newToken, user: userData } = res.data
+      localStorage.setItem("auth_token", newToken)
+      localStorage.setItem("user_type", "student")
+      setToken(newToken)
+      setUser(userData, "student")
+    } catch (err) {
+      throw err
+    }
+  }, [setUser])
 
   const logout = useCallback(() => {
-    localStorage.removeItem("admin_token")
+    localStorage.removeItem("auth_token")
+    localStorage.removeItem("user_type")
     setToken(null)
-    setAdmin(null)
-  }, [])
+    setUser(null, null)
+  }, [setUser])
 
   return (
-    <AuthContext.Provider value={{ admin, token, isAuthenticated: !!token, isLoading, login, logout, setAdmin }}>
+    <AuthContext.Provider value={{ user, userType, token, isAuthenticated: !!token, isLoading, login, logout, setUser }}>
       {children}
     </AuthContext.Provider>
   )

@@ -665,6 +665,7 @@ pub async fn save_course(
                 instruction_id: Some(gen_lesson.instruction_id.clone()),
                 culture_notes: if gen_lesson.culture_notes.is_empty() { None } else { Some(gen_lesson.culture_notes.clone()) },
                 audio_url: None,
+                video_url: None,
                 level: level_enum.clone(),
                 category: category_enum.clone(),
                 xp_reward: gen_lesson.xp_reward,
