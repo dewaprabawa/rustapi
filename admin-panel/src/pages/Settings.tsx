@@ -990,6 +990,9 @@ function StoragePanel() {
     appwrite_key: "",
     appwrite_project_id: "",
     appwrite_bucket_id: "",
+    vercel_blob_url: "",
+    vercel_store_id: "",
+    vercel_region: "",
   })
 
   const { data: config, isLoading: configLoading } = useQuery({
@@ -1014,6 +1017,9 @@ function StoragePanel() {
         appwrite_key: config.appwrite_key || "",
         appwrite_project_id: config.appwrite_project_id || "",
         appwrite_bucket_id: config.appwrite_bucket_id || "",
+        vercel_blob_url: config.vercel_blob_url || "",
+        vercel_store_id: config.vercel_store_id || "",
+        vercel_region: config.vercel_region || "",
       })
     }
   }, [config])
@@ -1114,7 +1120,7 @@ function StoragePanel() {
         <div className="space-y-6">
           <div>
             <label className="block text-sm font-bold text-slate-700 mb-2">Active Storage Provider</label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <button
                 type="button"
                 onClick={() => setFormData({ ...formData, active_provider: "supabase" })}
@@ -1158,10 +1164,32 @@ function StoragePanel() {
                   <p className="text-xs text-slate-400 mt-1">High-performance custom storage API with edge cloud acceleration.</p>
                 </div>
               </button>
+
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, active_provider: "vercel" })}
+                className={cn(
+                  "p-5 rounded-2xl border text-left flex items-start gap-4 transition-all duration-300",
+                  formData.active_provider === "vercel" 
+                    ? "border-blue-200 bg-blue-50/20 ring-4 ring-blue-500/10 shadow-sm" 
+                    : "border-slate-100 bg-slate-50/50 hover:border-slate-200 hover:bg-slate-50"
+                )}
+              >
+                <div className={cn(
+                  "p-2.5 rounded-xl border transition-colors",
+                  formData.active_provider === "vercel" ? "bg-blue-600 text-white border-blue-600" : "bg-white text-slate-400 border-slate-200"
+                )}>
+                  <Cloud className="h-5 w-5" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-slate-800 text-sm">Vercel Blob</h4>
+                  <p className="text-xs text-slate-400 mt-1">Serverless fast cloud media hosting with global edge routing.</p>
+                </div>
+              </button>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pt-4 border-t border-slate-50">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pt-4 border-t border-slate-50">
             <div className="space-y-4">
               <h4 className="font-bold text-slate-800 text-sm border-b border-slate-50 pb-2">Supabase Settings</h4>
               
@@ -1243,6 +1271,43 @@ function StoragePanel() {
                   value={formData.appwrite_bucket_id}
                   onChange={e => setFormData({ ...formData, appwrite_bucket_id: e.target.value })}
                   className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-red-500/20 outline-none transition-all font-mono"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <h4 className="font-bold text-slate-800 text-sm border-b border-slate-50 pb-2">Vercel Settings</h4>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Vercel Blob URL</label>
+                <input
+                  type="text"
+                  placeholder="https://your-store.public.blob.vercel-storage.com"
+                  value={formData.vercel_blob_url}
+                  onChange={e => setFormData({ ...formData, vercel_blob_url: e.target.value })}
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none transition-all font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Vercel Store ID</label>
+                <input
+                  type="text"
+                  placeholder="store_..."
+                  value={formData.vercel_store_id}
+                  onChange={e => setFormData({ ...formData, vercel_store_id: e.target.value })}
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none transition-all font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Vercel Region</label>
+                <input
+                  type="text"
+                  placeholder="iad1"
+                  value={formData.vercel_region}
+                  onChange={e => setFormData({ ...formData, vercel_region: e.target.value })}
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none transition-all font-mono"
                 />
               </div>
             </div>
