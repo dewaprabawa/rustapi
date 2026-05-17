@@ -30,7 +30,7 @@ export default function Gamification() {
 
   const { data: gamesData, isLoading: gamesLoading } = useQuery({
     queryKey: ["games"],
-    queryFn: getGames,
+    queryFn: () => getGames(),
   })
 
   const games = gamesData?.data ?? gamesData ?? []

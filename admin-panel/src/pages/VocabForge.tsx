@@ -7,6 +7,7 @@ import {
   deleteVocabGroup, getCourses, getModules, getLessons 
 } from '../services/api'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { getId } from '../lib/utils'
 
 // Sub-components
 import { VocabForgeHeader } from '../components/vocab/VocabForgeHeader'
@@ -146,7 +147,7 @@ export default function VocabForge() {
   const deleteWordMutation = useMutation({
     mutationFn: ({ setId, wordId }: { setId: string, wordId: string }) => deleteVocabWord(setId, wordId),
     onSuccess: (_, variables) => {
-      setSelectedWords(prev => prev.filter((w: any) => (w._id?.$oid || w._id) !== variables.wordId))
+      setSelectedWords(prev => prev.filter((w: any) => getId(w) !== variables.wordId))
       queryClient.invalidateQueries({ queryKey: ['vocabSets'] })
     },
     onError: () => {
@@ -157,7 +158,7 @@ export default function VocabForge() {
   const groupMutation = useMutation({
     mutationFn: (data: any) => {
       if (selectedGroup) {
-        const id = selectedGroup._id?.$oid || selectedGroup._id
+        const id = getId(selectedGroup)
         return updateVocabGroup(id, data)
       }
       return createVocabGroup(data)
@@ -200,7 +201,7 @@ export default function VocabForge() {
   const openSetDetails = async (set: any) => {
     setSelectedSet(set)
     try {
-      const id = set._id?.$oid || set._id;
+      const id = getId(set);
       const words = await getVocabSetWords(id)
       setSelectedWords(words)
     } catch (error) {
@@ -212,8 +213,8 @@ export default function VocabForge() {
     if (!selectedSet) return
     setSavingEdit(true)
     try {
-      const setId = selectedSet._id?.$oid || selectedSet._id;
-      const wordId = word._id?.$oid || word._id;
+      const setId = getId(selectedSet);
+      const wordId = getId(word);
       await updateVocabWord(setId, wordId, word)
       setEditingWordId(null)
       const words = await getVocabSetWords(setId)
@@ -229,7 +230,7 @@ export default function VocabForge() {
     if (!selectedSet) return
     setSavingEdit(true)
     try {
-      const id = selectedSet._id?.$oid || selectedSet._id;
+      const id = getId(selectedSet);
       await updateVocabSet(id, selectedSet)
       setIsEditingSet(false)
       queryClient.invalidateQueries({ queryKey: ['vocabSets'] })

@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { Plus, X, Pencil, Trash2 } from 'lucide-react'
-import { cn } from '../../lib/utils'
+import { cn, getId } from '../../lib/utils'
 
 interface PhaseSettings {
   difficulty?: string
@@ -267,14 +267,14 @@ export const PhaseEditor: React.FC<PhaseEditorProps> = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
                 {vocabulary.map((v: any, idx: number) => {
-                  const vId = v._id?.$oid || v._id;
+                  const vId = getId(v);
                   const isSelected = !s.specific_vocab_ids || s.specific_vocab_ids.includes(vId);
                   
                   return (
                     <div 
                       key={idx} 
                       onClick={() => {
-                        const current = s.specific_vocab_ids || vocabulary.map(x => x._id?.$oid || x._id);
+                        const current = s.specific_vocab_ids || vocabulary.map(x => getId(x));
                         const next = current.includes(vId) 
                           ? current.filter(id => id !== vId)
                           : [...current, vId];
@@ -334,14 +334,14 @@ export const PhaseEditor: React.FC<PhaseEditorProps> = ({
 
               <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto pr-1">
                 {(games || []).map((g: any, idx: number) => {
-                  const gId = g._id?.$oid || g._id;
+                  const gId = getId(g);
                   const isSelected = !s.specific_game_ids || s.specific_game_ids.includes(gId);
 
                   return (
                     <div 
                       key={idx} 
                       onClick={() => {
-                        const current = s.specific_game_ids || (games || []).map(x => x._id?.$oid || x._id);
+                        const current = s.specific_game_ids || (games || []).map(x => getId(x));
                         const next = current.includes(gId) 
                           ? current.filter(id => id !== gId)
                           : [...current, gId];
@@ -460,7 +460,7 @@ export const PhaseEditor: React.FC<PhaseEditorProps> = ({
 
           <div className="flex-1 overflow-y-auto p-8 space-y-3">
             {(phase.phase_type === 'game' ? allGames : allVocab)?.map((item: any) => {
-              const itemId = item._id?.$oid || item._id;
+              const itemId = getId(item);
               const isSelected = phase.phase_type === 'game' 
                 ? s.specific_game_ids?.includes(itemId)
                 : s.specific_vocab_ids?.includes(itemId);

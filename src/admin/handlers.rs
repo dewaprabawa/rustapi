@@ -304,7 +304,7 @@ pub async fn update_user(
 
 /// POST /admin/assets/upload
 pub async fn upload_asset(
-    State(_state): State<Arc<AppState>>,
+    State(state): State<Arc<AppState>>,
     _admin: Admin,
     mut multipart: Multipart,
 ) -> Result<impl IntoResponse, AppError> {
@@ -325,36 +325,13 @@ pub async fn upload_asset(
     let filename = filename.unwrap_or_else(|| "asset.bin".to_string());
     let content_type = content_type.unwrap_or_else(|| "application/octet-stream".to_string());
 
-    let supabase_url = "https://jliibnwjluancnoayayd.storage.supabase.co";
-    let supabase_key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpsaWlibndqbHVhbmNub2F5YXlkIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NzAwNTE5MywiZXhwIjoyMDkyNTgxMTkzfQ.gk97AUKZ-Gk_fZXxQ9CVyKN3znj3QjTbGjfzHYSBREc";
-    
-    let ext = filename.split('.').next_back().unwrap_or("bin");
-    let asset_id = ObjectId::new().to_hex();
-    let object_path = format!("assets/{}.{}", asset_id, ext);
-    let upload_url = format!("{}/storage/v1/object/rustapi/{}", supabase_url, object_path);
-
-    let client = reqwest::Client::new();
-    let res = client.post(&upload_url)
-        .header("Authorization", format!("Bearer {}", supabase_key))
-        .header("apikey", supabase_key)
-        .header("Content-Type", content_type)
-        .body(file_bytes)
-        .send()
-        .await
-        .map_err(|e| {
-            eprintln!("❌ Supabase upload request failed: {:?}", e);
-            AppError::InternalServerError
-        })?;
-
-    if !res.status().is_success() {
-        let status = res.status();
-        let body = res.text().await.unwrap_or_default();
-        eprintln!("❌ Supabase returned error: {} - {}", status, body);
-        return Err(AppError::InternalServerError);
-    }
-
-    let public_url = format!("{}/storage/v1/object/public/rustapi/{}", supabase_url, object_path);
-    println!("✅ Asset uploaded successfully: {}", public_url);
+    let public_url = crate::storage::upload_file_dynamically(
+        &state.db,
+        file_bytes.to_vec(),
+        &filename,
+        &content_type,
+        ""
+    ).await?;
 
     Ok(Json(serde_json::json!({ "url": public_url })))
 }

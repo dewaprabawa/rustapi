@@ -1,5 +1,6 @@
 import React from 'react'
 import { PhaseEditor } from './PhaseEditor'
+import { getId } from '../../lib/utils'
 
 interface ConfigModalProps {
   editConfig: any
@@ -34,7 +35,7 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
 }) => {
   if (!editConfig) return null
 
-  const lesson = lessons.find(l => (l._id?.$oid || l._id) === editConfig.lesson_id)
+  const lesson = lessons.find(l => getId(l) === editConfig.lesson_id)
   const template = templates.find(t => t.level === lesson?.level)
 
   return (
@@ -58,7 +59,7 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
           >
             <option value="">Select a lesson…</option>
             {lessons.map((l: any) => (
-              <option key={l._id?.$oid || l._id} value={l._id?.$oid || l._id}>
+              <option key={getId(l)} value={getId(l)}>
                 {l.title}
               </option>
             ))}

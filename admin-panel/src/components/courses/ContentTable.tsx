@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { Sparkles, Eye, Copy, Edit, Trash, X } from "lucide-react"
 import { cn } from "../../lib/utils"
 
@@ -24,6 +25,7 @@ export default function ContentTable({
   setDeleteConfirm,
   deleteMutation
 }: ContentTableProps) {
+  const [cloneConfirm, setCloneConfirm] = useState<string | null>(null)
   return (
     <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
       <div className="overflow-x-auto">
@@ -110,14 +112,37 @@ export default function ContentTable({
                       >
                         <Eye className="h-4 w-4" />
                       </button>
-                      <button
-                        onClick={() => cloneMutation.mutate(id)}
-                        disabled={cloneMutation.isPending}
-                        className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors disabled:opacity-50"
-                        title="Clone"
-                      >
-                        <Copy className="h-4 w-4" />
-                      </button>
+                      {cloneConfirm === id ? (
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => {
+                              cloneMutation.mutate(id)
+                              setCloneConfirm(null)
+                            }}
+                            disabled={cloneMutation.isPending}
+                            className="px-2.5 py-1 text-xs font-semibold bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition-colors disabled:opacity-50"
+                            title="Confirm Clone"
+                          >
+                            {cloneMutation.isPending ? "Cloning..." : "Confirm Clone"}
+                          </button>
+                          <button
+                            onClick={() => setCloneConfirm(null)}
+                            className="p-1 text-slate-400 hover:bg-slate-100 rounded-lg transition-colors"
+                            title="Cancel"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setCloneConfirm(id)}
+                          disabled={cloneMutation.isPending}
+                          className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors disabled:opacity-50"
+                          title="Clone"
+                        >
+                          <Copy className="h-4 w-4" />
+                        </button>
+                      )}
                       <button
                         onClick={() => openEditModal(item)}
                         className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"

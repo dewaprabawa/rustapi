@@ -1,11 +1,12 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react"
-import { api, rootApi } from "../services/api"
+import { api, rootApi, firebaseLogin } from "../services/api"
 
 interface BaseUser {
   _id?: { $oid: string } | string
   email: string
   name?: string
   profile_image_url?: string
+  updated_at?: string | Date
 }
 
 interface AdminUser extends BaseUser {
@@ -29,6 +30,7 @@ interface AuthContextType {
   isAuthenticated: boolean
   isLoading: boolean
   login: (email: string, password: string) => Promise<void>
+  loginWithFirebase: (idToken: string) => Promise<void>
   logout: () => void
   setUser: (user: AdminUser | StudentUser | null, type: UserType | null) => void
 }
@@ -111,6 +113,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [setUser])
 
+  const loginWithFirebase = useCallback(async (idToken: string) => {
+    try {
+      const res = await firebaseLogin(idToken)
+      const { token: newToken, user: userData } = res.data
+      localStorage.setItem("auth_token", newToken)
+      localStorage.setItem("user_type", "student")
+      setToken(newToken)
+      setUser(userData, "student")
+    } catch (err) {
+      throw err
+    }
+  }, [setUser])
+
   const logout = useCallback(() => {
     localStorage.removeItem("auth_token")
     localStorage.removeItem("user_type")
@@ -119,7 +134,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [setUser])
 
   return (
-    <AuthContext.Provider value={{ user, userType, token, isAuthenticated: !!token, isLoading, login, logout, setUser }}>
+    <AuthContext.Provider value={{ user, userType, token, isAuthenticated: !!token, isLoading, login, loginWithFirebase, logout, setUser }}>
       {children}
     </AuthContext.Provider>
   )

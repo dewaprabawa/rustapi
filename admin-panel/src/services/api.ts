@@ -53,6 +53,9 @@ rootApi.interceptors.response.use(responseInterceptor, errorInterceptor)
 export const adminLogin = (email: string, password: string) =>
   api.post("/login", { email, password })
 
+export const firebaseLogin = (idToken: string) =>
+  rootApi.post("/auth/firebase", { id_token: idToken })
+
 export const getAdminMe = () =>
   api.get("/me")
 
@@ -295,8 +298,8 @@ export const updateGamificationConfig = (data: any) =>
   api.put("/gamification", data).then(r => r.data)
 
 // ============ Games ============
-export const getGames = () =>
-  api.get("/games").then(r => r.data)
+export const getGames = (lessonId?: string) =>
+  api.get(lessonId ? `/games?lesson_id=${lessonId}` : "/games").then(r => r.data)
 
 export const createGame = (data: any) =>
   api.post("/games", data).then(r => r.data)
@@ -407,6 +410,16 @@ export const updateVoiceConfig = (data: any) =>
 
 export const testTts = (data: { text: string, voice_id: string }) =>
   api.post("/voice/tts", data, { responseType: 'blob' }).then(r => r.data)
+
+// ============ Storage Config ============
+export const getStorageConfig = () =>
+  api.get("/storage/config").then(r => r.data)
+
+export const updateStorageConfig = (data: any) =>
+  api.put("/storage/config", data).then(r => r.data)
+
+export const getStorageCapacity = () =>
+  api.get("/storage/capacity").then(r => r.data)
 
 // ============ Speaking Monitor ============
 export const getSpeakingSessions = () =>

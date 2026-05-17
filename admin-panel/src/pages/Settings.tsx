@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useState, useEffect } from "react"
-import { BrainCircuit, Scale, Save, Loader2, RefreshCw, Key, Trash, Check, Plus, MessageSquare, Edit, RotateCcw, Camera, Mic, Volume2, Play } from "lucide-react"
+import { BrainCircuit, Scale, Save, Loader2, RefreshCw, Key, Trash, Check, Plus, MessageSquare, Edit, RotateCcw, Camera, Mic, Volume2, Play, HardDrive, Cloud, Database } from "lucide-react"
 import { 
   getAiConfigs, 
   updateAiConfig, 
@@ -16,13 +16,16 @@ import {
   uploadAsset,
   getVoiceConfig,
   updateVoiceConfig,
-  testTts
+  testTts,
+  getStorageConfig,
+  updateStorageConfig,
+  getStorageCapacity
 } from "../services/api"
 import { cn, normalizeDate } from "../lib/utils"
 import { useAuth } from "../contexts/AuthContext"
 
 export default function Settings() {
-  const [activeTab, setActiveTab] = useState<"profile" | "api_keys" | "ai" | "ai_prompts" | "evaluation" | "voice" | "master_data">("profile")
+  const [activeTab, setActiveTab] = useState<"profile" | "api_keys" | "ai" | "ai_prompts" | "evaluation" | "voice" | "master_data" | "storage">("profile")
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -32,7 +35,7 @@ export default function Settings() {
           <p className="text-slate-500 text-sm mt-1">AI engine configuration and evaluation criteria.</p>
         </div>
         <div className="flex bg-slate-100/50 p-1 rounded-xl overflow-x-auto max-w-full">
-          {(["profile", "api_keys", "ai", "ai_prompts", "evaluation", "voice", "master_data"] as const).map((tab) => (
+          {(["profile", "api_keys", "ai", "ai_prompts", "evaluation", "voice", "master_data", "storage"] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -49,6 +52,7 @@ export default function Settings() {
                tab === "ai_prompts" ? "AI Prompts" : 
                tab === "evaluation" ? "Evaluation Weights" : 
                tab === "voice" ? "Voice Engine" :
+               tab === "storage" ? "Cloud Storage" :
                "Master Data"}
             </button>
           ))}
@@ -62,6 +66,7 @@ export default function Settings() {
       {activeTab === "evaluation" && <EvaluationWeightsPanel />}
       {activeTab === "voice" && <VoiceConfigPanel />}
       {activeTab === "master_data" && <MasterDataPanel />}
+      {activeTab === "storage" && <StoragePanel />}
     </div>
   )
 }
@@ -874,7 +879,8 @@ function AiPromptsPanel() {
 }
 
 function ProfilePanel() {
-  const { admin, setAdmin } = useAuth()
+  const { user, setUser } = useAuth()
+  const admin = user
   const queryClient = useQueryClient()
   const [name, setName] = useState(admin?.name || "")
   const [isUploading, setIsUploading] = useState(false)
@@ -883,7 +889,7 @@ function ProfilePanel() {
     mutationFn: (data: { name?: string, profile_image_url?: string }) => updateAdminMe(data),
     onSuccess: (updatedAdmin) => {
       queryClient.invalidateQueries({ queryKey: ["admin", "me"] })
-      setAdmin(updatedAdmin)
+      setUser(updatedAdmin, "admin")
     }
   })
 
@@ -965,6 +971,281 @@ function ProfilePanel() {
               {mutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
               Update Profile
             </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function StoragePanel() {
+  const queryClient = useQueryClient()
+  
+  const [formData, setFormData] = useState({
+    active_provider: "supabase",
+    supabase_url: "",
+    supabase_key: "",
+    supabase_bucket: "",
+    appwrite_endpoint: "",
+    appwrite_key: "",
+    appwrite_project_id: "",
+    appwrite_bucket_id: "",
+  })
+
+  const { data: config, isLoading: configLoading } = useQuery({
+    queryKey: ['storage-config'],
+    queryFn: getStorageConfig,
+  })
+
+  const { data: capacity, isLoading: capacityLoading } = useQuery({
+    queryKey: ['storage-capacity'],
+    queryFn: getStorageCapacity,
+    refetchInterval: 10000,
+  })
+
+  useEffect(() => {
+    if (config) {
+      setFormData({
+        active_provider: config.active_provider || "supabase",
+        supabase_url: config.supabase_url || "",
+        supabase_key: config.supabase_key || "",
+        supabase_bucket: config.supabase_bucket || "",
+        appwrite_endpoint: config.appwrite_endpoint || "",
+        appwrite_key: config.appwrite_key || "",
+        appwrite_project_id: config.appwrite_project_id || "",
+        appwrite_bucket_id: config.appwrite_bucket_id || "",
+      })
+    }
+  }, [config])
+
+  const saveMutation = useMutation({
+    mutationFn: (data: any) => updateStorageConfig(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['storage-config'] })
+      queryClient.invalidateQueries({ queryKey: ['storage-capacity'] })
+      alert("Storage configuration saved successfully!")
+    },
+    onError: () => {
+      alert("Failed to save storage configuration.")
+    }
+  })
+
+  const handleSave = () => {
+    saveMutation.mutate(formData)
+  }
+
+  if (configLoading || capacityLoading) {
+    return (
+      <div className="bg-white rounded-2xl p-12 flex items-center justify-center border border-slate-100">
+        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+      </div>
+    )
+  }
+
+  const formatBytes = (bytes: number, decimals = 2) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+  }
+
+  const total = capacity?.total_capacity_bytes || 1073741824
+  const used = capacity?.used_bytes || 149394821
+  const percent = Math.min(100, Math.max(0, (used / total) * 100))
+
+  return (
+    <div className="space-y-6 animate-in slide-in-from-bottom-4">
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-blue-50 text-blue-600 rounded-2xl">
+              <HardDrive className="h-6 w-6" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-slate-800">Storage Capacity</h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Active provider: <span className="font-semibold text-blue-600 capitalize">{formData.active_provider}</span>
+              </p>
+            </div>
+          </div>
+          <div className="text-right">
+            <span className="text-2xl font-black text-slate-800">{formatBytes(used)}</span>
+            <span className="text-sm font-semibold text-slate-400"> of {formatBytes(total)}</span>
+          </div>
+        </div>
+
+        <div className="mt-6">
+          <div className="w-full h-4 bg-slate-100 rounded-full overflow-hidden relative">
+            <div 
+              className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 transition-all duration-1000 ease-out" 
+              style={{ width: `${percent}%` }}
+            />
+          </div>
+          <div className="flex justify-between items-center mt-3 text-xs text-slate-400 font-semibold">
+            <span>{percent.toFixed(1)}% Used</span>
+            <span>{formatBytes(total - used)} Remaining</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+          <div>
+            <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+              <Cloud className="h-5 w-5 text-indigo-500" />
+              Cloud Storage Providers
+            </h3>
+            <p className="text-slate-500 text-sm mt-1">
+              Select and configure the cloud bucket provider for platform assets and user profile uploads.
+            </p>
+          </div>
+          <button
+            onClick={handleSave}
+            disabled={saveMutation.isPending}
+            className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl shadow-sm transition-all disabled:opacity-50"
+          >
+            {saveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            Save Storage Config
+          </button>
+        </div>
+
+        <div className="space-y-6">
+          <div>
+            <label className="block text-sm font-bold text-slate-700 mb-2">Active Storage Provider</label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, active_provider: "supabase" })}
+                className={cn(
+                  "p-5 rounded-2xl border text-left flex items-start gap-4 transition-all duration-300",
+                  formData.active_provider === "supabase" 
+                    ? "border-emerald-200 bg-emerald-50/20 ring-4 ring-emerald-500/10 shadow-sm" 
+                    : "border-slate-100 bg-slate-50/50 hover:border-slate-200 hover:bg-slate-50"
+                )}
+              >
+                <div className={cn(
+                  "p-2.5 rounded-xl border transition-colors",
+                  formData.active_provider === "supabase" ? "bg-emerald-500 text-white border-emerald-500" : "bg-white text-slate-400 border-slate-200"
+                )}>
+                  <Database className="h-5 w-5" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-slate-800 text-sm">Supabase Storage</h4>
+                  <p className="text-xs text-slate-400 mt-1">Upload files to Supabase cloud buckets via standard S3 API.</p>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, active_provider: "appwrite" })}
+                className={cn(
+                  "p-5 rounded-2xl border text-left flex items-start gap-4 transition-all duration-300",
+                  formData.active_provider === "appwrite" 
+                    ? "border-red-200 bg-red-50/20 ring-4 ring-red-500/10 shadow-sm" 
+                    : "border-slate-100 bg-slate-50/50 hover:border-slate-200 hover:bg-slate-50"
+                )}
+              >
+                <div className={cn(
+                  "p-2.5 rounded-xl border transition-colors",
+                  formData.active_provider === "appwrite" ? "bg-red-500 text-white border-red-500" : "bg-white text-slate-400 border-slate-200"
+                )}>
+                  <Cloud className="h-5 w-5" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-slate-800 text-sm">Appwrite Storage</h4>
+                  <p className="text-xs text-slate-400 mt-1">High-performance custom storage API with edge cloud acceleration.</p>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pt-4 border-t border-slate-50">
+            <div className="space-y-4">
+              <h4 className="font-bold text-slate-800 text-sm border-b border-slate-50 pb-2">Supabase Settings</h4>
+              
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Supabase URL</label>
+                <input
+                  type="text"
+                  placeholder="https://your-project.storage.supabase.co"
+                  value={formData.supabase_url}
+                  onChange={e => setFormData({ ...formData, supabase_url: e.target.value })}
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none transition-all font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Supabase apikey / service_role Key</label>
+                <input
+                  type="password"
+                  placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6..."
+                  value={formData.supabase_key}
+                  onChange={e => setFormData({ ...formData, supabase_key: e.target.value })}
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none transition-all font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Supabase Bucket</label>
+                <input
+                  type="text"
+                  placeholder="rustapi"
+                  value={formData.supabase_bucket}
+                  onChange={e => setFormData({ ...formData, supabase_bucket: e.target.value })}
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 outline-none transition-all font-mono"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <h4 className="font-bold text-slate-800 text-sm border-b border-slate-50 pb-2">Appwrite Settings</h4>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Appwrite Endpoint</label>
+                <input
+                  type="text"
+                  placeholder="https://cloud.appwrite.io/v1"
+                  value={formData.appwrite_endpoint}
+                  onChange={e => setFormData({ ...formData, appwrite_endpoint: e.target.value })}
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-red-500/20 outline-none transition-all font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Appwrite Project ID</label>
+                <input
+                  type="text"
+                  placeholder="rustapi"
+                  value={formData.appwrite_project_id}
+                  onChange={e => setFormData({ ...formData, appwrite_project_id: e.target.value })}
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-red-500/20 outline-none transition-all font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Appwrite API Key / Secret</label>
+                <input
+                  type="password"
+                  placeholder="standard_..."
+                  value={formData.appwrite_key}
+                  onChange={e => setFormData({ ...formData, appwrite_key: e.target.value })}
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-red-500/20 outline-none transition-all font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Appwrite Bucket ID</label>
+                <input
+                  type="text"
+                  placeholder="rustapi"
+                  value={formData.appwrite_bucket_id}
+                  onChange={e => setFormData({ ...formData, appwrite_bucket_id: e.target.value })}
+                  className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-red-500/20 outline-none transition-all font-mono"
+                />
+              </div>
+            </div>
           </div>
         </div>
       </div>

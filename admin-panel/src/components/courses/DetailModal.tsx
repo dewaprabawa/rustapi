@@ -1,6 +1,6 @@
 import React, { useState } from "react"
 import { X, Volume2 } from "lucide-react"
-import { cn, normalizeDate } from "../../lib/utils"
+import { cn, normalizeDate, getId } from "../../lib/utils"
 import { useQuery } from "@tanstack/react-query"
 import { getVocabulary, getLessonConfig, getLevelTemplate } from "../../services/api"
 import { CurriculumTreeBuilder } from "./CurriculumTreeBuilder"
@@ -25,7 +25,7 @@ export default function DetailModal({
   openEditModal,
   openCreateModal
 }: DetailModalProps) {
-  const lessonId = detailItem?._id?.$oid || detailItem?.id;
+  const lessonId = getId(detailItem);
   const [courseView, setCourseView] = useState<'builder' | 'preview'>('builder');
 
   const { data: vocabData, isLoading: isLoadingVocab } = useQuery({

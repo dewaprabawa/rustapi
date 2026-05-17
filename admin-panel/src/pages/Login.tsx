@@ -4,9 +4,10 @@ import { useAuth } from "../contexts/AuthContext"
 import { Eye, EyeOff, AlertCircle, Loader2, ShieldCheck, Lock, Mail, Sparkles } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { cn } from "../lib/utils"
+import { auth, signInWithPopup, googleProvider, facebookProvider, appleProvider } from "../lib/firebase"
 
 export default function Login() {
-  const { login, isAuthenticated } = useAuth()
+  const { login, loginWithFirebase, isAuthenticated } = useAuth()
   const navigate = useNavigate()
 
   const [email, setEmail] = useState("")
@@ -40,6 +41,57 @@ export default function Login() {
     }
   }
 
+  const handleGoogleClick = async () => {
+    setError("")
+    setIsSubmitting(true)
+    try {
+      const result = await signInWithPopup(auth, googleProvider)
+      const idToken = await result.user.getIdToken()
+      await loginWithFirebase(idToken)
+      navigate("/", { replace: true })
+    } catch (err: any) {
+      console.error("Google Auth failed:", err)
+      const msg = err?.response?.data?.message || err?.message || "Google Authentication failed."
+      setError(msg)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleFacebookClick = async () => {
+    setError("")
+    setIsSubmitting(true)
+    try {
+      const result = await signInWithPopup(auth, facebookProvider)
+      const idToken = await result.user.getIdToken()
+      await loginWithFirebase(idToken)
+      navigate("/", { replace: true })
+    } catch (err: any) {
+      console.error("Facebook Auth failed:", err)
+      const msg = err?.response?.data?.message || err?.message || "Facebook Authentication failed."
+      setError(msg)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleAppleClick = async () => {
+    setError("")
+    setIsSubmitting(true)
+    try {
+      const result = await signInWithPopup(auth, appleProvider)
+      const idToken = await result.user.getIdToken()
+      await loginWithFirebase(idToken)
+      navigate("/", { replace: true })
+    } catch (err: any) {
+      console.error("Apple Auth failed:", err)
+      const msg = err?.response?.data?.message || err?.message || "Apple Authentication failed."
+      setError(msg)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC] relative overflow-hidden">
       {/* Subtle Ambient Background */}
@@ -67,6 +119,7 @@ export default function Login() {
           <div className="space-y-3 mb-8">
             <SocialButton 
               label="Continue with Google" 
+              onClick={handleGoogleClick}
               icon={
                 <svg className="w-5 h-5" viewBox="0 0 24 24">
                   <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
@@ -78,6 +131,7 @@ export default function Login() {
             />
             <SocialButton 
               label="Continue with Apple" 
+              onClick={handleAppleClick}
               icon={
                 <svg className="w-5 h-5 fill-black" viewBox="0 0 24 24">
                   <path d="M17.05 20.28c-.96.95-2.04 1.72-3.32 1.72-1.21 0-1.63-.73-3.11-.73-1.47 0-1.95.71-3.11.73-1.28.02-2.38-.82-3.32-1.74-2-1.95-3.53-5.51-3.53-8.85 0-3.3 1.34-5.06 2.62-5.9 1.19-.78 2.27-1.12 3.19-1.12.91 0 1.93.31 2.81.74.88.43 1.25.59 1.55.59.3 0 .61-.13 1.5-.56.88-.43 1.94-.78 2.91-.78 1.25 0 2.59.35 3.51 1.23-2.39 1.4-1.99 4.67.62 5.75-.58 1.44-1.34 2.89-2.5 4.31-.77.94-1.57 1.86-2.52 1.86-.01 0-.01 0 0 0zM12.03 5.07c-.15 0-.3 0-.45-.02.13-2.19 1.94-3.92 4.01-4.05.15 0 .3 0 .46.02-.13 2.21-1.96 3.95-4.02 4.05z"/>
@@ -86,6 +140,7 @@ export default function Login() {
             />
             <SocialButton 
               label="Continue with Facebook" 
+              onClick={handleFacebookClick}
               icon={
                 <svg className="w-5 h-5 fill-[#1877F2]" viewBox="0 0 24 24">
                   <path d="M24 12.07C24 5.41 18.63 0 12 0S0 5.41 0 12.07c0 6.03 4.42 11.02 10.12 11.91v-8.43H7.08v-3.48h3.05V9.41c0-3.01 1.79-4.67 4.54-4.67 1.31 0 2.68.23 2.68.23v2.95h-1.5c-1.49 0-1.96.93-1.96 1.87v2.25h3.32l-.53 3.48h-2.79v8.43C19.58 23.09 24 18.1 24 12.07z"/>
@@ -187,9 +242,13 @@ export default function Login() {
   )
 }
 
-function SocialButton({ icon, label }: { icon: React.ReactNode; label: string }) {
+function SocialButton({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick?: () => void }) {
   return (
-    <button className="w-full flex items-center justify-center gap-3 px-6 py-3.5 border border-slate-200 rounded-full bg-white hover:bg-slate-50 transition-colors shadow-sm group">
+    <button 
+      type="button"
+      onClick={onClick}
+      className="w-full flex items-center justify-center gap-3 px-6 py-3.5 border border-slate-200 rounded-full bg-white hover:bg-slate-50 transition-colors shadow-sm group"
+    >
       {icon}
       <span className="text-slate-700 font-semibold text-sm">{label}</span>
     </button>

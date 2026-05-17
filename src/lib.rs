@@ -21,6 +21,7 @@ pub mod swagger;
 pub mod vocab;
 pub mod voice;
 pub mod ebook;
+pub mod storage;
 
 use crate::admin::handlers::{
     admin_login, admin_me, delete_user, get_user, list_users, upload_asset, get_dashboard_stats, update_user,
@@ -58,9 +59,11 @@ use crate::swagger::ApiDoc;
 use crate::voice::handlers::{
     get_voice_config, speech_to_text, text_to_speech, update_voice_config,
 };
+use crate::storage::{
+    get_storage_config, update_storage_config, get_storage_capacity,
+};
 // Removed duplicate/glob speaking import to resolve ambiguity
 use axum::{
-    extract::{DefaultBodyLimit, Extension},
     routing::{delete, get, post, put, patch},
     Router,
 };
@@ -282,6 +285,15 @@ pub async fn create_app() -> Router {
         .route(
             "/voice/config",
             get(get_voice_config).put(update_voice_config),
+        )
+        // Storage Config
+        .route(
+            "/storage/config",
+            get(get_storage_config).put(update_storage_config),
+        )
+        .route(
+            "/storage/capacity",
+            get(get_storage_capacity),
         )
         // Voice Proxy (Admin-protected access)
         .route("/voice/stt", post(speech_to_text))

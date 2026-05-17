@@ -1774,7 +1774,7 @@ pub async fn get_course_path(
 
     // Fetch modules sorted by order
     let modules_col: Collection<Module> = state.db.database("rustapi").collection("modules");
-    let mut cursor = modules_col.find(doc! { "course_id": oid })
+    let cursor = modules_col.find(doc! { "course_id": oid })
         .sort(doc! { "order": 1 })
         .await?;
     let modules: Vec<Module> = cursor.try_collect().await?;
@@ -1782,7 +1782,7 @@ pub async fn get_course_path(
     // Fetch lessons for all these modules
     let lessons_col: Collection<Lesson> = state.db.database("rustapi").collection("lessons");
     let module_ids: Vec<ObjectId> = modules.iter().filter_map(|m| m.id).collect();
-    let mut cursor = lessons_col.find(doc! { "module_id": { "$in": module_ids } })
+    let cursor = lessons_col.find(doc! { "module_id": { "$in": module_ids } })
         .sort(doc! { "order": 1 })
         .await?;
     let all_lessons: Vec<Lesson> = cursor.try_collect().await?;

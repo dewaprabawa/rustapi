@@ -5,9 +5,10 @@ import {
   getCourses, createCourse, updateCourse, deleteCourse,
   getModules, createModule, updateModule, deleteModule,
   getLessons, createLesson, updateLesson, deleteLesson,
-  translateText, aiGenerateContent, getContentVersions, rollbackContentVersion, cloneContent
+  translateText, aiGenerateContent, getContentVersions, rollbackContentVersion, cloneContent,
+  getDashboardStats
 } from "../services/api"
-import { cn } from "../lib/utils"
+import { cn, getId } from "../lib/utils"
 
 import CourseGrid from "../components/courses/CourseGrid"
 import ContentTable from "../components/courses/ContentTable"
@@ -111,6 +112,11 @@ export default function Courses() {
     queryFn: getLessons,
   })
 
+  const { data: stats } = useQuery({
+    queryKey: ['dashboard-stats'],
+    queryFn: getDashboardStats,
+  })
+
   const { data: versions, isLoading: versionsLoading } = useQuery({
     queryKey: ['versions', activeTab, historyEntityId],
     queryFn: () => getContentVersions(activeTab.slice(0, -1), historyEntityId!),
@@ -206,8 +212,8 @@ export default function Courses() {
       category: 'general', level: 'a1', status: 'draft',
       skill_focus: [], target_age: 'all', estimated_duration: '4 weeks',
       is_paid: false, enrollment_cap: null, visibility: 'public',
-      course_id: initialData?.course_id || courses?.[0]?._id?.$oid || courses?.[0]?.id || '',
-      module_id: initialData?.module_id || modules?.[0]?._id?.$oid || modules?.[0]?.id || '',
+      course_id: initialData?.course_id || getId(courses?.[0]) || '',
+      module_id: initialData?.module_id || getId(modules?.[0]) || '',
       content: '', content_id: '', xp_reward: 10,
       instruction: '', instruction_id: '', culture_notes: '',
       tags: [], cover_image_url: '',
@@ -219,7 +225,7 @@ export default function Courses() {
 
   const openEditModal = (item: any, targetTab?: 'courses' | 'modules' | 'lessons') => {
     if (targetTab) setActiveTab(targetTab);
-    const id = item._id?.$oid || item.id
+    const id = getId(item)
     setEditingId(id)
     setFormData({ ...item })
     setIsModalOpen(true)
@@ -241,8 +247,8 @@ export default function Courses() {
   }
 
   const handleManageSession = (lessonId: string) => {
-    const lesson = lessonsData?.data?.find((l: any) => (l._id?.$oid || l.id) === lessonId) || 
-                   lessonsData?.find((l: any) => (l._id?.$oid || l.id) === lessonId);
+    const lesson = lessonsData?.data?.find((l: any) => getId(l) === lessonId) || 
+                   lessonsData?.find((l: any) => getId(l) === lessonId);
     if (lesson) {
       setSessionTarget(lesson)
       setIsSessionModalOpen(true)
@@ -310,7 +316,7 @@ export default function Courses() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
         {[
           { label: 'Total Courses', value: courses.length, icon: BrainCircuit, color: 'text-blue-600', bg: 'bg-blue-50' },
-          { label: 'Active Learners', value: '2,481', icon: Globe, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+          { label: 'Active Learners', value: stats?.total_users !== undefined ? stats.total_users.toLocaleString() : '...', icon: Globe, color: 'text-indigo-600', bg: 'bg-indigo-50' },
           { label: 'Avg Completion', value: '67%', icon: Check, color: 'text-emerald-600', bg: 'bg-emerald-50' },
           { label: 'Pending Review', value: courses.filter((c: any) => c.status === 'inreview').length, icon: Loader2, color: 'text-amber-600', bg: 'bg-amber-50' }
         ].map((stat, i) => (
@@ -415,7 +421,7 @@ export default function Courses() {
       <SessionConfigModal 
         isOpen={isSessionModalOpen}
         onClose={() => setIsSessionModalOpen(false)}
-        lessonId={sessionTarget?._id?.$oid || sessionTarget?.id}
+        lessonId={getId(sessionTarget)}
         lessonTitle={sessionTarget?.title}
         lessonLevel={sessionTarget?.level}
       />

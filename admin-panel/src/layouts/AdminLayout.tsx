@@ -25,7 +25,8 @@ import NotificationPopover from "../components/NotificationPopover"
 export default function AdminLayout() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { admin, logout } = useAuth()
+  const { user, userType, logout } = useAuth()
+  const admin = userType === "admin" ? (user as any) : null
 
   const navItems = [
     { name: "Dashboard", path: "/admin", icon: LayoutDashboard },

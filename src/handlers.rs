@@ -394,36 +394,14 @@ pub async fn upload_profile_image(
     let filename = filename.unwrap_or_else(|| "profile.jpg".to_string());
     let content_type = content_type.unwrap_or_else(|| "image/jpeg".to_string());
 
-    let supabase_url = "https://jliibnwjluancnoayayd.storage.supabase.co";
-    let supabase_key = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpsaWlibndqbHVhbmNub2F5YXlkIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NzAwNTE5MywiZXhwIjoyMDkyNTgxMTkzfQ.gk97AUKZ-Gk_fZXxQ9CVyKN3znj3QjTbGjfzHYSBREc";
-
-    // We use the `rustapi` bucket.
     let user_id = user.id.unwrap().to_string();
-    let ext = filename.split('.').last().unwrap_or("jpg");
-    let object_path = format!("{}/profile.{}", user_id, ext);
-    let upload_url = format!("{}/storage/v1/object/rustapi/{}", supabase_url, object_path);
-
-    let client = reqwest::Client::new();
-    let res = client
-        .post(&upload_url)
-        .header("Authorization", format!("Bearer {}", supabase_key))
-        .header("apikey", supabase_key)
-        .header("Content-Type", content_type)
-        .body(image_bytes)
-        .send()
-        .await
-        .map_err(|_| AppError::InternalServerError)?;
-
-    if !res.status().is_success() {
-        let err_text = res.text().await.unwrap_or_default();
-        println!("Supabase upload error: {}", err_text);
-        return Err(AppError::InternalServerError);
-    }
-
-    let public_url = format!(
-        "{}/storage/v1/object/public/rustapi/{}",
-        supabase_url, object_path
-    );
+    let public_url = crate::storage::upload_file_dynamically(
+        &state.db,
+        image_bytes.to_vec(),
+        &filename,
+        &content_type,
+        &user_id
+    ).await?;
 
     let collection: Collection<User> = state.db.database("rustapi").collection("users");
     collection

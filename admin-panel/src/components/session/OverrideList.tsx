@@ -1,4 +1,5 @@
 import React from 'react'
+import { getId } from '../../lib/utils'
 
 interface LessonSessionConfig {
   _id?: { $oid: string }
@@ -40,7 +41,7 @@ export const OverrideList: React.FC<OverrideListProps> = ({
         >
           <div>
             <p className="text-sm font-semibold text-slate-800">
-              {getLessonTitle(cfg.lesson_id)}
+              {getLessonTitle(getId(cfg.lesson_id))}
             </p>
             <div className="flex gap-3 text-xs text-slate-500 mt-1">
               {cfg.override_lives && <span>❤️ {cfg.override_lives} lives</span>}
@@ -60,7 +61,7 @@ export const OverrideList: React.FC<OverrideListProps> = ({
               Edit
             </button>
             <button
-              onClick={() => onRemove(cfg.lesson_id)}
+              onClick={() => onRemove(getId(cfg.lesson_id))}
               className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100"
             >
               Remove

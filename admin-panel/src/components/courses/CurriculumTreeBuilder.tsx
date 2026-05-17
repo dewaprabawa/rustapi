@@ -4,7 +4,7 @@ import type { DropResult } from '@hello-pangea/dnd';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getCoursePath, reorderModules, reorderLessons } from '../../services/api';
 import { GripVertical, Plus, ChevronRight, ChevronDown, Video, Edit3, Trash2 } from 'lucide-react';
-import { cn } from '../../lib/utils';
+import { cn, getId } from '../../lib/utils';
 
 export function CurriculumTreeBuilder({ courseId, openEditModal, openCreateModal }: any) {
   const queryClient = useQueryClient();
@@ -44,12 +44,12 @@ export function CurriculumTreeBuilder({ courseId, openEditModal, openCreateModal
       items.splice(destination.index, 0, reorderedItem);
 
       // Optimistic UI update could go here. For now, just mutate.
-      const ids = items.map((m: any) => m._id?.$oid || m.id);
+      const ids = items.map((m: any) => getId(m));
       reorderModulesMutation.mutate(ids);
     } else if (type === 'lesson') {
       // Find the source and destination modules
-      const sourceModuleIndex = pathData.modules.findIndex((m: any) => m._id?.$oid === source.droppableId || m.id === source.droppableId);
-      const destModuleIndex = pathData.modules.findIndex((m: any) => m._id?.$oid === destination.droppableId || m.id === destination.droppableId);
+      const sourceModuleIndex = pathData.modules.findIndex((m: any) => getId(m) === source.droppableId);
+      const destModuleIndex = pathData.modules.findIndex((m: any) => getId(m) === destination.droppableId);
 
       if (sourceModuleIndex === -1 || destModuleIndex === -1) return;
 
@@ -70,7 +70,7 @@ export function CurriculumTreeBuilder({ courseId, openEditModal, openCreateModal
 
       destLessons.splice(destination.index, 0, reorderedItem);
       
-      const ids = destLessons.map((l: any) => l._id?.$oid || l.id);
+      const ids = destLessons.map((l: any) => getId(l));
       reorderLessonsMutation.mutate(ids);
     }
   };
@@ -103,7 +103,7 @@ export function CurriculumTreeBuilder({ courseId, openEditModal, openCreateModal
             >
               {pathData.modules.map((moduleData: any, index: number) => {
                 const module = moduleData.module || moduleData; // handle flatten
-                const moduleId = module._id?.$oid || module.id;
+                const moduleId = getId(module);
                 const isExpanded = expandedModules[moduleId] ?? true;
                 const lessons = moduleData.lessons || [];
 
@@ -170,7 +170,7 @@ export function CurriculumTreeBuilder({ courseId, openEditModal, openCreateModal
                                     </div>
                                   ) : (
                                     lessons.map((lesson: any, lessonIndex: number) => {
-                                      const lessonId = lesson._id?.$oid || lesson.id;
+                                      const lessonId = getId(lesson);
                                       return (
                                         <Draggable key={lessonId} draggableId={lessonId} index={lessonIndex}>
                                           {(provided) => (

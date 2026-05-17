@@ -25,10 +25,14 @@ export const normalizeDate = (date: any): Date | null => {
 };
 
 export const getId = (id: any): string => {
-  if (!id) return Math.random().toString(36).substring(7);
+  if (!id) return "";
   if (typeof id === 'string') return id;
   if (typeof id === 'object' && id !== null) {
-    return id.$oid || JSON.stringify(id);
+    if (id.$oid) return id.$oid;
+    // Handle cases where the whole item was passed
+    if (id._id) return getId(id._id);
+    if (id.id) return getId(id.id);
+    return id.toString() !== '[object Object]' ? id.toString() : JSON.stringify(id);
   }
   return String(id);
 };

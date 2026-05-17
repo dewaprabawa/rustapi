@@ -11,6 +11,7 @@ import {
   updateVocabulary,
   getGames,
 } from "../services/api"
+import { getId } from "../lib/utils"
 
 // Sub-components
 import { SessionConfigHeader } from "../components/session/SessionConfigHeader"
@@ -110,16 +111,16 @@ export default function SessionConfig() {
     if (!editConfig) return
     setSaving(true)
     try {
-      await upsertLessonConfig(editConfig.lesson_id, editConfig)
-      const lesson = lessons.find(l => (l._id?.$oid || l._id) === editConfig.lesson_id);
+      await upsertLessonConfig(getId(editConfig.lesson_id), editConfig)
+      const lesson = lessons.find(l => getId(l) === editConfig.lesson_id);
       if (lesson && lesson._dirty) {
         const { _dirty, ...lessonData } = lesson;
-        await updateLesson(lesson._id?.$oid || lesson._id, lessonData);
+        await updateLesson(getId(lesson), lessonData);
       }
       const dirtyVocab = activeVocab.filter(v => v._dirty);
       for (const v of dirtyVocab) {
         const { _dirty, ...vData } = v;
-        await updateVocabulary(v._id?.$oid || v._id, vData);
+        await updateVocabulary(getId(v), vData);
       }
       showToast("✅ All changes saved")
       setEditConfig(null)
@@ -133,7 +134,7 @@ export default function SessionConfig() {
   const removeConfig = async (lessonId: string) => {
     if (!window.confirm("Remove override and revert to level template?")) return
     try {
-      await deleteLessonConfig(lessonId)
+      await deleteLessonConfig(getId(lessonId))
       showToast("✅ Override removed")
       loadAll()
     } catch (e) {
@@ -142,16 +143,16 @@ export default function SessionConfig() {
   }
 
   const getLessonTitle = (id: string) => {
-    const l = lessons.find((l) => (l._id?.$oid || l._id) === id)
+    const l = lessons.find((l) => getId(l) === id)
     return l ? `${l.level} - ${l.title}` : "Unknown Lesson"
   }
 
   const handleLessonUpdate = (updatedLesson: any) => {
-    setLessons(prev => prev.map(l => (l._id?.$oid || l._id) === updatedLesson._id?.$oid || (l._id === updatedLesson._id) ? updatedLesson : l))
+    setLessons(prev => prev.map(l => getId(l) === getId(updatedLesson) ? updatedLesson : l))
   }
 
   const handleVocabUpdate = (updatedVocab: any) => {
-    setActiveVocab(prev => prev.map(v => (v._id?.$oid || v._id) === (updatedVocab._id?.$oid || updatedVocab._id) ? updatedVocab : v))
+    setActiveVocab(prev => prev.map(v => getId(v) === getId(updatedVocab) ? updatedVocab : v))
   }
 
   const handleOverrideUpdate = (field: string, value: any) => {
