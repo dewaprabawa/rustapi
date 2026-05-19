@@ -607,6 +607,12 @@ pub async fn create_vocabulary(
 pub struct VocabQuery {
     #[serde(default)]
     pub lesson_id: Option<String>,
+    #[serde(default)]
+    pub set_id: Option<String>,
+    #[serde(default)]
+    pub group_id: Option<String>,
+    #[serde(default)]
+    pub topic: Option<String>,
 }
 
 pub async fn list_vocabulary(
@@ -616,17 +622,48 @@ pub async fn list_vocabulary(
 ) -> Result<impl IntoResponse, AppError> {
     let collection: Collection<Vocabulary> = state.db.database("rustapi").collection("vocabulary");
 
-    let filter = if let Some(lid) = params.lesson_id {
-        if lid.is_empty() {
-            doc! {}
-        } else {
-            let lesson_oid = ObjectId::parse_str(&lid)
-                .map_err(|_| AppError::NotFound("Not found".to_string()))?;
-            doc! { "lesson_id": lesson_oid }
+    let mut filter = doc! {};
+    if let Some(lid) = params.lesson_id {
+        if !lid.is_empty() {
+            if let Ok(lesson_oid) = ObjectId::parse_str(&lid) {
+                filter.insert("lesson_id", lesson_oid);
+            }
         }
-    } else {
-        doc! {}
-    };
+    }
+    if let Some(sid) = params.set_id {
+        if !sid.is_empty() {
+            if let Ok(set_oid) = ObjectId::parse_str(&sid) {
+                filter.insert("set_id", set_oid);
+            }
+        }
+    }
+    if let Some(topic) = params.topic {
+        if !topic.is_empty() {
+            filter.insert("topic", topic);
+        }
+    }
+    if let Some(group_id) = params.group_id {
+        if !group_id.is_empty() {
+            if let Ok(group_oid) = ObjectId::parse_str(&group_id) {
+                // Find all sets belonging to this group
+                let sets_col: Collection<crate::vocab::models::VocabSet> = state.db.database("rustapi").collection("vocab_sets");
+                if let Ok(mut cursor) = sets_col.find(doc! { "group_id": group_oid }).await {
+                    let mut set_ids = Vec::new();
+                    while let Ok(Some(set)) = cursor.try_next().await {
+                        if let Some(id) = set.id {
+                            set_ids.push(id);
+                        }
+                    }
+                    if !set_ids.is_empty() {
+                        filter.insert("set_id", doc! { "$in": set_ids });
+                    } else {
+                        // Force empty result if group has no sets
+                        filter.insert("_id", doc! { "$in": Vec::<ObjectId>::new() });
+                    }
+                }
+            }
+        }
+    }
 
     let cursor = collection.find(filter).await?;
     let data: Vec<Vocabulary> = cursor.try_collect().await?;

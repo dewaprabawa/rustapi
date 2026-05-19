@@ -16,7 +16,8 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   SlidersHorizontal,
-  BookMarked
+  BookMarked,
+  FileVideo
 } from "lucide-react"
 import { cn, normalizeDate } from "../lib/utils"
 import { useAuth } from "../contexts/AuthContext"
@@ -34,6 +35,7 @@ export default function AdminLayout() {
     { name: "VocabForge AI", path: "/admin/vocab-forge", icon: Sparkles },
     { name: "Ebook Forge", path: "/admin/ebook-forge", icon: BookMarked },
     { name: "AI Generator", path: "/admin/ai-generator", icon: Sparkles },
+    { name: "Video Drills", path: "/admin/video-drills", icon: FileVideo },
     { name: "Users", path: "/admin/users", icon: Users },
     { name: "AI Scenarios", path: "/admin/scenarios", icon: BrainCircuit },
     { name: "Speaking Monitor", path: "/admin/speaking-monitor", icon: Activity },

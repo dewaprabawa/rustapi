@@ -1,3 +1,4 @@
+import React, { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import { 
   Play, 
@@ -20,12 +21,20 @@ export default function StudentDashboard() {
   const { user } = useAuth()
   const navigate = useNavigate()
   
+  const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null)
+
   const { data: courses, isLoading } = useQuery({
     queryKey: ['student-courses'],
     queryFn: getStudentCourses
   })
 
-  const currentCourse = courses?.[0]
+  useEffect(() => {
+    if (courses && courses.length > 0 && !selectedCourseId) {
+      setSelectedCourseId(courses[0]._id?.$oid || courses[0].id)
+    }
+  }, [courses])
+
+  const currentCourse = courses?.find((c: any) => (c._id?.$oid || c.id) === selectedCourseId) || courses?.[0]
   const courseId = currentCourse?._id?.$oid || currentCourse?.id
 
   const { data: pathData } = useQuery({
@@ -73,9 +82,27 @@ export default function StudentDashboard() {
       className="space-y-8 pb-20"
     >
       {/* Welcome Section */}
-      <section>
-        <h2 className="text-2xl font-bold text-slate-900">Welcome back, {user?.name?.split(' ')[0] || "Learner"}! 👋</h2>
-        <p className="text-slate-500 mt-1">Ready to continue your journey? You're doing great!</p>
+      <section className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900">Welcome back, {user?.name?.split(' ')[0] || "Learner"}! 👋</h2>
+          <p className="text-slate-500 mt-1">Ready to continue your journey? You're doing great!</p>
+        </div>
+        {courses && courses.length > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Active Course:</span>
+            <select
+              value={courseId || ""}
+              onChange={(e) => setSelectedCourseId(e.target.value)}
+              className="bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm font-bold text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {courses.map((c: any) => (
+                <option key={c._id?.$oid || c.id} value={c._id?.$oid || c.id}>
+                  {c.title}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </section>
 
       {/* Main Grid */}

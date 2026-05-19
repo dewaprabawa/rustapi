@@ -10,6 +10,10 @@ import {
   getVocabulary,
   updateVocabulary,
   getGames,
+  getVideoDrills,
+  getVocabSets,
+  getCourses,
+  getModules,
 } from "../services/api"
 import { getId } from "../lib/utils"
 
@@ -33,6 +37,11 @@ export default function SessionConfig() {
   const [editConfig, setEditConfig] = useState<any | null>(null)
   const [activeVocab, setActiveVocab] = useState<any[]>([])
   const [activeGames, setActiveGames] = useState<any[]>([])
+  const [activeVideoDrills, setActiveVideoDrills] = useState<any[]>([])
+  const [allVideoDrills, setAllVideoDrills] = useState<any[]>([])
+  const [vocabGroups, setVocabGroups] = useState<any[]>([])
+  const [courses, setCourses] = useState<any[]>([])
+  const [modules, setModules] = useState<any[]>([])
   const [toast, setToast] = useState("")
 
   useEffect(() => {
@@ -43,9 +52,11 @@ export default function SessionConfig() {
     if (editConfig?.lesson_id) {
       loadVocab(editConfig.lesson_id)
       loadGames(editConfig.lesson_id)
+      loadVideoDrills(editConfig.lesson_id)
     } else {
       setActiveVocab([])
       setActiveGames([])
+      setActiveVideoDrills([])
     }
   }, [editConfig?.lesson_id])
 
@@ -67,21 +78,38 @@ export default function SessionConfig() {
     }
   }
 
+  const loadVideoDrills = async (lessonId: string) => {
+    try {
+      const vd = await getVideoDrills(lessonId)
+      setActiveVideoDrills(Array.isArray(vd) ? vd : [])
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
   const loadAll = async () => {
     setLoading(true)
     try {
-      const [t, c, l, av, ag] = await Promise.all([
+      const [t, c, l, av, ag, avd, vg, coursesData, modulesData] = await Promise.all([
         getLevelTemplates(), 
         getLessonConfigs(), 
         getLessons(),
         getVocabulary(),
-        getGames()
+        getGames(),
+        getVideoDrills(),
+        getVocabSets(),
+        getCourses(),
+        getModules(),
       ])
       setTemplates(Array.isArray(t) ? t : [])
       setConfigs(Array.isArray(c) ? c : [])
       setLessons(l && l.data ? l.data : (Array.isArray(l) ? l : []))
-      setAllVocab(Array.isArray(av) ? av : [])
-      setAllGames(Array.isArray(ag) ? ag : [])
+      setAllVocab(av && av.data ? av.data : (Array.isArray(av) ? av : []))
+      setAllGames(ag && ag.data ? ag.data : (Array.isArray(ag) ? ag : []))
+      setAllVideoDrills(avd && avd.data ? avd.data : (Array.isArray(avd) ? avd : []))
+      setVocabGroups(vg && vg.data ? vg.data : (Array.isArray(vg) ? vg : []))
+      setCourses(coursesData && coursesData.data ? coursesData.data : (Array.isArray(coursesData) ? coursesData : []))
+      setModules(modulesData && modulesData.data ? modulesData.data : (Array.isArray(modulesData) ? modulesData : []))
     } catch (e) {
       console.error(e)
     }
@@ -144,7 +172,12 @@ export default function SessionConfig() {
 
   const getLessonTitle = (id: string) => {
     const l = lessons.find((l) => getId(l) === id)
-    return l ? `${l.level} - ${l.title}` : "Unknown Lesson"
+    if (!l) return "Unknown Lesson"
+    const module = modules.find((m) => getId(m) === getId(l.module_id))
+    const course = courses.find((c) => getId(c) === getId(module?.course_id))
+    const courseTitle = course ? course.title : "Unknown Course"
+    const moduleTitle = module ? module.title : "Unknown Module"
+    return `${l.level} - ${l.title} (${courseTitle} ➔ ${moduleTitle})`
   }
 
   const handleLessonUpdate = (updatedLesson: any) => {
@@ -214,12 +247,17 @@ export default function SessionConfig() {
               setEditConfig={setEditConfig}
               lessons={lessons}
               templates={templates}
+              courses={courses}
+              modules={modules}
               onSave={saveConfig}
               saving={saving}
               activeVocab={activeVocab}
               activeGames={activeGames}
+              activeVideoDrills={activeVideoDrills}
               allVocab={allVocab}
               allGames={allGames}
+              allVideoDrills={allVideoDrills}
+              vocabGroups={vocabGroups}
               onLessonUpdate={handleLessonUpdate}
               onVocabUpdate={handleVocabUpdate}
               onOverrideUpdate={handleOverrideUpdate}

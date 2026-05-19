@@ -221,6 +221,9 @@ export const updateVocabGroup = (id: string, data: any) =>
 export const deleteVocabGroup = (id: string) =>
   api.delete(`/vocab-groups/${id}`).then(r => r.data)
 
+export const getVocabGroupWords = (id: string) =>
+  api.get(`/vocab-groups/${id}/words`).then(r => r.data)
+
 // ============ Conversation Requests ============
 export const getConversationRequests = () =>
   api.get("/conversation-requests").then(r => r.data)
@@ -310,6 +313,32 @@ export const updateGame = (id: string, data: any) =>
 export const deleteGame = (id: string) =>
   api.delete(`/games/${id}`).then(r => r.data)
 
+// ============ Asset Upload ============
+export const uploadAsset = async (file: File): Promise<{ url: string }> => {
+  const formData = new FormData()
+  formData.append("file", file)
+  const res = await api.post("/assets/upload", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  })
+  return res.data
+}
+
+// ============ Video Drills ============
+export const getVideoDrills = (lessonId?: string) =>
+  api.get(lessonId ? `/video-drills?lesson_id=${lessonId}` : "/video-drills").then(r => r.data)
+
+export const getVideoDrill = (id: string) =>
+  api.get(`/video-drills/${id}`).then(r => r.data)
+
+export const createVideoDrill = (data: any) =>
+  api.post("/video-drills", data).then(r => r.data)
+
+export const updateVideoDrill = (id: string, data: any) =>
+  api.put(`/video-drills/${id}`, data).then(r => r.data)
+
+export const deleteVideoDrill = (id: string) =>
+  api.delete(`/video-drills/${id}`).then(r => r.data)
+
 // ============ Ratings ============
 export const getRatings = () =>
   api.get("/ratings").then(r => r.data)
@@ -337,14 +366,7 @@ export const getAdminNotifications = (page = 1, limit = 20) =>
 export const markAdminNotificationRead = (id: string) =>
   api.put(`/notifications/${id}/read`).then(r => r.data)
 
-// ============ Assets ============
-export const uploadAsset = (file: File) => {
-  const formData = new FormData()
-  formData.append("file", file)
-  return api.post("/assets/upload", formData, {
-    headers: { "Content-Type": "multipart/form-data" }
-  }).then(r => r.data)
-}
+
 
 // ============ LLM API Keys ============
 export const getApiKeys = () =>

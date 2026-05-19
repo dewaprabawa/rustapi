@@ -11,8 +11,13 @@ interface ConfigModalProps {
   saving: boolean
   activeVocab: any[]
   activeGames: any[]
+  activeVideoDrills: any[]
   allVocab: any[]
   allGames: any[]
+  allVideoDrills: any[]
+  vocabGroups: any[]
+  courses?: any[]
+  modules?: any[]
   onLessonUpdate: (l: any) => void
   onVocabUpdate: (v: any) => void
   onOverrideUpdate: (field: string, value: any) => void
@@ -27,8 +32,13 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
   saving,
   activeVocab,
   activeGames,
+  activeVideoDrills,
   allVocab,
   allGames,
+  allVideoDrills,
+  vocabGroups,
+  courses = [],
+  modules = [],
   onLessonUpdate,
   onVocabUpdate,
   onOverrideUpdate
@@ -58,11 +68,17 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
             onChange={(e) => setEditConfig({ ...editConfig, lesson_id: e.target.value })}
           >
             <option value="">Select a lesson…</option>
-            {lessons.map((l: any) => (
-              <option key={getId(l)} value={getId(l)}>
-                {l.title}
-              </option>
-            ))}
+            {lessons.map((l: any) => {
+              const module = modules.find((m: any) => getId(m) === getId(l.module_id));
+              const course = courses.find((c: any) => getId(c) === getId(module?.course_id));
+              const courseTitle = course ? course.title : "Unknown Course";
+              const moduleTitle = module ? module.title : "Unknown Module";
+              return (
+                <option key={getId(l)} value={getId(l)}>
+                  [{courseTitle} ➔ {moduleTitle}] {l.level} - {l.title}
+                </option>
+              );
+            })}
           </select>
         </div>
       )}
@@ -167,10 +183,14 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
                     setEditConfig({ ...editConfig, phases })
                   }}
                   lesson={lesson}
+                  overrideConfig={editConfig}
                   vocabulary={activeVocab}
                   games={activeGames}
+                  videoDrills={activeVideoDrills}
                   allVocab={allVocab}
                   allGames={allGames}
+                  allVideoDrills={allVideoDrills}
+                  vocabGroups={vocabGroups}
                   onLessonUpdate={onLessonUpdate}
                   onVocabUpdate={onVocabUpdate}
                   onOverrideUpdate={onOverrideUpdate}
@@ -198,6 +218,7 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
                 <option value="flashcard">🃏 Flashcard</option>
                 <option value="vocab_drill">🧩 Vocab Drill</option>
                 <option value="game">🎮 Game</option>
+                <option value="video_drill">🎬 Video Drill</option>
                 <option value="pronunciation">🎤 Pronunciation</option>
                 <option value="conversation">💬 Conversation</option>
               </select>

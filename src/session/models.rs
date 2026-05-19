@@ -22,6 +22,8 @@ pub enum SessionPhaseType {
     Pronunciation,
     /// AI roleplay conversation
     Conversation,
+    /// Video-based watch and pick drill
+    VideoDrill,
 }
 
 // ─── Per-Phase Configuration ───────────────────────────────────────
@@ -94,6 +96,17 @@ pub struct PhaseSettings {
     /// Manually selected game IDs
     #[serde(skip_serializing_if = "Option::is_none")]
     pub specific_game_ids: Option<Vec<ObjectId>>,
+    /// Manually selected video drill IDs
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub specific_video_drill_ids: Option<Vec<ObjectId>>,
+
+    // ── Topic-Based Vocab Selection ──
+    /// Select entire VocabGroups by ID
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub specific_vocab_group_ids: Option<Vec<ObjectId>>,
+    /// Individual words to exclude from selected groups
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub excluded_vocab_ids: Option<Vec<ObjectId>>,
 }
 
 // ─── Level Template ────────────────────────────────────────────────

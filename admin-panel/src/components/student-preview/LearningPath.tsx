@@ -30,7 +30,7 @@ export function LearningPath({ courseId }: LearningPathProps) {
   let hasPassedActive = false;
 
   const handleLessonClick = (lessonId: string, isLocked: boolean) => {
-    if (isLocked) return;
+    // Allow clicking and playing any lesson for easy testing of custom configurations
     navigate(`/portal/learn/${lessonId}`);
   };
 

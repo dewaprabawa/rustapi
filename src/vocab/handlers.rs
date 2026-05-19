@@ -5,7 +5,7 @@ use axum::{
 };
 use mongodb::bson::{doc, oid::ObjectId};
 use std::sync::Arc;
-use futures::stream::StreamExt;
+use futures::stream::{StreamExt, TryStreamExt};
 
 use crate::handlers::{AppState, AppError};
 use crate::ai::models::GeneratedVocabPreview;
@@ -353,4 +353,32 @@ pub async fn delete_vocab_group(
     }
 
     Ok(StatusCode::NO_CONTENT)
+}
+
+pub async fn get_vocab_group_words(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> Result<impl IntoResponse, AppError> {
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::BadRequest("Invalid group ID".to_string()))?;
+    let db = state.db.database("rustapi");
+    
+    // 1. Get all sets for this group
+    let sets_col = db.collection::<crate::vocab::models::VocabSet>("vocab_sets");
+    let mut sets_cursor = sets_col.find(doc! { "group_id": oid }).await?;
+    let mut set_ids = Vec::new();
+    while let Some(set) = sets_cursor.try_next().await? {
+        if let Some(set_id) = set.id {
+            set_ids.push(set_id);
+        }
+    }
+
+    // 2. Get all words for these sets
+    let words_col = db.collection::<crate::vocab::models::VocabWord>("vocab_words");
+    let mut words_cursor = words_col.find(doc! { "set_id": { "$in": set_ids } }).await?;
+    let mut words = Vec::new();
+    while let Some(word) = words_cursor.try_next().await? {
+        words.push(word);
+    }
+
+    Ok(Json(words))
 }

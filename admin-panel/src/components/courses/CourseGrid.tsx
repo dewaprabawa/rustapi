@@ -116,7 +116,7 @@ export default function CourseGrid({
                   onClick={() => openDetailModal(course)}
                   className="px-6 py-1.5 border-2 border-blue-500 text-blue-600 font-bold text-sm rounded-full hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all duration-300 shadow-sm"
                 >
-                  Start
+                  View
                 </button>
               </div>
             </div>

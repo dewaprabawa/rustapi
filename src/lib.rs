@@ -22,6 +22,7 @@ pub mod vocab;
 pub mod voice;
 pub mod ebook;
 pub mod storage;
+pub mod video_drill;
 
 use crate::admin::handlers::{
     admin_login, admin_me, delete_user, get_user, list_users, upload_asset, get_dashboard_stats, update_user,
@@ -62,6 +63,7 @@ use crate::voice::handlers::{
 use crate::storage::{
     get_storage_config, update_storage_config, get_storage_capacity,
 };
+use crate::video_drill::handlers as video_drill_handlers;
 // Removed duplicate/glob speaking import to resolve ambiguity
 use axum::{
     routing::{delete, get, post, put, patch},
@@ -278,6 +280,10 @@ pub async fn create_app() -> Router {
                 .put(vocab::handlers::update_vocab_group)
                 .delete(vocab::handlers::delete_vocab_group)
         )
+        .route(
+            "/vocab-groups/:id/words",
+            get(vocab::handlers::get_vocab_group_words)
+        )
         // Master Data
         .route("/master-data", get(list_master_data))
         .route("/master-data/:category", get(get_master_data).put(update_master_data))
@@ -310,7 +316,10 @@ pub async fn create_app() -> Router {
         .route("/curriculum", get(crate::ebook::get_curriculum))
         .route("/ebook/generate", post(crate::ebook::generate_ebook))
         .route("/ebook/:id", get(crate::ebook::get_ebook).put(crate::ebook::update_ebook))
-        .route("/ebook/:id/export", post(crate::ebook::export_ebook));
+        .route("/ebook/:id/export", post(crate::ebook::export_ebook))
+        // Video Drills
+        .route("/video-drills", get(video_drill_handlers::list_video_drills).post(video_drill_handlers::create_video_drill))
+        .route("/video-drills/:id", get(video_drill_handlers::get_video_drill).put(video_drill_handlers::update_video_drill).delete(video_drill_handlers::delete_video_drill));
 
     // ============ Voice Abstraction Routes (auth recommended) ============
     let voice_routes = Router::new()
@@ -415,7 +424,10 @@ pub async fn create_app() -> Router {
             "/conversation-requests",
             get(vocab::student_handlers::list_my_requests)
                 .post(vocab::student_handlers::create_conversation_request),
-        );
+        )
+        // Video Drills (student)
+        .route("/video-drills/:id", get(video_drill_handlers::student_get_drill))
+        .route("/video-drills/:id/submit", post(video_drill_handlers::student_submit_drill));
 
     Router::new()
         .route("/", get(root))

@@ -15,6 +15,9 @@ interface PhaseSettings {
   video_url?: string
   specific_vocab_ids?: string[]
   specific_game_ids?: string[]
+  specific_video_drill_ids?: string[]
+  specific_vocab_group_ids?: string[]
+  excluded_vocab_ids?: string[]
 }
 
 interface PhaseConfig {
@@ -30,11 +33,15 @@ interface PhaseEditorProps {
   lesson?: any
   vocabulary?: any[]
   games?: any[]
+  videoDrills?: any[]
   allVocab?: any[]
   allGames?: any[]
+  allVideoDrills?: any[]
+  vocabGroups?: any[]
   onLessonUpdate?: (l: any) => void
   onVocabUpdate?: (v: any) => void
   onOverrideUpdate?: (field: string, value: any) => void
+  overrideConfig?: any
 }
 
 const PHASE_LABELS: Record<string, string> = {
@@ -44,24 +51,38 @@ const PHASE_LABELS: Record<string, string> = {
   game: "🎮 Games",
   pronunciation: "🎤 Pronunciation",
   conversation: "💬 Conversation",
+  video_drill: "🎬 Video Drill",
 }
 
 export const PhaseEditor: React.FC<PhaseEditorProps> = ({
   phase,
   onChange,
   lesson,
+  overrideConfig,
   vocabulary,
   games,
+  videoDrills,
   allVocab,
   allGames,
+  allVideoDrills,
+  vocabGroups,
   onLessonUpdate,
   onVocabUpdate,
   onOverrideUpdate,
 }) => {
-  const [tab, setTab] = useState<"settings" | "content">("settings")
+  const [tab, setTab] = useState<"settings" | "content">(
+    (phase.phase_type === "read" || phase.phase_type === "pronunciation" || phase.phase_type === "conversation") 
+      ? "content" 
+      : "settings"
+  )
   const [showLibrary, setShowLibrary] = useState(false)
   const s = phase.settings
-  const hasContent = lesson || (vocabulary && vocabulary.length > 0) || phase.phase_type === "pronunciation" || phase.phase_type === "conversation" || phase.phase_type === "game"
+  const hasContent = lesson || (vocabulary && vocabulary.length > 0) || phase.phase_type === "pronunciation" || phase.phase_type === "conversation" || phase.phase_type === "game" || phase.phase_type === "video_drill"
+
+  const hasId = (arr: any[] | undefined | null, targetId: string): boolean => {
+    if (!arr) return false;
+    return arr.some(item => getId(item) === targetId);
+  };
 
   return (
     <>
@@ -245,68 +266,121 @@ export const PhaseEditor: React.FC<PhaseEditorProps> = ({
           )}
 
           {/* Vocab content */}
-          {(phase.phase_type === "vocab_drill" || phase.phase_type === "flashcard") && vocabulary && (
+          {(phase.phase_type === "vocab_drill" || phase.phase_type === "flashcard") && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Vocabulary Source</label>
-                <div className="flex gap-2">
+              <div className="flex flex-col gap-2">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Vocabulary Source Mode</label>
+                <div className="flex flex-wrap gap-2">
                   <button 
-                    onClick={() => onChange({ ...phase, settings: { ...s, specific_vocab_ids: undefined } })}
-                    className={cn("px-2 py-1 rounded text-[10px] font-bold", !s.specific_vocab_ids ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500")}
+                    onClick={() => onChange({ ...phase, settings: { ...s, specific_vocab_ids: undefined, specific_vocab_group_ids: undefined, excluded_vocab_ids: undefined } })}
+                    className={cn("px-2 py-1 rounded text-[10px] font-bold", !s.specific_vocab_ids && !s.specific_vocab_group_ids ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500")}
                   >
                     ALL LESSON VOCAB
                   </button>
                   <button 
-                    onClick={() => onChange({ ...phase, settings: { ...s, specific_vocab_ids: s.specific_vocab_ids || [] } })}
-                    className={cn("px-2 py-1 rounded text-[10px] font-bold", s.specific_vocab_ids ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500")}
+                    onClick={() => onChange({ ...phase, settings: { ...s, specific_vocab_ids: s.specific_vocab_ids || [], specific_vocab_group_ids: undefined, excluded_vocab_ids: undefined } })}
+                    className={cn("px-2 py-1 rounded text-[10px] font-bold", s.specific_vocab_ids !== undefined ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500")}
                   >
-                    SELECT SPECIFIC
+                    SELECT SPECIFIC WORDS
+                  </button>
+                  <button 
+                    onClick={() => onChange({ ...phase, settings: { ...s, specific_vocab_group_ids: s.specific_vocab_group_ids || [], specific_vocab_ids: undefined, excluded_vocab_ids: s.excluded_vocab_ids || [] } })}
+                    className={cn("px-2 py-1 rounded text-[10px] font-bold", s.specific_vocab_group_ids !== undefined ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500")}
+                  >
+                    SELECT BY TOPIC/GROUP
                   </button>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
-                {vocabulary.map((v: any, idx: number) => {
-                  const vId = getId(v);
-                  const isSelected = !s.specific_vocab_ids || s.specific_vocab_ids.includes(vId);
-                  
-                  return (
-                    <div 
-                      key={idx} 
-                      onClick={() => {
-                        const current = s.specific_vocab_ids || vocabulary.map(x => getId(x));
-                        const next = current.includes(vId) 
-                          ? current.filter(id => id !== vId)
-                          : [...current, vId];
-                        onChange({ ...phase, settings: { ...s, specific_vocab_ids: next } });
-                      }}
-                      className={cn(
-                        "flex items-center gap-3 p-2 rounded-lg border cursor-pointer transition-all",
-                        isSelected ? "bg-blue-50 border-blue-200" : "bg-slate-50 border-slate-100 opacity-50"
-                      )}
-                    >
-                      <input 
-                        type="checkbox" 
-                        readOnly 
-                        checked={isSelected}
-                        className="rounded border-slate-300 text-blue-600"
-                      />
-                      <div className="flex flex-col">
-                        <p className="text-[10px] font-bold text-slate-800">{v.word}</p>
-                        <p className="text-[10px] text-slate-500 italic">{v.translation}</p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+              {/* Mode: Topic / Group Selection */}
+              {s.specific_vocab_group_ids !== undefined && (
+                <div className="space-y-3">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Select Topic Groups</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+                    {(vocabGroups || []).map((vg: any, idx: number) => {
+                      const vgId = getId(vg);
+                      const isSelected = hasId(s.specific_vocab_group_ids, vgId);
+                      return (
+                        <div 
+                          key={idx} 
+                          onClick={() => {
+                            const current = s.specific_vocab_group_ids || [];
+                            const next = isSelected 
+                              ? current.filter(id => getId(id) !== vgId)
+                              : [...current, vgId];
+                            onChange({ ...phase, settings: { ...s, specific_vocab_group_ids: next } });
+                          }}
+                          className={cn(
+                            "flex items-center gap-3 p-2 rounded-lg border cursor-pointer transition-all",
+                            isSelected ? "bg-blue-50 border-blue-200" : "bg-slate-50 border-slate-100 opacity-50"
+                          )}
+                        >
+                          <input 
+                            type="checkbox" 
+                            readOnly 
+                            checked={isSelected}
+                            className="rounded border-slate-300 text-blue-600"
+                          />
+                          <div className="flex flex-col">
+                            <p className="text-[10px] font-bold text-slate-800">{vg.title}</p>
+                            <p className="text-[10px] text-slate-500 italic">{vg.topic} • {vg.level}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
-              {s.specific_vocab_ids && (
-                <button 
-                  onClick={() => setShowLibrary(true)}
-                  className="w-full py-2 border-2 border-dashed border-slate-200 rounded-xl text-[10px] font-bold text-slate-400 hover:border-blue-200 hover:text-blue-500 transition-all"
-                >
-                  + PICK FROM GLOBAL LIBRARY
-                </button>
+              {/* Mode: Specific Words */}
+              {(s.specific_vocab_ids !== undefined || !s.specific_vocab_group_ids) && s.specific_vocab_group_ids === undefined && vocabulary && (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+                    {vocabulary.map((v: any, idx: number) => {
+                      const vId = getId(v);
+                      const isSelected = !s.specific_vocab_ids || hasId(s.specific_vocab_ids, vId);
+                      
+                      return (
+                        <div 
+                          key={idx} 
+                          onClick={() => {
+                            if (!s.specific_vocab_ids) return; // All lesson vocab mode
+                            const current = s.specific_vocab_ids;
+                            const next = isSelected 
+                              ? current.filter(id => getId(id) !== vId)
+                              : [...current, vId];
+                            onChange({ ...phase, settings: { ...s, specific_vocab_ids: next } });
+                          }}
+                          className={cn(
+                            "flex items-center gap-3 p-2 rounded-lg border cursor-pointer transition-all",
+                            isSelected ? "bg-blue-50 border-blue-200" : "bg-slate-50 border-slate-100 opacity-50"
+                          )}
+                        >
+                          <input 
+                            type="checkbox" 
+                            readOnly 
+                            checked={isSelected}
+                            disabled={!s.specific_vocab_ids}
+                            className="rounded border-slate-300 text-blue-600"
+                          />
+                          <div className="flex flex-col">
+                            <p className="text-[10px] font-bold text-slate-800">{v.word}</p>
+                            <p className="text-[10px] text-slate-500 italic">{v.translation}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {s.specific_vocab_ids && (
+                    <button 
+                      onClick={() => setShowLibrary(true)}
+                      className="w-full py-2 border-2 border-dashed border-slate-200 rounded-xl text-[10px] font-bold text-slate-400 hover:border-blue-200 hover:text-blue-500 transition-all"
+                    >
+                      + PICK FROM GLOBAL LIBRARY
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           )}
@@ -335,15 +409,15 @@ export const PhaseEditor: React.FC<PhaseEditorProps> = ({
               <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto pr-1">
                 {(games || []).map((g: any, idx: number) => {
                   const gId = getId(g);
-                  const isSelected = !s.specific_game_ids || s.specific_game_ids.includes(gId);
+                  const isSelected = !s.specific_game_ids || hasId(s.specific_game_ids, gId);
 
                   return (
                     <div 
                       key={idx} 
                       onClick={() => {
                         const current = s.specific_game_ids || (games || []).map(x => getId(x));
-                        const next = current.includes(gId) 
-                          ? current.filter(id => id !== gId)
+                        const next = hasId(current, gId) 
+                          ? current.filter(id => getId(id) !== gId)
                           : [...current, gId];
                         onChange({ ...phase, settings: { ...s, specific_game_ids: next } });
                       }}
@@ -372,10 +446,89 @@ export const PhaseEditor: React.FC<PhaseEditorProps> = ({
               </div>
 
               <div className="flex gap-2">
-                <button className="flex-1 py-2.5 bg-slate-900 text-white rounded-xl text-[10px] font-bold uppercase tracking-wider hover:bg-slate-800 transition-colors">
+                <button 
+                  onClick={() => window.open('/gamification', '_blank')}
+                  className="flex-1 py-2.5 bg-slate-900 text-white rounded-xl text-[10px] font-bold uppercase tracking-wider hover:bg-slate-800 transition-colors"
+                >
                   + CREATE NEW GAME FOR LESSON
                 </button>
                 {s.specific_game_ids && (
+                  <button 
+                    onClick={() => setShowLibrary(true)}
+                    className="px-4 py-2.5 border-2 border-dashed border-slate-200 rounded-xl text-[10px] font-bold text-slate-400 hover:border-blue-200 hover:text-blue-500 transition-all"
+                  >
+                    PICK FROM LIBRARY
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Video Drill content */}
+          {phase.phase_type === "video_drill" && (
+            <div className="space-y-4">
+               <div className="flex items-center justify-between">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Video Drill Source</label>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => onChange({ ...phase, settings: { ...s, specific_video_drill_ids: undefined } })}
+                    className={cn("px-2 py-1 rounded text-[10px] font-bold", !s.specific_video_drill_ids ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500")}
+                  >
+                    ALL LESSON DRILLS
+                  </button>
+                  <button 
+                    onClick={() => onChange({ ...phase, settings: { ...s, specific_video_drill_ids: s.specific_video_drill_ids || [] } })}
+                    className={cn("px-2 py-1 rounded text-[10px] font-bold", s.specific_video_drill_ids ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500")}
+                  >
+                    SELECT SPECIFIC
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto pr-1">
+                {(videoDrills || []).map((vd: any, idx: number) => {
+                  const vdId = getId(vd);
+                  const isSelected = !s.specific_video_drill_ids || hasId(s.specific_video_drill_ids, vdId);
+
+                  return (
+                    <div 
+                      key={idx} 
+                      onClick={() => {
+                        const current = s.specific_video_drill_ids || (videoDrills || []).map(x => getId(x));
+                        const next = hasId(current, vdId) 
+                          ? current.filter(id => getId(id) !== vdId)
+                          : [...current, vdId];
+                        onChange({ ...phase, settings: { ...s, specific_video_drill_ids: next } });
+                      }}
+                      className={cn(
+                        "flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all",
+                        isSelected ? "bg-blue-50 border-blue-200" : "bg-slate-50 border-slate-100 opacity-50"
+                      )}
+                    >
+                      <input 
+                        type="checkbox" 
+                        readOnly 
+                        checked={isSelected}
+                        className="rounded border-slate-300 text-blue-600"
+                      />
+                      <div className="flex-1">
+                        <div className="flex justify-between items-start">
+                          <p className="text-[10px] font-black text-slate-800 uppercase">{vd.topic}</p>
+                          <span className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-600 uppercase">{vd.level}</span>
+                        </div>
+                        <p className="text-xs font-bold text-slate-900">{vd.title}</p>
+                        <p className="text-[10px] text-slate-500">{vd.steps?.length || 0} steps</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="flex gap-2">
+                <button className="flex-1 py-2.5 bg-slate-900 text-white rounded-xl text-[10px] font-bold uppercase tracking-wider hover:bg-slate-800 transition-colors">
+                  + CREATE NEW VIDEO DRILL
+                </button>
+                {s.specific_video_drill_ids && (
                   <button 
                     onClick={() => setShowLibrary(true)}
                     className="px-4 py-2.5 border-2 border-dashed border-slate-200 rounded-xl text-[10px] font-bold text-slate-400 hover:border-blue-200 hover:text-blue-500 transition-all"
@@ -393,26 +546,26 @@ export const PhaseEditor: React.FC<PhaseEditorProps> = ({
                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 flex justify-between items-center">
                   Specific Sentences
                   <button 
-                    onClick={() => onOverrideUpdate("pronunciation_sentences", [...(lesson?.pronunciation_sentences || []), ""])}
+                    onClick={() => onOverrideUpdate("pronunciation_sentences", [...(overrideConfig?.pronunciation_sentences || []), ""])}
                     className="text-blue-600 hover:underline"
                   >
                     + ADD
                   </button>
                 </label>
                 <div className="space-y-2">
-                  {(lesson?.pronunciation_sentences || []).map((s: string, idx: number) => (
+                  {(overrideConfig?.pronunciation_sentences || []).map((s: string, idx: number) => (
                     <div key={idx} className="flex gap-2">
                       <input 
                         className="flex-1 border border-slate-200 rounded-lg px-2 py-1 text-xs"
                         value={s}
                         onChange={(e) => {
-                          const copy = [...lesson.pronunciation_sentences]
+                          const copy = [...overrideConfig.pronunciation_sentences]
                           copy[idx] = e.target.value
                           onOverrideUpdate("pronunciation_sentences", copy)
                         }}
                       />
                       <button 
-                        onClick={() => onOverrideUpdate("pronunciation_sentences", lesson.pronunciation_sentences.filter((_:any, i:number) => i !== idx))}
+                        onClick={() => onOverrideUpdate("pronunciation_sentences", overrideConfig.pronunciation_sentences.filter((_:any, i:number) => i !== idx))}
                         className="text-red-400 hover:text-red-600"
                       >
                         <X className="h-4 w-4" />
@@ -430,7 +583,7 @@ export const PhaseEditor: React.FC<PhaseEditorProps> = ({
               <textarea
                 className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs h-24 leading-relaxed"
                 placeholder="e.g. You are a guest checking in. Be difficult about the room view..."
-                value={lesson?.conversation_prompt || ""}
+                value={overrideConfig?.conversation_prompt || ""}
                 onChange={(e) => onOverrideUpdate("conversation_prompt", e.target.value)}
               />
             </div>
@@ -446,7 +599,7 @@ export const PhaseEditor: React.FC<PhaseEditorProps> = ({
           <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
             <div>
               <h3 className="text-2xl font-black text-slate-900 leading-tight">
-                {phase.phase_type === 'game' ? 'Gamification Library' : 'VocabForge Library'}
+                {phase.phase_type === 'game' ? 'Gamification Library' : phase.phase_type === 'video_drill' ? 'Video Drill Library' : 'VocabForge Library'}
               </h3>
               <p className="text-sm text-slate-500 font-medium">Select items to inject into this session phase</p>
             </div>
@@ -459,11 +612,13 @@ export const PhaseEditor: React.FC<PhaseEditorProps> = ({
           </div>
 
           <div className="flex-1 overflow-y-auto p-8 space-y-3">
-            {(phase.phase_type === 'game' ? allGames : allVocab)?.map((item: any) => {
+            {(phase.phase_type === 'game' ? allGames : phase.phase_type === 'video_drill' ? allVideoDrills : allVocab)?.map((item: any) => {
               const itemId = getId(item);
               const isSelected = phase.phase_type === 'game' 
-                ? s.specific_game_ids?.includes(itemId)
-                : s.specific_vocab_ids?.includes(itemId);
+                ? hasId(s.specific_game_ids, itemId)
+                : phase.phase_type === 'video_drill'
+                ? hasId(s.specific_video_drill_ids, itemId)
+                : hasId(s.specific_vocab_ids, itemId);
 
               return (
                 <div 
@@ -471,11 +626,15 @@ export const PhaseEditor: React.FC<PhaseEditorProps> = ({
                   onClick={() => {
                     if (phase.phase_type === 'game') {
                       const current = s.specific_game_ids || [];
-                      const next = isSelected ? current.filter(id => id !== itemId) : [...current, itemId];
+                      const next = isSelected ? current.filter(id => getId(id) !== itemId) : [...current, itemId];
                       onChange({ ...phase, settings: { ...s, specific_game_ids: next } });
+                    } else if (phase.phase_type === 'video_drill') {
+                      const current = s.specific_video_drill_ids || [];
+                      const next = isSelected ? current.filter(id => getId(id) !== itemId) : [...current, itemId];
+                      onChange({ ...phase, settings: { ...s, specific_video_drill_ids: next } });
                     } else {
                       const current = s.specific_vocab_ids || [];
-                      const next = isSelected ? current.filter(id => id !== itemId) : [...current, itemId];
+                      const next = isSelected ? current.filter(id => getId(id) !== itemId) : [...current, itemId];
                       onChange({ ...phase, settings: { ...s, specific_vocab_ids: next } });
                     }
                   }}
@@ -495,10 +654,10 @@ export const PhaseEditor: React.FC<PhaseEditorProps> = ({
                   
                   <div className="flex-1">
                     <p className="text-sm font-black text-slate-900">
-                      {phase.phase_type === 'game' ? item.title : item.word}
+                      {phase.phase_type === 'game' || phase.phase_type === 'video_drill' ? item.title : item.word}
                     </p>
                     <p className="text-xs text-slate-500 font-medium">
-                      {phase.phase_type === 'game' ? item.game_type : item.translation}
+                      {phase.phase_type === 'game' ? item.game_type : phase.phase_type === 'video_drill' ? `${item.steps?.length || 0} steps` : item.translation}
                     </p>
                   </div>
 

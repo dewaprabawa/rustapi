@@ -83,11 +83,39 @@ pub async fn get_lesson_session(
             }),
             SessionPhaseType::Flashcard => {
                 let mut words_source = vocabulary.clone();
-                if let Some(specific_ids) = &phase.settings.specific_vocab_ids {
+                if let Some(group_ids) = &phase.settings.specific_vocab_group_ids {
+                    if !group_ids.is_empty() {
+                        let col: Collection<crate::vocab::models::VocabWord> = db.collection("vocab_words");
+                        let cursor = col.find(doc! { "set_id": { "$in": group_ids } }).await?;
+                        let vocab_words: Vec<crate::vocab::models::VocabWord> = cursor.try_collect().await?;
+                        words_source = vocab_words.into_iter().map(|v| Vocabulary {
+                            id: v.id,
+                            lesson_id: lesson_oid,
+                            word: v.word,
+                            translation: v.translation,
+                            pronunciation: Some(v.pronunciation_guide),
+                            audio_url: v.audio_url,
+                            example_en: v.example_sentence,
+                            example_id: None,
+                            created_at: Utc::now(),
+                        }).collect();
+                    }
+                } else if let Some(specific_ids) = &phase.settings.specific_vocab_ids {
                     if !specific_ids.is_empty() {
                         let col: Collection<Vocabulary> = db.collection("vocabulary");
                         let cursor = col.find(doc! { "_id": { "$in": specific_ids } }).await?;
                         words_source = cursor.try_collect().await?;
+                    }
+                }
+
+                if let Some(excluded) = &phase.settings.excluded_vocab_ids {
+                    if !excluded.is_empty() {
+                        words_source.retain(|w| {
+                            match w.id {
+                                Some(id) => !excluded.contains(&id),
+                                None => true,
+                            }
+                        });
                     }
                 }
 
@@ -113,11 +141,39 @@ pub async fn get_lesson_session(
             },
             SessionPhaseType::VocabDrill => {
                 let mut words_source = vocabulary.clone();
-                if let Some(specific_ids) = &phase.settings.specific_vocab_ids {
+                if let Some(group_ids) = &phase.settings.specific_vocab_group_ids {
+                    if !group_ids.is_empty() {
+                        let col: Collection<crate::vocab::models::VocabWord> = db.collection("vocab_words");
+                        let cursor = col.find(doc! { "set_id": { "$in": group_ids } }).await?;
+                        let vocab_words: Vec<crate::vocab::models::VocabWord> = cursor.try_collect().await?;
+                        words_source = vocab_words.into_iter().map(|v| Vocabulary {
+                            id: v.id,
+                            lesson_id: lesson_oid,
+                            word: v.word,
+                            translation: v.translation,
+                            pronunciation: Some(v.pronunciation_guide),
+                            audio_url: v.audio_url,
+                            example_en: v.example_sentence,
+                            example_id: None,
+                            created_at: Utc::now(),
+                        }).collect();
+                    }
+                } else if let Some(specific_ids) = &phase.settings.specific_vocab_ids {
                     if !specific_ids.is_empty() {
                         let col: Collection<Vocabulary> = db.collection("vocabulary");
                         let cursor = col.find(doc! { "_id": { "$in": specific_ids } }).await?;
                         words_source = cursor.try_collect().await?;
+                    }
+                }
+
+                if let Some(excluded) = &phase.settings.excluded_vocab_ids {
+                    if !excluded.is_empty() {
+                        words_source.retain(|w| {
+                            match w.id {
+                                Some(id) => !excluded.contains(&id),
+                                None => true,
+                            }
+                        });
                     }
                 }
 
@@ -228,6 +284,42 @@ pub async fn get_lesson_session(
                     "xp_reward": 25,
                 })
             },
+            SessionPhaseType::VideoDrill => {
+                // Fetch video drills linked to this lesson or specified in settings
+                let vd_col: Collection<crate::video_drill::models::VideoDrill> = db.collection("video_drills");
+                let mut vd_filter = doc! { "lesson_id": lesson_oid };
+                if let Some(specific_ids) = &phase.settings.specific_video_drill_ids {
+                    if !specific_ids.is_empty() {
+                        vd_filter = doc! { "_id": { "$in": specific_ids } };
+                    }
+                }
+                let vd_cursor = vd_col.find(vd_filter).await?;
+                let video_drills: Vec<crate::video_drill::models::VideoDrill> = vd_cursor.try_collect().await?;
+
+                if video_drills.is_empty() {
+                    eprintln!("[WARN] VideoDrill phase skipped: no drills found for lesson {}", lesson_id_str);
+                    continue;
+                }
+
+                let drill_data: Vec<serde_json::Value> = video_drills.iter().map(|d| json!({
+                    "id": d.id.map(|id| id.to_hex()),
+                    "title": d.title,
+                    "topic": d.topic,
+                    "level": d.level,
+                    "step_count": d.steps.len(),
+                })).collect();
+
+                json!({
+                    "drills": drill_data,
+                    "xp_reward": 15,
+                })
+            },
+            // Catch-all: skip unknown / future phase types gracefully
+            #[allow(unreachable_patterns)]
+            _ => {
+                eprintln!("[WARN] Unknown phase type {:?} skipped", phase.phase_type);
+                continue;
+            }
         };
 
         phase_data.push(json!({
@@ -380,27 +472,10 @@ pub async fn upsert_lesson_config(
     let config_doc = config_bson.as_document()
         .ok_or(AppError::BadRequest("Failed to serialize config".into()))?;
 
-    col.update_one(
+    let result = col.update_one(
         doc! { "lesson_id": oid },
         doc! { "$set": config_doc },
-    ).await?;
-
-    // If no doc was modified, insert a new one
-    let existing = col.find_one(doc! { "lesson_id": oid }).await?;
-    if existing.is_none() {
-        let new_config = LessonSessionConfig {
-            id: None,
-            lesson_id: oid,
-            phases: None,
-            override_lives: None,
-            override_xp_multiplier: None,
-            pronunciation_sentences: None,
-            conversation_prompt: None,
-            branching_tree: None,
-            updated_at: Utc::now(),
-        };
-        col.insert_one(new_config).await?;
-    }
+    ).with_options(mongodb::options::UpdateOptions::builder().upsert(true).build()).await?;
 
     let result = col.find_one(doc! { "lesson_id": oid }).await?;
     Ok((StatusCode::OK, Json(result)))

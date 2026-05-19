@@ -213,10 +213,22 @@ function renderPhaseContent(phase: any) {
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {data?.words?.map((v: any) => (
-              <div key={v.id} className="p-6 bg-white border-2 border-slate-100 rounded-3xl text-left hover:border-blue-500 transition-colors cursor-pointer group">
-                <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">{v.pronunciation}</p>
-                <p className="text-xl font-black text-slate-900 group-hover:text-blue-600">{v.word}</p>
-                <p className="text-sm text-slate-500 mt-2">{v.translation}</p>
+              <div key={v.id} className="p-6 bg-white border-2 border-slate-100 rounded-3xl text-left hover:border-blue-500 transition-colors cursor-pointer group flex flex-col justify-between">
+                <div>
+                  <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">{v.pronunciation}</p>
+                  <p className="text-xl font-black text-slate-900 group-hover:text-blue-600">{v.word}</p>
+                  <p className="text-sm text-slate-500 mt-2">{v.translation}</p>
+                </div>
+                {(v.example_en || v.example_id) && (
+                  <div className="mt-4 p-3 bg-slate-50 rounded-2xl border border-slate-100/50 space-y-1">
+                    {v.example_en && (
+                      <p className="text-xs text-slate-600 italic font-medium">"{v.example_en}"</p>
+                    )}
+                    {v.example_id && (
+                      <p className="text-[11px] text-slate-500">{v.example_id}</p>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -294,6 +306,23 @@ function renderPhaseContent(phase: any) {
                 <p className="text-xl font-black text-slate-900">{data.games?.[0]?.title || "Complete the challenge"}</p>
                 <p className="text-sm text-slate-500 mt-2">{data.games?.[0]?.instructions || "Follow the instructions in the video to proceed."}</p>
              </div>
+          </div>
+        </div>
+      );
+
+    case 'video_drill':
+      return (
+        <div className="space-y-8 w-full max-w-2xl">
+          <h3 className="text-3xl font-black text-slate-900">Video Drill</h3>
+          <p className="text-slate-500 font-medium">Watch and interact with the video.</p>
+          
+          <div className="p-12 bg-slate-50 rounded-[2rem] border border-slate-200 flex flex-col items-center text-center">
+             <Play className="w-16 h-16 text-blue-500 mb-4" />
+             <p className="text-xl font-black text-slate-900 mb-2">{data.drills?.[0]?.title || "Loading Video..."}</p>
+             <p className="text-slate-500 font-bold mb-4">{data.drills?.[0]?.step_count || 0} Interactive Steps</p>
+             <p className="text-xs font-bold text-slate-400 bg-white px-3 py-1 rounded-full border">
+                Web player coming soon. Please use the mobile app.
+             </p>
           </div>
         </div>
       );
