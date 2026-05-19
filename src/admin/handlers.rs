@@ -312,22 +312,64 @@ pub async fn upload_asset(
     let mut filename = None;
     let mut content_type = None;
 
-    while let Some(field) = multipart.next_field().await.map_err(|_| AppError::InternalServerError)? {
+    while let Some(field) = multipart.next_field().await.map_err(|e| AppError::BadRequest(format!("Multipart error: {:?}", e)))? {
         if field.name() == Some("file") {
             filename = field.file_name().map(|s| s.to_string());
             content_type = field.content_type().map(|s| s.to_string());
-            file_bytes = Some(field.bytes().await.map_err(|_| AppError::InternalServerError)?);
+            file_bytes = Some(field.bytes().await.map_err(|e| AppError::BadRequest(format!("Field bytes error: {:?}", e)))?);
             break;
         }
     }
 
     let file_bytes = file_bytes.ok_or(AppError::InternalServerError)?;
-    let filename = filename.unwrap_or_else(|| "asset.bin".to_string());
-    let content_type = content_type.unwrap_or_else(|| "application/octet-stream".to_string());
+    let mut filename = filename.unwrap_or_else(|| "asset.bin".to_string());
+    let mut content_type = content_type.unwrap_or_else(|| "application/octet-stream".to_string());
+    let mut final_bytes = file_bytes.to_vec();
+
+    // If it's a video, attempt native macOS hardware-accelerated compression using avconvert
+    if content_type.starts_with("video/") {
+        let temp_dir = std::env::temp_dir();
+        let input_id = ObjectId::new().to_hex();
+        let ext = filename.split('.').next_back().unwrap_or("mp4");
+        let input_path = temp_dir.join(format!("input_{}.{}", input_id, ext));
+        let output_path = temp_dir.join(format!("output_{}.mp4", input_id));
+
+        if let Ok(_) = std::fs::write(&input_path, &final_bytes) {
+            println!("🎥 Compressing video using macOS avconvert (720p HD Preset)...");
+            let status = std::process::Command::new("avconvert")
+                .args(&[
+                    "-s", input_path.to_str().unwrap(),
+                    "-p", "Preset1280x720",
+                    "-o", output_path.to_str().unwrap(),
+                    "--replace"
+                ])
+                .status();
+
+            match status {
+                Ok(s) if s.success() => {
+                    if let Ok(compressed) = std::fs::read(&output_path) {
+                        println!("✅ Video compressed successfully! Size reduced from {} to {} bytes", final_bytes.len(), compressed.len());
+                        final_bytes = compressed;
+                        content_type = "video/mp4".to_string();
+                        // Adjust filename extension to mp4
+                        if ext != "mp4" {
+                            let base = filename.split('.').next().unwrap_or("video");
+                            filename = format!("{}.mp4", base);
+                        }
+                    }
+                }
+                other => {
+                    println!("⚠️ avconvert compression failed or skipped: {:?}", other);
+                }
+            }
+            let _ = std::fs::remove_file(&input_path);
+            let _ = std::fs::remove_file(&output_path);
+        }
+    }
 
     let public_url = crate::storage::upload_file_dynamically(
         &state.db,
-        file_bytes.to_vec(),
+        final_bytes,
         &filename,
         &content_type,
         ""
@@ -382,4 +424,28 @@ pub async fn delete_asset(
     let oid = ObjectId::parse_str(&id).map_err(|_| AppError::BadRequest("Invalid ID".into()))?;
     col.delete_one(doc! { "_id": oid }).await?;
     Ok(Json(serde_json::json!({ "success": true })))
+}
+
+/// GET /uploads/:name
+pub async fn serve_upload(
+    Path(name): Path<String>,
+) -> Result<impl IntoResponse, axum::http::StatusCode> {
+    let path = std::path::Path::new("uploads").join(name);
+    let bytes = std::fs::read(&path).map_err(|_| axum::http::StatusCode::NOT_FOUND)?;
+    
+    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("bin");
+    let content_type = match ext {
+        "mp4" => "video/mp4",
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "mp3" => "audio/mpeg",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        _ => "application/octet-stream",
+    };
+
+    Ok((
+        [("content-type", content_type)],
+        bytes
+    ))
 }

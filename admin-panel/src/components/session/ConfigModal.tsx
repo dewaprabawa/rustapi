@@ -218,6 +218,7 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
                 <option value="read">📖 Read</option>
                 <option value="flashcard">🃏 Flashcard</option>
                 <option value="vocab_drill">🧩 Vocab Drill</option>
+                <option value="translation_drill">⌨️ Translation Drill</option>
                 <option value="game">🎮 Game</option>
                 <option value="video_drill">🎬 Video Drill</option>
                 <option value="pronunciation">🎤 Pronunciation</option>

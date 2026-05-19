@@ -142,6 +142,62 @@ pub async fn get_lesson_session(
                     "xp_reward": 10,
                 })
             },
+            SessionPhaseType::TranslationDrill => {
+                let mut words_source = vocabulary.clone();
+                if let Some(group_ids) = &phase.settings.specific_vocab_group_ids {
+                    if !group_ids.is_empty() {
+                        let col: Collection<crate::vocab::models::VocabWord> = db.collection("vocab_words");
+                        let cursor = col.find(doc! { "set_id": { "$in": group_ids } }).await?;
+                        let vocab_words: Vec<crate::vocab::models::VocabWord> = cursor.try_collect().await?;
+                        words_source = vocab_words.into_iter().map(|v| Vocabulary {
+                            id: v.id,
+                            lesson_id: lesson_oid,
+                            word: v.word,
+                            translation: v.translation,
+                            pronunciation: Some(v.pronunciation_guide),
+                            audio_url: v.audio_url,
+                            example_en: v.example_sentence,
+                            example_id: None,
+                            created_at: Utc::now(),
+                        }).collect();
+                    }
+                } else if let Some(specific_ids) = &phase.settings.specific_vocab_ids {
+                    if !specific_ids.is_empty() {
+                        let col: Collection<Vocabulary> = db.collection("vocabulary");
+                        let cursor = col.find(doc! { "_id": { "$in": specific_ids } }).await?;
+                        words_source = cursor.try_collect().await?;
+                    }
+                }
+
+                if let Some(excluded) = &phase.settings.excluded_vocab_ids {
+                    if !excluded.is_empty() {
+                        words_source.retain(|w| {
+                            match w.id {
+                                Some(id) => !excluded.contains(&id),
+                                None => true,
+                            }
+                        });
+                    }
+                }
+
+                if words_source.is_empty() {
+                    eprintln!("[WARN] TranslationDrill phase skipped: no vocabulary for lesson {}", lesson_id_str);
+                    continue;
+                }
+                let words: Vec<serde_json::Value> = words_source.iter().map(|v| json!({
+                    "id": v.id.map(|id| id.to_hex()),
+                    "word": v.word,
+                    "translation": v.translation,
+                    "pronunciation": v.pronunciation,
+                    "example_en": v.example_en,
+                    "example_id": v.example_id,
+                    "audio_url": v.audio_url,
+                })).collect();
+                json!({
+                    "words": words,
+                    "xp_reward": 15,
+                })
+            },
             SessionPhaseType::VocabDrill => {
                 let mut words_source = vocabulary.clone();
                 if let Some(group_ids) = &phase.settings.specific_vocab_group_ids {
@@ -478,7 +534,7 @@ pub async fn upsert_lesson_config(
     let config_doc = config_bson.as_document()
         .ok_or(AppError::BadRequest("Failed to serialize config".into()))?;
 
-    let result = col.update_one(
+    col.update_one(
         doc! { "lesson_id": oid },
         doc! { "$set": config_doc },
     ).with_options(mongodb::options::UpdateOptions::builder().upsert(true).build()).await?;

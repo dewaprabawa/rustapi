@@ -125,6 +125,7 @@ const PHASE_LABELS: Record<string, string> = {
   read: "📖 Read",
   flashcard: "🃏 Flashcards",
   vocab_drill: "🧩 Vocab Drill",
+  translation_drill: "⌨️ Translation Drill",
   game: "🎮 Games",
   pronunciation: "🎤 Pronunciation",
   conversation: "💬 Conversation",
@@ -154,7 +155,7 @@ export const PhaseEditor: React.FC<PhaseEditorProps> = ({
   )
   const [showLibrary, setShowLibrary] = useState(false)
   const s = phase.settings
-  const hasContent = lesson || (vocabulary && vocabulary.length > 0) || phase.phase_type === "pronunciation" || phase.phase_type === "conversation" || phase.phase_type === "game" || phase.phase_type === "video_drill" || phase.phase_type === "objective"
+  const hasContent = lesson || (vocabulary && vocabulary.length > 0) || phase.phase_type === "pronunciation" || phase.phase_type === "conversation" || phase.phase_type === "game" || phase.phase_type === "video_drill" || phase.phase_type === "objective" || phase.phase_type === "translation_drill"
 
   const hasId = (arr: any[] | undefined | null, targetId: string): boolean => {
     if (!arr) return false;

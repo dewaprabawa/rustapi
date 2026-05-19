@@ -26,7 +26,7 @@ pub mod video_drill;
 
 use crate::admin::handlers::{
     admin_login, admin_me, delete_user, get_user, list_users, upload_asset, get_dashboard_stats, update_user, list_assets, delete_asset,
-    update_admin_me, list_master_data, get_master_data, update_master_data,
+    update_admin_me, list_master_data, get_master_data, update_master_data, serve_upload,
 };
 use crate::ai::handlers::{
     fulfill_conversation_request, generate_course, generate_vocab, get_credit_usage,
@@ -478,6 +478,7 @@ pub async fn create_app() -> Router {
         .route("/speaking-ai/text-chat", post(text_chat))
         .route("/speaking-ai/transcribe", post(transcribe_only))
         .route("/speaking-ai/tts", post(tts_only))
+        .route("/uploads/:name", get(serve_upload))
         .layer(DefaultBodyLimit::disable())
         .layer(cors)
         .with_state(state)

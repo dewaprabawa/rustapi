@@ -26,6 +26,8 @@ pub enum SessionPhaseType {
     VideoDrill,
     /// Lesson objective/goal display
     Objective,
+    /// Type the translation to build writing muscle memory
+    TranslationDrill,
 }
 
 // ─── Per-Phase Configuration ───────────────────────────────────────
