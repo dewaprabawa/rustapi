@@ -4,7 +4,7 @@ use axum::{
     response::IntoResponse,
 };
 use mongodb::{Collection, bson::doc};
-use crate::models::{Admin, AdminLoginRequest, AdminAuthResponse, User, PaginationParams, PaginatedResponse, DashboardStats, UpdateUserRequest};
+use crate::models::{Admin, AdminLoginRequest, AdminAuthResponse, User, PaginationParams, PaginatedResponse, DashboardStats, UpdateUserRequest, Asset};
 use crate::handlers::AppError;
 use crate::auth::{verify_password, create_admin_jwt};
 use std::sync::Arc;
@@ -333,5 +333,53 @@ pub async fn upload_asset(
         ""
     ).await?;
 
+    let asset_type = if content_type.starts_with("image/") {
+        "image"
+    } else if content_type.starts_with("audio/") {
+        "audio"
+    } else if content_type.starts_with("video/") {
+        "video"
+    } else {
+        "other"
+    };
+
+    let new_asset = Asset {
+        id: None,
+        filename: filename.clone(),
+        content_type: content_type.clone(),
+        public_url: public_url.clone(),
+        asset_type: asset_type.to_string(),
+        provider: "dynamic".to_string(),
+        created_at: Utc::now(),
+    };
+
+    let col: Collection<Asset> = state.db.database("rustapi").collection("assets");
+    col.insert_one(new_asset).await?;
+
     Ok(Json(serde_json::json!({ "url": public_url })))
+}
+
+/// GET /admin/assets
+pub async fn list_assets(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+) -> Result<impl IntoResponse, AppError> {
+    let col: Collection<Asset> = state.db.database("rustapi").collection("assets");
+    let mut options = FindOptions::default();
+    options.sort = Some(doc! { "created_at": -1 });
+    let cursor = col.find(doc! {}).with_options(options).await?;
+    let assets: Vec<Asset> = cursor.try_collect().await?;
+    Ok(Json(assets))
+}
+
+/// DELETE /admin/assets/:id
+pub async fn delete_asset(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, AppError> {
+    let col: Collection<Asset> = state.db.database("rustapi").collection("assets");
+    let oid = ObjectId::parse_str(&id).map_err(|_| AppError::BadRequest("Invalid ID".into()))?;
+    col.delete_one(doc! { "_id": oid }).await?;
+    Ok(Json(serde_json::json!({ "success": true })))
 }

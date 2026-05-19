@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { getLessonSession, submitLessonCompletion } from '../../services/api';
@@ -16,6 +16,14 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '../../lib/utils';
+
+const ObjectivePhase = lazy(() => import('./phases/ObjectivePhase'));
+const ReadPhase = lazy(() => import('./phases/ReadPhase'));
+const FlashcardPhase = lazy(() => import('./phases/FlashcardPhase'));
+const VocabDrillPhase = lazy(() => import('./phases/VocabDrillPhase'));
+const PronunciationPhase = lazy(() => import('./phases/PronunciationPhase'));
+const GamePhase = lazy(() => import('./phases/GamePhase'));
+const VideoDrillPhase = lazy(() => import('./phases/VideoDrillPhase'));
 
 export default function SessionPlayer() {
   const { lessonId } = useParams<{ lessonId: string }>();
@@ -152,7 +160,7 @@ export default function SessionPlayer() {
 
             {/* Phase Content Dispatcher */}
             <div className="w-full py-8">
-               {renderPhaseContent(currentPhase)}
+               <PhaseDispatcher phase={currentPhase} />
             </div>
           </motion.div>
         </AnimatePresence>
@@ -184,155 +192,29 @@ export default function SessionPlayer() {
   );
 }
 
-function renderPhaseContent(phase: any) {
+function PhaseDispatcher({ phase }: { phase: any }) {
   if (!phase) return null;
   const data = phase.data;
 
-  switch (phase.type) {
-    case 'read':
-      return (
-        <div className="space-y-8">
-          <h3 className="text-3xl font-black text-slate-900">Read & Listen</h3>
-          <div className="p-8 bg-slate-50 rounded-[2rem] text-left border border-slate-100">
-            <p className="text-xl text-slate-700 leading-relaxed font-medium">
-              {data?.content}
-            </p>
-          </div>
-          <button className="flex items-center gap-3 bg-blue-50 text-blue-600 px-6 py-3 rounded-2xl mx-auto font-bold hover:bg-blue-100 transition-colors">
-            <Volume2 className="w-5 h-5" />
-            Play Audio
-          </button>
-        </div>
-      );
-
-    case 'flashcard':
-      return (
-        <div className="space-y-8">
-          <h3 className="text-3xl font-black text-slate-900">Flashcards</h3>
-          <p className="text-slate-500 font-medium">Review the key terms for this lesson.</p>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {data?.words?.map((v: any) => (
-              <div key={v.id} className="p-6 bg-white border-2 border-slate-100 rounded-3xl text-left hover:border-blue-500 transition-colors cursor-pointer group flex flex-col justify-between">
-                <div>
-                  <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">{v.pronunciation}</p>
-                  <p className="text-xl font-black text-slate-900 group-hover:text-blue-600">{v.word}</p>
-                  <p className="text-sm text-slate-500 mt-2">{v.translation}</p>
-                </div>
-                {(v.example_en || v.example_id) && (
-                  <div className="mt-4 p-3 bg-slate-50 rounded-2xl border border-slate-100/50 space-y-1">
-                    {v.example_en && (
-                      <p className="text-xs text-slate-600 italic font-medium">"{v.example_en}"</p>
-                    )}
-                    {v.example_id && (
-                      <p className="text-[11px] text-slate-500">{v.example_id}</p>
-                    )}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      );
-
-    case 'vocab_drill':
-      const drill = data?.drills?.[0]; // Just show first drill for now
-      return (
-        <div className="space-y-8">
-          <h3 className="text-3xl font-black text-slate-900">Vocab Mastery</h3>
-          {drill?.drill_type === 'matching' ? (
-            <>
-              <p className="text-slate-500 font-medium">Select the correct definition for:</p>
-              <div className="p-6 bg-blue-600 rounded-[2rem] text-white shadow-lg">
-                 <p className="text-4xl font-black">{drill.items[0]?.word}</p>
-              </div>
-              <div className="grid grid-cols-1 gap-3 w-full">
-                {drill.items.map((item: any, i: number) => (
-                  <button key={i} className="p-5 bg-white border-2 border-slate-200 rounded-2xl text-left font-bold text-slate-700 hover:border-blue-500 hover:bg-blue-50 transition-all">
-                    <span className="inline-block w-8 h-8 rounded-lg bg-slate-100 text-slate-400 text-center leading-8 mr-4">{i + 1}</span>
-                    {item.match}
-                  </button>
-                ))}
-              </div>
-            </>
-          ) : (
-             <div className="p-12 text-slate-400">Drill type {drill?.drill_type} coming soon</div>
-          )}
-        </div>
-      );
-
-    case 'pronunciation':
-      return (
-        <div className="space-y-8">
-          <h3 className="text-3xl font-black text-slate-900">Perfect Pronunciation</h3>
-          <p className="text-slate-500 font-medium">Listen and repeat carefully:</p>
-          
-          <div className="p-10 bg-slate-50 rounded-[3rem] border border-slate-200 flex flex-col items-center">
-            <Volume2 className="w-12 h-12 text-blue-600 mb-6" />
-            <p className="text-2xl font-black text-slate-900">"{data?.sentences?.[0]}"</p>
-          </div>
-
-          <button className="w-24 h-24 bg-rose-500 rounded-full flex items-center justify-center text-white shadow-xl shadow-rose-500/30 animate-pulse">
-            <MessageCircle className="w-10 h-10" />
-          </button>
-          <p className="text-rose-500 font-bold uppercase tracking-widest text-sm">Tap to Record</p>
-        </div>
-      );
-
-    case 'game':
-      return (
-        <div className="space-y-8 w-full max-w-2xl">
-          <h3 className="text-3xl font-black text-slate-900">Interactive Challenge</h3>
-          
-          {data?.video_url ? (
-            <div className="w-full aspect-video rounded-[2rem] overflow-hidden bg-slate-900 shadow-2xl border-4 border-white">
-              <video 
-                src={data.video_url} 
-                controls 
-                className="w-full h-full object-cover"
-                poster={data.games?.[0]?.asset_url}
-              />
-            </div>
-          ) : (
-            <div className="p-12 bg-slate-50 rounded-[2rem] border border-slate-200 flex flex-col items-center">
-              <Play className="w-16 h-16 text-blue-500 mb-4 animate-pulse" />
-              <p className="text-slate-500 font-bold">Game loading...</p>
-            </div>
-          )}
-
-          <div className="space-y-4">
-             <div className="p-6 bg-white border-2 border-slate-100 rounded-3xl text-left">
-                <p className="text-xs font-black text-blue-500 uppercase tracking-widest mb-1">Mission</p>
-                <p className="text-xl font-black text-slate-900">{data.games?.[0]?.title || "Complete the challenge"}</p>
-                <p className="text-sm text-slate-500 mt-2">{data.games?.[0]?.instructions || "Follow the instructions in the video to proceed."}</p>
-             </div>
-          </div>
-        </div>
-      );
-
-    case 'video_drill':
-      return (
-        <div className="space-y-8 w-full max-w-2xl">
-          <h3 className="text-3xl font-black text-slate-900">Video Drill</h3>
-          <p className="text-slate-500 font-medium">Watch and interact with the video.</p>
-          
-          <div className="p-12 bg-slate-50 rounded-[2rem] border border-slate-200 flex flex-col items-center text-center">
-             <Play className="w-16 h-16 text-blue-500 mb-4" />
-             <p className="text-xl font-black text-slate-900 mb-2">{data.drills?.[0]?.title || "Loading Video..."}</p>
-             <p className="text-slate-500 font-bold mb-4">{data.drills?.[0]?.step_count || 0} Interactive Steps</p>
-             <p className="text-xs font-bold text-slate-400 bg-white px-3 py-1 rounded-full border">
-                Web player coming soon. Please use the mobile app.
-             </p>
-          </div>
-        </div>
-      );
-
-    default:
-      return (
-        <div className="p-12 text-center text-slate-400 font-bold">
-          Phase type {phase.type} coming soon!
-        </div>
-      );
-  }
+  return (
+    <Suspense fallback={
+      <div className="p-12 flex flex-col items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-500 mb-4" />
+        <p className="text-slate-500 font-bold">Loading phase...</p>
+      </div>
+    }>
+      {(() => {
+        switch (phase.type) {
+          case 'objective': return <ObjectivePhase data={data} />;
+          case 'read': return <ReadPhase data={data} />;
+          case 'flashcard': return <FlashcardPhase data={data} />;
+          case 'vocab_drill': return <VocabDrillPhase data={data} />;
+          case 'pronunciation': return <PronunciationPhase data={data} />;
+          case 'game': return <GamePhase data={data} />;
+          case 'video_drill': return <VideoDrillPhase data={data} />;
+          default: return <div className="p-12 text-center text-slate-400 font-bold">Phase type {phase.type} coming soon!</div>;
+        }
+      })()}
+    </Suspense>
+  );
 }
-

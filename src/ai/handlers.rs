@@ -303,6 +303,58 @@ pub async fn enrich_vocab_word(
     Ok((StatusCode::OK, Json(word)))
 }
 
+/// POST /admin/ai/generate-objective
+/// Generates a concise learning objective based on lesson title and content
+pub async fn generate_lesson_objective(
+    State(state): State<Arc<AppState>>,
+    _admin: Admin,
+    Json(payload): Json<GenerateObjectiveRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    let db = state.db.database("rustapi");
+    let key_col: Collection<LlmApiKey> = db.collection("llm_api_keys");
+    let cursor = key_col.find(doc! { "is_active": true }).await?;
+    let active_keys: Vec<LlmApiKey> = cursor.try_collect().await?;
+
+    if active_keys.is_empty() {
+        return Err(AppError::BadRequest("No active LLM API key found.".to_string()));
+    }
+
+    let prompt = format!(
+        "You are an expert instructional designer. Generate a highly specific learning objective for a language lesson. The objective MUST explicitly mention exactly what the student will learn (e.g., specific vocabulary words, grammar rules, or speaking scenarios). Start directly with an action verb (e.g., 'Learn how to use...', 'Master the vocabulary for...', 'Practice speaking...').\n\nOutput a valid JSON object exactly like this, with no markdown formatting:\n{{\n  \"objective_en\": \"<english objective>\",\n  \"objective_id\": \"<indonesian translation>\"\n}}\n\nLesson Title: {}\nLesson Content:\n{}\n",
+        payload.lesson_title, payload.lesson_content
+    );
+
+    let mut last_error = None;
+    let mut llm_response = None;
+
+    for key in active_keys {
+        match call_llm_for_course(&key, &prompt).await {
+            Ok(resp) => {
+                llm_response = Some(resp);
+                break;
+            }
+            Err(e) => {
+                last_error = Some(e);
+            }
+        }
+    }
+
+    let llm_resp = llm_response.ok_or(last_error.unwrap_or(AppError::InternalServerError))?;
+    
+    // Attempt to parse JSON response
+    let json_text = llm_resp.text.trim().trim_start_matches("```json").trim_end_matches("```").trim();
+    let parsed: serde_json::Value = serde_json::from_str(json_text)
+        .map_err(|_| AppError::InternalServerError)?;
+        
+    let objective_en = parsed["objective_en"].as_str().unwrap_or("").to_string();
+    let objective_id = parsed["objective_id"].as_str().unwrap_or("").to_string();
+
+    Ok((StatusCode::OK, Json(serde_json::json!({ 
+        "objective": objective_en,
+        "objective_id": objective_id
+    }))))
+}
+
 // ==================== Phase 3: Admin Conversation Request Queue ====================
 
 /// GET /admin/conversation-requests — list all pending student requests
@@ -664,8 +716,11 @@ pub async fn save_course(
                 instruction: Some(gen_lesson.instruction.clone()),
                 instruction_id: Some(gen_lesson.instruction_id.clone()),
                 culture_notes: if gen_lesson.culture_notes.is_empty() { None } else { Some(gen_lesson.culture_notes.clone()) },
+                objective: None,
+                objective_id: None,
                 audio_url: None,
                 video_url: None,
+                image_url: None,
                 level: level_enum.clone(),
                 category: category_enum.clone(),
                 xp_reward: gen_lesson.xp_reward,

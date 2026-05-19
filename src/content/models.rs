@@ -178,8 +178,14 @@ pub struct Lesson {
     pub instruction: Option<String>, // Spec 3.3
     pub instruction_id: Option<String>, // Bahasa Instruction Layer
     pub culture_notes: Option<String>, // Spec 3.3
+    /// The learning objective/goal students should achieve after completing this lesson
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub objective: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub objective_id: Option<String>,
     pub audio_url: Option<String>,
     pub video_url: Option<String>,
+    pub image_url: Option<String>,
     pub level: ContentLevel,
     pub category: ContentCategory,
     pub xp_reward: i32,
@@ -202,8 +208,11 @@ pub struct CreateLessonRequest {
     pub instruction: Option<String>,
     pub instruction_id: Option<String>,
     pub culture_notes: Option<String>,
+    pub objective: Option<String>,
+    pub objective_id: Option<String>,
     pub audio_url: Option<String>,
     pub video_url: Option<String>,
+    pub image_url: Option<String>,
     pub level: ContentLevel,
     pub category: ContentCategory,
     pub xp_reward: Option<i32>,
@@ -220,8 +229,11 @@ pub struct UpdateLessonRequest {
     pub instruction: Option<String>,
     pub instruction_id: Option<String>,
     pub culture_notes: Option<String>,
+    pub objective: Option<String>,
+    pub objective_id: Option<String>,
     pub audio_url: Option<String>,
     pub video_url: Option<String>,
+    pub image_url: Option<String>,
     pub level: Option<ContentLevel>,
     pub category: Option<ContentCategory>,
     pub xp_reward: Option<i32>,

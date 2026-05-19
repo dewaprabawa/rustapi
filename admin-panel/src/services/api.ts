@@ -323,6 +323,12 @@ export const uploadAsset = async (file: File): Promise<{ url: string }> => {
   return res.data
 }
 
+export const getAssets = () =>
+  api.get("/assets").then(r => r.data)
+
+export const deleteAsset = (id: string) =>
+  api.delete(`/assets/${id}`).then(r => r.data)
+
 // ============ Video Drills ============
 export const getVideoDrills = (lessonId?: string) =>
   api.get(lessonId ? `/video-drills?lesson_id=${lessonId}` : "/video-drills").then(r => r.data)
@@ -407,15 +413,18 @@ export const updateAiPrompt = (entity_type: string, prompt_template: string) =>
 
 // ============ AI Course Generator ============
 export const generateCourse = (data: {
-  topic: string
-  level: string
-  category: string
-  skill_focus?: string[]
-  target_age?: string
-  num_modules?: number
-  lessons_per_module?: number
-  vocab_per_lesson?: number
+  topic: string;
+  level: string;
+  category: string;
+  skill_focus?: string[];
+  target_age?: string;
+  num_modules?: number;
+  lessons_per_module?: number;
+  vocab_per_lesson?: number;
 }) => api.post("/ai/generate-course", data).then(r => r.data)
+
+export const generateLessonObjective = (data: { lesson_title: string; lesson_content: string }) =>
+  api.post("/ai/generate-objective", data).then(r => r.data)
 
 export const saveCourse = (preview: any) =>
   api.post("/ai/save-course", { preview }).then(r => r.data)

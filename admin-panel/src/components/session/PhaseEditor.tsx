@@ -1,6 +1,82 @@
-import React, { useState } from 'react'
-import { Plus, X, Pencil, Trash2 } from 'lucide-react'
+import React, { useState, useRef, useCallback } from 'react'
+import { Plus, X, Pencil, Trash2, Upload, Loader2, Film } from 'lucide-react'
 import { cn, getId } from '../../lib/utils'
+import { uploadAsset } from '../../services/api'
+
+/** Drag-and-drop + click-to-browse video upload zone */
+const VideoUploadZone: React.FC<{ onUploadComplete: (url: string) => void }> = ({ onUploadComplete }) => {
+  const [uploading, setUploading] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
+  const [progress, setProgress] = useState('')
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const handleFile = useCallback(async (file: File) => {
+    if (!file.type.startsWith('video/')) {
+      alert('Please select a video file (mp4, webm, mov, etc.)')
+      return
+    }
+    if (file.size > 200 * 1024 * 1024) {
+      alert('Video must be under 200MB')
+      return
+    }
+    setUploading(true)
+    setProgress(`Uploading ${file.name} (${(file.size / 1024 / 1024).toFixed(1)}MB)...`)
+    try {
+      const data = await uploadAsset(file)
+      onUploadComplete(data.url)
+    } catch (err) {
+      console.error('Video upload failed:', err)
+      alert('Failed to upload video. Please try again.')
+    } finally {
+      setUploading(false)
+      setProgress('')
+    }
+  }, [onUploadComplete])
+
+  return (
+    <div
+      onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={(e) => {
+        e.preventDefault()
+        setDragOver(false)
+        const file = e.dataTransfer.files[0]
+        if (file) handleFile(file)
+      }}
+      onClick={() => !uploading && fileRef.current?.click()}
+      className={cn(
+        "border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all",
+        dragOver ? "border-blue-400 bg-blue-50" : "border-slate-200 hover:border-slate-300 hover:bg-slate-50",
+        uploading && "pointer-events-none opacity-70"
+      )}
+    >
+      <input
+        ref={fileRef}
+        type="file"
+        accept="video/*"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          if (file) handleFile(file)
+        }}
+      />
+      {uploading ? (
+        <div className="flex flex-col items-center gap-2">
+          <Loader2 className="h-6 w-6 text-blue-500 animate-spin" />
+          <p className="text-[10px] font-bold text-blue-600">{progress}</p>
+        </div>
+      ) : (
+        <div className="flex flex-col items-center gap-2">
+          <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center">
+            <Film className="h-5 w-5 text-slate-400" />
+          </div>
+          <p className="text-[10px] font-bold text-slate-500">DROP VIDEO HERE OR CLICK TO BROWSE</p>
+          <p className="text-[9px] text-slate-400">MP4, WebM, MOV • Max 200MB</p>
+        </div>
+      )}
+    </div>
+  )
+}
 
 interface PhaseSettings {
   difficulty?: string
@@ -45,6 +121,7 @@ interface PhaseEditorProps {
 }
 
 const PHASE_LABELS: Record<string, string> = {
+  objective: "🎯 Objective",
   read: "📖 Read",
   flashcard: "🃏 Flashcards",
   vocab_drill: "🧩 Vocab Drill",
@@ -71,13 +148,13 @@ export const PhaseEditor: React.FC<PhaseEditorProps> = ({
   onOverrideUpdate,
 }) => {
   const [tab, setTab] = useState<"settings" | "content">(
-    (phase.phase_type === "read" || phase.phase_type === "pronunciation" || phase.phase_type === "conversation") 
+    (phase.phase_type === "read" || phase.phase_type === "pronunciation" || phase.phase_type === "conversation" || phase.phase_type === "objective") 
       ? "content" 
       : "settings"
   )
   const [showLibrary, setShowLibrary] = useState(false)
   const s = phase.settings
-  const hasContent = lesson || (vocabulary && vocabulary.length > 0) || phase.phase_type === "pronunciation" || phase.phase_type === "conversation" || phase.phase_type === "game" || phase.phase_type === "video_drill"
+  const hasContent = lesson || (vocabulary && vocabulary.length > 0) || phase.phase_type === "pronunciation" || phase.phase_type === "conversation" || phase.phase_type === "game" || phase.phase_type === "video_drill" || phase.phase_type === "objective"
 
   const hasId = (arr: any[] | undefined | null, targetId: string): boolean => {
     if (!arr) return false;
@@ -253,15 +330,70 @@ export const PhaseEditor: React.FC<PhaseEditorProps> = ({
 
       {phase.enabled && tab === "content" && (
         <div className="mt-2 pt-3 border-t border-slate-100 space-y-3">
+          {/* Objective content */}
+          {phase.phase_type === "objective" && lesson && (
+            <div>
+              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Lesson Objective / Goal</label>
+              <textarea
+                className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs h-24 leading-relaxed"
+                placeholder="e.g. By the end of this lesson, students will be able to greet hotel guests confidently and handle check-in conversations..."
+                value={lesson.objective || ""}
+                onChange={(e) => onLessonUpdate && onLessonUpdate({ ...lesson, objective: e.target.value, _dirty: true })}
+              />
+              {lesson.objective && (
+                <div className="mt-2 p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+                  <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest mb-1">Preview</p>
+                  <p className="text-xs text-emerald-800 leading-relaxed">🎯 {lesson.objective}</p>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Read content */}
           {phase.phase_type === "read" && lesson && (
-            <div>
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Reading Content</label>
-              <textarea
-                className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs h-32 leading-relaxed"
-                value={lesson.content || ""}
-                onChange={(e) => onLessonUpdate && onLessonUpdate({ ...lesson, content: e.target.value, _dirty: true })}
-              />
+            <div className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Reading Content</label>
+                <textarea
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs h-32 leading-relaxed"
+                  value={lesson.content || ""}
+                  onChange={(e) => onLessonUpdate && onLessonUpdate({ ...lesson, content: e.target.value, _dirty: true })}
+                />
+              </div>
+              
+              {/* Lesson Video */}
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Lesson Video</label>
+                {lesson.video_url ? (
+                  <div className="space-y-2">
+                    <div className="relative rounded-xl overflow-hidden bg-slate-900 aspect-video">
+                      <video
+                        src={lesson.video_url}
+                        controls
+                        className="w-full h-full object-contain"
+                        preload="metadata"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        className="flex-1 border border-slate-200 rounded-lg px-2 py-1 text-[10px] text-slate-500 bg-slate-50 truncate"
+                        value={lesson.video_url}
+                        readOnly
+                      />
+                      <button
+                        onClick={() => onLessonUpdate && onLessonUpdate({ ...lesson, video_url: '', _dirty: true })}
+                        className="px-2 py-1 text-[10px] font-bold text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                      >
+                        REMOVE
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <VideoUploadZone
+                    onUploadComplete={(url: string) => onLessonUpdate && onLessonUpdate({ ...lesson, video_url: url, _dirty: true })}
+                  />
+                )}
+              </div>
             </div>
           )}
 

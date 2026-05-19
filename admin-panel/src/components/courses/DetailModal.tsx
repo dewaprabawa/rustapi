@@ -75,6 +75,9 @@ export default function DetailModal({
             <div>
               <span className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Title</span>
               <span className="text-base font-medium text-slate-900">{detailItem.title}</span>
+              {detailItem.title_id && (
+                <span className="block text-sm text-slate-500 mt-1">ID: {detailItem.title_id}</span>
+              )}
             </div>
 
             {(activeTab === 'courses' || activeTab === 'modules') && (
@@ -87,10 +90,78 @@ export default function DetailModal({
             )}
 
             {activeTab === 'lessons' && (
-              <div>
-                <span className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Content</span>
-                <div className="text-sm text-slate-700 whitespace-pre-wrap bg-slate-50 p-3 rounded-xl border border-slate-100 font-mono max-h-60 overflow-y-auto">
-                  {detailItem.content || 'No content provided.'}
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <span className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Content (EN)</span>
+                    <div className="text-sm text-slate-700 whitespace-pre-wrap bg-slate-50 p-3 rounded-xl border border-slate-100 font-mono max-h-40 overflow-y-auto">
+                      {detailItem.content || 'N/A'}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Content (ID)</span>
+                    <div className="text-sm text-slate-700 whitespace-pre-wrap bg-slate-50 p-3 rounded-xl border border-slate-100 font-mono max-h-40 overflow-y-auto">
+                      {detailItem.content_id || 'N/A'}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <span className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Objective (EN)</span>
+                    <div className="text-sm text-slate-700 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                      {detailItem.objective || 'N/A'}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Objective (ID)</span>
+                    <div className="text-sm text-slate-700 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                      {detailItem.objective_id || 'N/A'}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <span className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Instruction (EN)</span>
+                    <div className="text-sm text-slate-700 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                      {detailItem.instruction || 'N/A'}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Instruction (ID)</span>
+                    <div className="text-sm text-slate-700 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                      {detailItem.instruction_id || 'N/A'}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <span className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Culture Notes</span>
+                  <div className="text-sm text-slate-700 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                    {detailItem.culture_notes || 'N/A'}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <span className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Audio URL</span>
+                    <div className="text-xs text-slate-500 break-all bg-slate-50 p-2 rounded-lg border border-slate-100">
+                      {detailItem.audio_url ? <a href={detailItem.audio_url} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">Link</a> : 'N/A'}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Video URL</span>
+                    <div className="text-xs text-slate-500 break-all bg-slate-50 p-2 rounded-lg border border-slate-100">
+                      {detailItem.video_url ? <a href={detailItem.video_url} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">Link</a> : 'N/A'}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Image URL</span>
+                    <div className="text-xs text-slate-500 break-all bg-slate-50 p-2 rounded-lg border border-slate-100">
+                      {detailItem.image_url ? <a href={detailItem.image_url} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">Link</a> : 'N/A'}
+                    </div>
+                  </div>
                 </div>
               </div>
             )}

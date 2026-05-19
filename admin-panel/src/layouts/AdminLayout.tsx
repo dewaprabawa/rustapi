@@ -17,7 +17,8 @@ import {
   PanelLeftOpen,
   SlidersHorizontal,
   BookMarked,
-  FileVideo
+  FileVideo,
+  Image as ImageIcon
 } from "lucide-react"
 import { cn, normalizeDate } from "../lib/utils"
 import { useAuth } from "../contexts/AuthContext"
@@ -32,6 +33,7 @@ export default function AdminLayout() {
   const navItems = [
     { name: "Dashboard", path: "/admin", icon: LayoutDashboard },
     { name: "Courses & Content", path: "/admin/courses", icon: BookOpen },
+    { name: "Media Gallery", path: "/admin/gallery", icon: ImageIcon },
     { name: "VocabForge AI", path: "/admin/vocab-forge", icon: Sparkles },
     { name: "Ebook Forge", path: "/admin/ebook-forge", icon: BookMarked },
     { name: "AI Generator", path: "/admin/ai-generator", icon: Sparkles },

@@ -285,3 +285,16 @@ pub struct UpdateUserRequest {
     pub profile_image_url: Option<String>,
     pub is_verified: Option<bool>,
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Asset {
+    #[serde(rename = "_id", skip_serializing_if = "Option::is_none")]
+    pub id: Option<ObjectId>,
+    pub filename: String,
+    pub content_type: String,
+    pub public_url: String,
+    pub asset_type: String, // "image", "audio", "video", "other"
+    pub provider: String,
+    #[serde(with = "resilient_bson_datetime")]
+    pub created_at: DateTime<Utc>,
+}

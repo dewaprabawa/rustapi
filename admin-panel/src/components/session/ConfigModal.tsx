@@ -214,6 +214,7 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
                 }}
               >
                 <option value="">+ ADD NEW PHASE TO SESSION</option>
+                <option value="objective">🎯 Objective</option>
                 <option value="read">📖 Read</option>
                 <option value="flashcard">🃏 Flashcard</option>
                 <option value="vocab_drill">🧩 Vocab Drill</option>

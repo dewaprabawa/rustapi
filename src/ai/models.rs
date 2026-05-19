@@ -15,6 +15,12 @@ pub struct GenerateCourseRequest {
     pub vocab_per_lesson: Option<i32>,            // default 4
 }
 
+#[derive(Debug, Deserialize)]
+pub struct GenerateObjectiveRequest {
+    pub lesson_title: String,
+    pub lesson_content: String,
+}
+
 // ============ Response: the full AI-generated course preview ============
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

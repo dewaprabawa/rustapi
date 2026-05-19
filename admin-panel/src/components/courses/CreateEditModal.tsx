@@ -1,7 +1,7 @@
-import { X, Loader2, Sparkles, Globe, History, Upload, Image as ImageIcon } from "lucide-react"
+import { X, Loader2, Sparkles, Globe, History, Upload, Image as ImageIcon, Film, Music } from "lucide-react"
 import { cn } from "../../lib/utils"
-import { uploadAsset } from "../../services/api"
-import { useState, useRef } from "react"
+import { uploadAsset, generateLessonObjective } from "../../services/api"
+import { useState, useRef, useCallback } from "react"
 
 export default function CreateEditModal({
   isModalOpen,
@@ -23,9 +23,38 @@ export default function CreateEditModal({
   modules
 }: any) {
   const [isUploading, setIsUploading] = useState(false)
+  const [isUploadingVideo, setIsUploadingVideo] = useState(false)
+  const [isUploadingAudio, setIsUploadingAudio] = useState(false)
+  const [isUploadingImage, setIsUploadingImage] = useState(false)
+  const [isGeneratingObjective, setIsGeneratingObjective] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const videoInputRef = useRef<HTMLInputElement>(null)
+  const audioInputRef = useRef<HTMLInputElement>(null)
+  const imageInputRef = useRef<HTMLInputElement>(null)
 
   if (!isModalOpen) return null;
+
+  const handleGenerateObjective = async () => {
+    if (!formData.title || !formData.content) {
+      alert("Please fill in the English title and English content first to generate an objective.");
+      return;
+    }
+    try {
+      setIsGeneratingObjective(true);
+      const res = await generateLessonObjective({
+        lesson_title: formData.title,
+        lesson_content: formData.content,
+      });
+      if (res.objective) {
+        setFormData((prev: any) => ({ ...prev, objective: res.objective, objective_id: res.objective_id }));
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Failed to generate objective. Please check your AI API key.");
+    } finally {
+      setIsGeneratingObjective(false);
+    }
+  };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -373,24 +402,271 @@ export default function CreateEditModal({
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4 bg-slate-50/50 p-4 rounded-xl border border-slate-200">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-slate-700">🎯 Learning Objective</label>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => handleTranslateField('objective', 'objective_id')}
+                      disabled={translatingField === 'objective_id' || !formData.objective?.trim()}
+                      className="text-[10px] text-indigo-600 hover:text-indigo-700 disabled:text-slate-400 font-bold uppercase tracking-wider"
+                    >
+                      Translate
+                    </button>
+                    <button
+                      onClick={handleGenerateObjective}
+                      disabled={isGeneratingObjective || !formData.title || !formData.content}
+                      className="flex items-center gap-1.5 px-2 py-1 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 text-[10px] font-bold uppercase tracking-wider rounded-md transition-colors border border-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Generate learning objective using AI"
+                    >
+                      {isGeneratingObjective ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+                      AI Generate
+                    </button>
+                  </div>
+                </div>
+                
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Audio URL</label>
-                  <input
-                    className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-                    value={formData.audio_url || ''}
-                    onChange={e => setFormData({ ...formData, audio_url: e.target.value })}
-                    placeholder="https://supabase.co/.../audio.mp3"
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center justify-between">
+                    <span>🇬🇧 English</span>
+                  </label>
+                  <textarea
+                    className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 min-h-[60px] bg-white"
+                    value={formData.objective || ''}
+                    onChange={e => setFormData({ ...formData, objective: e.target.value })}
+                    placeholder="e.g. Master the vocabulary for checking in guests..."
                   />
                 </div>
+                
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Video URL</label>
-                  <input
-                    className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
-                    value={formData.video_url || ''}
-                    onChange={e => setFormData({ ...formData, video_url: e.target.value })}
-                    placeholder="https://youtube.com/... or .mp4 link"
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center justify-between">
+                    <span>🇮🇩 Tujuan Belajar</span>
+                  </label>
+                  <textarea
+                    className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 min-h-[60px] bg-white"
+                    value={formData.objective_id || ''}
+                    onChange={e => setFormData({ ...formData, objective_id: e.target.value })}
+                    placeholder="e.g. Menguasai kosakata untuk melakukan check-in tamu..."
                   />
+                </div>
+                
+                <p className="text-[10px] text-slate-400 mt-1">This objective will be shown as a phase in the student session player.</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Lesson Audio</label>
+                  {formData.audio_url ? (
+                    <div className="space-y-2">
+                      <div className="relative rounded-xl overflow-hidden bg-slate-100 p-4 border border-slate-200">
+                        <audio
+                          src={formData.audio_url}
+                          controls
+                          className="w-full"
+                          preload="metadata"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          className="flex-1 px-3 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-500 bg-slate-50 truncate"
+                          value={formData.audio_url}
+                          readOnly
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, audio_url: '' })}
+                          className="px-3 py-1.5 text-xs font-semibold text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <input
+                        className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                        value={formData.audio_url || ''}
+                        onChange={e => setFormData({ ...formData, audio_url: e.target.value })}
+                        placeholder="Paste URL or upload below..."
+                      />
+                      <input
+                        type="file"
+                        ref={audioInputRef}
+                        accept="audio/*"
+                        className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0]
+                          if (!file) return
+                          setIsUploadingAudio(true)
+                          try {
+                            const data = await uploadAsset(file)
+                            setFormData({ ...formData, audio_url: data.url })
+                          } catch (err) {
+                            console.error('Audio upload failed:', err)
+                            alert('Failed to upload audio.')
+                          } finally {
+                            setIsUploadingAudio(false)
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => audioInputRef.current?.click()}
+                        disabled={isUploadingAudio}
+                        className="w-full py-3 border-2 border-dashed border-slate-200 hover:border-blue-300 rounded-xl text-sm font-medium text-slate-400 hover:text-blue-500 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                      >
+                        {isUploadingAudio ? (
+                          <><Loader2 className="h-4 w-4 animate-spin" /> Uploading...</>
+                        ) : (
+                          <><Music className="h-4 w-4" /> Upload Audio File</>
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Lesson Video</label>
+                  {formData.video_url ? (
+                    <div className="space-y-2">
+                      <div className="relative rounded-xl overflow-hidden bg-slate-900 aspect-video max-h-36">
+                        <video
+                          src={formData.video_url}
+                          controls
+                          className="w-full h-full object-contain"
+                          preload="metadata"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          className="flex-1 px-3 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-500 bg-slate-50 truncate"
+                          value={formData.video_url}
+                          readOnly
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, video_url: '' })}
+                          className="px-3 py-1.5 text-xs font-semibold text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <input
+                        className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                        value={formData.video_url || ''}
+                        onChange={e => setFormData({ ...formData, video_url: e.target.value })}
+                        placeholder="Paste URL or upload below..."
+                      />
+                      <input
+                        type="file"
+                        ref={videoInputRef}
+                        accept="video/*"
+                        className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0]
+                          if (!file) return
+                          if (file.size > 200 * 1024 * 1024) {
+                            alert('Video must be under 200MB')
+                            return
+                          }
+                          setIsUploadingVideo(true)
+                          try {
+                            const data = await uploadAsset(file)
+                            setFormData({ ...formData, video_url: data.url })
+                          } catch (err) {
+                            console.error('Video upload failed:', err)
+                            alert('Failed to upload video.')
+                          } finally {
+                            setIsUploadingVideo(false)
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => videoInputRef.current?.click()}
+                        disabled={isUploadingVideo}
+                        className="w-full py-3 border-2 border-dashed border-slate-200 hover:border-blue-300 rounded-xl text-sm font-medium text-slate-400 hover:text-blue-500 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                      >
+                        {isUploadingVideo ? (
+                          <><Loader2 className="h-4 w-4 animate-spin" /> Uploading video...</>
+                        ) : (
+                          <><Film className="h-4 w-4" /> Upload Video File</>
+                        )}
+                      </button>
+                      <p className="text-[10px] text-slate-400">MP4, WebM, MOV • Max 200MB</p>
+                    </div>
+                  )}
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Lesson Image</label>
+                  {formData.image_url ? (
+                    <div className="space-y-2">
+                      <div className="relative rounded-xl overflow-hidden bg-slate-100 aspect-video max-h-36 flex items-center justify-center border border-slate-200">
+                        <img
+                          src={formData.image_url}
+                          alt="Lesson"
+                          className="max-w-full max-h-full object-contain"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          className="flex-1 px-3 py-1.5 border border-slate-200 rounded-lg text-xs text-slate-500 bg-slate-50 truncate"
+                          value={formData.image_url}
+                          readOnly
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, image_url: '' })}
+                          className="px-3 py-1.5 text-xs font-semibold text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <input
+                        className="w-full px-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                        value={formData.image_url || ''}
+                        onChange={e => setFormData({ ...formData, image_url: e.target.value })}
+                        placeholder="Paste URL or upload below..."
+                      />
+                      <input
+                        type="file"
+                        ref={imageInputRef}
+                        accept="image/*"
+                        className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0]
+                          if (!file) return
+                          setIsUploadingImage(true)
+                          try {
+                            const data = await uploadAsset(file)
+                            setFormData({ ...formData, image_url: data.url })
+                          } catch (err) {
+                            console.error('Image upload failed:', err)
+                            alert('Failed to upload image.')
+                          } finally {
+                            setIsUploadingImage(false)
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => imageInputRef.current?.click()}
+                        disabled={isUploadingImage}
+                        className="w-full py-3 border-2 border-dashed border-slate-200 hover:border-blue-300 rounded-xl text-sm font-medium text-slate-400 hover:text-blue-500 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                      >
+                        {isUploadingImage ? (
+                          <><Loader2 className="h-4 w-4 animate-spin" /> Uploading...</>
+                        ) : (
+                          <><ImageIcon className="h-4 w-4" /> Upload Image File</>
+                        )}
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 

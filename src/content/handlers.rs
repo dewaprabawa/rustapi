@@ -407,8 +407,11 @@ pub async fn create_lesson(
         instruction: payload.instruction,
         instruction_id: payload.instruction_id,
         culture_notes: payload.culture_notes,
+        objective: payload.objective,
+        objective_id: payload.objective_id,
         audio_url: payload.audio_url,
         video_url: payload.video_url,
+        image_url: payload.image_url,
         level: payload.level,
         category: payload.category,
         xp_reward: payload.xp_reward.unwrap_or(10),
@@ -522,6 +525,15 @@ pub async fn update_lesson(
     }
     if let Some(v) = payload.video_url {
         update.insert("video_url", v);
+    }
+    if let Some(v) = payload.image_url {
+        update.insert("image_url", v);
+    }
+    if let Some(v) = payload.objective {
+        update.insert("objective", v);
+    }
+    if let Some(v) = payload.objective_id {
+        update.insert("objective_id", v);
     }
     if let Some(v) = payload.xp_reward {
         update.insert("xp_reward", v);

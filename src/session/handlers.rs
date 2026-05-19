@@ -79,6 +79,9 @@ pub async fn get_lesson_session(
                 "content_id": lesson.content_id,
                 "instruction": lesson.instruction,
                 "culture_notes": lesson.culture_notes,
+                "audio_url": lesson.audio_url,
+                "video_url": lesson.video_url,
+                "image_url": lesson.image_url,
                 "xp_reward": 5,
             }),
             SessionPhaseType::Flashcard => {
@@ -340,6 +343,9 @@ pub async fn get_lesson_session(
                 "content_id": lesson.content_id,
                 "instruction": lesson.instruction,
                 "culture_notes": lesson.culture_notes,
+                "audio_url": lesson.audio_url,
+                "video_url": lesson.video_url,
+                "image_url": lesson.image_url,
                 "xp_reward": 5,
             },
         }));

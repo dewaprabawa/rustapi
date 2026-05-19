@@ -354,6 +354,7 @@ pub async fn upload_file_dynamically(
             content_type,
         ).await
     } else if config.active_provider == "vercel" {
+        // Vercel blob token is missing in schema, fallback to Supabase temporarily
         let ext = filename.split('.').next_back().unwrap_or("bin");
         let asset_id = ObjectId::new().to_hex();
         let object_path = if user_or_admin_id.is_empty() {
@@ -361,7 +362,30 @@ pub async fn upload_file_dynamically(
         } else {
             format!("{}/{}.{}", user_or_admin_id, asset_id, ext)
         };
-        let public_url = format!("{}/{}", config.vercel_blob_url.trim_end_matches('/'), object_path);
+        
+        let upload_url = format!("{}/storage/v1/object/{}/{}", config.supabase_url, config.supabase_bucket, object_path);
+        
+        let client = reqwest::Client::new();
+        let res = client.post(&upload_url)
+            .header("Authorization", format!("Bearer {}", config.supabase_key))
+            .header("apikey", &config.supabase_key)
+            .header("Content-Type", content_type)
+            .body(file_bytes)
+            .send()
+            .await
+            .map_err(|e| {
+                eprintln!("❌ Supabase upload request failed (Vercel fallback): {:?}", e);
+                AppError::InternalServerError
+            })?;
+
+        if !res.status().is_success() {
+            let status = res.status();
+            let body = res.text().await.unwrap_or_default();
+            eprintln!("❌ Supabase returned error: {} - {}", status, body);
+            return Err(AppError::InternalServerError);
+        }
+
+        let public_url = format!("{}/storage/v1/object/public/{}/{}", config.supabase_url, config.supabase_bucket, object_path);
         Ok(public_url)
     } else {
         let ext = filename.split('.').next_back().unwrap_or("bin");

@@ -20,6 +20,7 @@ import SpeakUpManager from "./pages/SpeakUpManager"
 import SessionConfig from "./pages/SessionConfig"
 import EbookForge from "./pages/EbookForge"
 import VideoDrillManager from "./pages/VideoDrillManager"
+import Gallery from "./pages/Gallery"
 import StudentDashboard from "./pages/student/StudentDashboard"
 import SessionPlayer from "./pages/student/SessionPlayer"
 
@@ -66,6 +67,7 @@ function App() {
             <Route path="session-config" element={<SessionConfig />} />
             <Route path="ebook-forge" element={<EbookForge />} />
             <Route path="video-drills" element={<VideoDrillManager />} />
+            <Route path="gallery" element={<Gallery />} />
           </Route>
 
           {/* Protected student routes */}

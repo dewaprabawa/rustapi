@@ -25,12 +25,12 @@ pub mod storage;
 pub mod video_drill;
 
 use crate::admin::handlers::{
-    admin_login, admin_me, delete_user, get_user, list_users, upload_asset, get_dashboard_stats, update_user,
+    admin_login, admin_me, delete_user, get_user, list_users, upload_asset, get_dashboard_stats, update_user, list_assets, delete_asset,
     update_admin_me, list_master_data, get_master_data, update_master_data,
 };
 use crate::ai::handlers::{
     fulfill_conversation_request, generate_course, generate_vocab, get_credit_usage,
-    list_conversation_requests, save_course, enrich_vocab_word,
+    list_conversation_requests, save_course, enrich_vocab_word, generate_lesson_objective,
 };
 use crate::content::handlers::*;
 use crate::game::handlers::*;
@@ -67,6 +67,7 @@ use crate::video_drill::handlers as video_drill_handlers;
 // Removed duplicate/glob speaking import to resolve ambiguity
 use axum::{
     routing::{delete, get, post, put, patch},
+    extract::DefaultBodyLimit,
     Router,
 };
 use mongodb::Client;
@@ -147,6 +148,7 @@ pub async fn create_app() -> Router {
         .route("/ai/save-course", post(save_course))
         .route("/ai/generate-vocab", post(generate_vocab))
         .route("/ai/enrich-word", post(enrich_vocab_word))
+        .route("/ai/generate-objective", post(generate_lesson_objective))
         .route("/ai/save-vocab", post(vocab::handlers::save_vocab_set))
         .route("/ai/credit-usage", get(get_credit_usage))
         // Auth
@@ -229,6 +231,8 @@ pub async fn create_app() -> Router {
         // Analytics
         .route("/analytics", get(crate::analytics::handlers::list_events))
         // Assets
+        .route("/assets", get(list_assets))
+        .route("/assets/:id", delete(delete_asset))
         .route("/assets/upload", post(upload_asset))
         // LLM API Key Management
         .route("/api-keys", get(list_api_keys).post(create_api_key))
@@ -474,6 +478,7 @@ pub async fn create_app() -> Router {
         .route("/speaking-ai/text-chat", post(text_chat))
         .route("/speaking-ai/transcribe", post(transcribe_only))
         .route("/speaking-ai/tts", post(tts_only))
+        .layer(DefaultBodyLimit::disable())
         .layer(cors)
         .with_state(state)
 }

@@ -24,6 +24,8 @@ pub enum SessionPhaseType {
     Conversation,
     /// Video-based watch and pick drill
     VideoDrill,
+    /// Lesson objective/goal display
+    Objective,
 }
 
 // ─── Per-Phase Configuration ───────────────────────────────────────
