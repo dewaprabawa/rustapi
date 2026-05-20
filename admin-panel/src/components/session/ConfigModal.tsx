@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { PhaseEditor } from './PhaseEditor'
 import { getId } from '../../lib/utils'
 
@@ -43,10 +43,16 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
   onVocabUpdate,
   onOverrideUpdate
 }) => {
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
+
   if (!editConfig) return null
 
-  const lesson = lessons.find(l => getId(l) === editConfig.lesson_id)
+  const lesson = lessons.find(l => getId(l) === getId(editConfig.lesson_id))
   const template = templates.find(t => t.level === lesson?.level)
+
+  const sortedPhases = editConfig.phases
+    ? [...editConfig.phases].sort((a: any, b: any) => a.order - b.order)
+    : []
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-5">
@@ -58,6 +64,23 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
           ✕
         </button>
       </div>
+
+      {editConfig._id && lesson && (
+        <div className="bg-slate-50 border border-slate-150 rounded-xl p-4 flex items-center justify-between">
+          <div>
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Active Lesson Override</span>
+            <h4 className="text-sm font-bold text-slate-850">
+              {lesson.level} - {lesson.title}
+            </h4>
+            <p className="text-xs text-slate-500 capitalize">
+              {lesson.category} • {lesson.xp_reward} XP
+            </p>
+          </div>
+          <span className="bg-blue-50 text-blue-600 font-bold px-3 py-1 rounded-full text-[10px] uppercase tracking-wider border border-blue-100">
+            Active
+          </span>
+        </div>
+      )}
 
       {!editConfig._id && (
         <div>
@@ -132,74 +155,96 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({
 
         {editConfig.phases ? (
           <div className="space-y-4">
-            {editConfig.phases.sort((a: any, b: any) => a.order - b.order).map((phase: any, idx: number) => (
-              <div key={idx} className="relative group">
-                <div className="absolute -left-10 top-4 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button 
-                    onClick={() => {
-                      const newPhases = [...editConfig.phases];
-                      if (idx > 0) {
-                        const tmp = newPhases[idx].order;
-                        newPhases[idx].order = newPhases[idx-1].order;
-                        newPhases[idx-1].order = tmp;
-                        setEditConfig({ ...editConfig, phases: newPhases });
-                      }
-                    }}
-                    className="p-1 hover:bg-slate-100 rounded text-slate-400"
-                  >
-                    ▲
-                  </button>
-                  <button 
-                    onClick={() => {
-                      const newPhases = [...editConfig.phases];
-                      if (idx < newPhases.length - 1) {
-                        const tmp = newPhases[idx].order;
-                        newPhases[idx].order = newPhases[idx+1].order;
-                        newPhases[idx+1].order = tmp;
-                        setEditConfig({ ...editConfig, phases: newPhases });
-                      }
-                    }}
-                    className="p-1 hover:bg-slate-100 rounded text-slate-400"
-                  >
-                    ▼
-                  </button>
-                  <button 
-                    onClick={() => {
-                      if (window.confirm("Delete this phase?")) {
-                        const newPhases = editConfig.phases.filter((_: any, i: number) => i !== idx);
-                        setEditConfig({ ...editConfig, phases: newPhases });
-                      }
-                    }}
-                    className="p-1 hover:bg-red-50 rounded text-red-400"
-                  >
-                    ✕
-                  </button>
-                </div>
-                <PhaseEditor
-                  phase={phase}
-                  onChange={(updated) => {
-                    const phases = [...editConfig.phases]
-                    phases[idx] = updated
-                    setEditConfig({ ...editConfig, phases })
+            {sortedPhases.map((phase: any, sortedIdx: number) => {
+              const originalIdx = editConfig.phases.findIndex((p: any) => p.phase_type === phase.phase_type)
+              return (
+                <div
+                  key={phase.phase_type}
+                  draggable
+                  onDragStart={(e) => {
+                    setDraggedIndex(sortedIdx)
+                    e.dataTransfer.effectAllowed = "move"
                   }}
-                  lesson={lesson}
-                  overrideConfig={editConfig}
-                  vocabulary={activeVocab}
-                  games={activeGames}
-                  videoDrills={activeVideoDrills}
-                  allVocab={allVocab}
-                  allGames={allGames}
-                  allVideoDrills={allVideoDrills}
-                  vocabGroups={vocabGroups}
-                  onLessonUpdate={onLessonUpdate}
-                  onVocabUpdate={onVocabUpdate}
-                  onOverrideUpdate={onOverrideUpdate}
-                />
-              </div>
-            ))}
+                  onDragOver={(e) => {
+                    e.preventDefault()
+                    if (draggedIndex === null || draggedIndex === sortedIdx) return
+
+                    const newPhases = [...sortedPhases]
+                    const draggedItem = newPhases[draggedIndex]
+                    newPhases.splice(draggedIndex, 1)
+                    newPhases.splice(sortedIdx, 0, draggedItem)
+
+                    // Update sequential orders
+                    newPhases.forEach((p, idx) => {
+                      p.order = idx
+                    })
+
+                    // Map back to original phases array
+                    const updatedOriginalPhases = [...editConfig.phases]
+                    newPhases.forEach((p) => {
+                      const origIdx = updatedOriginalPhases.findIndex((o) => o.phase_type === p.phase_type)
+                      if (origIdx !== -1) {
+                        updatedOriginalPhases[origIdx] = p
+                      }
+                    })
+
+                    setDraggedIndex(sortedIdx)
+                    setEditConfig({ ...editConfig, phases: updatedOriginalPhases })
+                  }}
+                  onDragEnd={() => {
+                    setDraggedIndex(null)
+                  }}
+                  className={`relative group transition-all duration-200 ${
+                    draggedIndex === sortedIdx
+                      ? "opacity-40 scale-[0.98] border-2 border-dashed border-blue-500 rounded-xl bg-slate-50"
+                      : ""
+                  }`}
+                >
+                  <div className="absolute -left-7 top-4 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                    <button
+                      onClick={() => {
+                        if (window.confirm("Delete this phase?")) {
+                          const newPhases = editConfig.phases.filter((_: any, i: number) => i !== originalIdx)
+                          // Re-index remaining phases orders to stay sequential
+                          newPhases.forEach((p: any, idx: number) => {
+                            p.order = idx
+                          })
+                          setEditConfig({ ...editConfig, phases: newPhases })
+                        }
+                      }}
+                      className="p-1 bg-white hover:bg-red-50 border border-slate-200 rounded-lg text-red-500 hover:text-red-700 transition-colors shadow-sm flex items-center justify-center h-7 w-7"
+                      title="Delete Phase"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <PhaseEditor
+                    phase={phase}
+                    isTemplate={false}
+                    onChange={(updated) => {
+                      const phases = [...editConfig.phases]
+                      phases[originalIdx] = updated
+                      setEditConfig({ ...editConfig, phases })
+                    }}
+                    lesson={lesson}
+                    overrideConfig={editConfig}
+                    vocabulary={activeVocab}
+                    games={activeGames}
+                    videoDrills={activeVideoDrills}
+                    allVocab={allVocab}
+                    allGames={allGames}
+                    allVideoDrills={allVideoDrills}
+                    vocabGroups={vocabGroups}
+                    onLessonUpdate={onLessonUpdate}
+                    onVocabUpdate={onVocabUpdate}
+                    onOverrideUpdate={onOverrideUpdate}
+                  />
+                </div>
+              )
+            })}
 
             <div className="pt-2">
-              <select 
+              <select
                 className="w-full border-2 border-dashed border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-400 hover:border-blue-300 hover:text-blue-500 transition-all appearance-none text-center cursor-pointer"
                 onChange={(e) => {
                   if (!e.target.value) return;

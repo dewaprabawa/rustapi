@@ -74,6 +74,11 @@ pub async fn get_lesson_session(
             continue;
         }
         let data = match phase.phase_type {
+            SessionPhaseType::Objective => json!({
+                "objective": lesson.objective,
+                "objective_id": lesson.objective_id,
+                "xp_reward": 5,
+            }),
             SessionPhaseType::Read => json!({
                 "content": lesson.content,
                 "content_id": lesson.content_id,

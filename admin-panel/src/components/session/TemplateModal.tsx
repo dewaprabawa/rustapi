@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { PhaseEditor } from './PhaseEditor'
 
 interface TemplateModalProps {
@@ -14,7 +14,11 @@ export const TemplateModal: React.FC<TemplateModalProps> = ({
   onSave,
   saving
 }) => {
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
+
   if (!editTemplate) return null
+
+  const sortedPhases = [...editTemplate.phases].sort((a, b) => a.order - b.order)
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-6">
@@ -59,22 +63,63 @@ export const TemplateModal: React.FC<TemplateModalProps> = ({
 
       <div className="space-y-3">
         <h4 className="text-sm font-bold text-slate-700">Phases</h4>
-        {[...editTemplate.phases]
-          .sort((a, b) => a.order - b.order)
-          .map((phase) => {
-            const originalIdx = editTemplate.phases.findIndex((p:any) => p.phase_type === phase.phase_type);
-            return (
+        {sortedPhases.map((phase, sortedIdx) => {
+          const originalIdx = editTemplate.phases.findIndex((p: any) => p.phase_type === phase.phase_type)
+          return (
+            <div
+              key={phase.phase_type}
+              draggable
+              onDragStart={(e) => {
+                setDraggedIndex(sortedIdx)
+                e.dataTransfer.effectAllowed = "move"
+              }}
+              onDragOver={(e) => {
+                e.preventDefault()
+                if (draggedIndex === null || draggedIndex === sortedIdx) return
+
+                const newPhases = [...sortedPhases]
+                const draggedItem = newPhases[draggedIndex]
+                newPhases.splice(draggedIndex, 1)
+                newPhases.splice(sortedIdx, 0, draggedItem)
+
+                // Update sequential orders
+                newPhases.forEach((p, idx) => {
+                  p.order = idx
+                })
+
+                // Map back to original phases array
+                const updatedOriginalPhases = [...editTemplate.phases]
+                newPhases.forEach((p) => {
+                  const origIdx = updatedOriginalPhases.findIndex((o) => o.phase_type === p.phase_type)
+                  if (origIdx !== -1) {
+                    updatedOriginalPhases[origIdx] = p
+                  }
+                })
+
+                setDraggedIndex(sortedIdx)
+                setEditTemplate({ ...editTemplate, phases: updatedOriginalPhases })
+              }}
+              onDragEnd={() => {
+                setDraggedIndex(null)
+              }}
+              className={`transition-all duration-200 ${
+                draggedIndex === sortedIdx
+                  ? "opacity-40 scale-[0.98] border-2 border-dashed border-blue-500 rounded-xl bg-slate-50"
+                  : ""
+              }`}
+            >
               <PhaseEditor
-                key={phase.phase_type}
                 phase={phase}
+                isTemplate={true}
                 onChange={(updated) => {
                   const phases = [...editTemplate.phases]
                   phases[originalIdx] = updated
                   setEditTemplate({ ...editTemplate, phases })
                 }}
               />
-            );
-          })}
+            </div>
+          )
+        })}
       </div>
 
       <div className="flex gap-3 pt-2">
@@ -95,3 +140,4 @@ export const TemplateModal: React.FC<TemplateModalProps> = ({
     </div>
   )
 }
+
