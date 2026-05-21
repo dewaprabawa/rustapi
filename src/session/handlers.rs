@@ -75,8 +75,8 @@ pub async fn get_lesson_session(
         }
         let data = match phase.phase_type {
             SessionPhaseType::Objective => json!({
-                "objective": lesson.objective,
-                "objective_id": lesson.objective_id,
+                "objective": clean_json_string(&lesson.objective, "objective"),
+                "objective_id": clean_json_string(&lesson.objective_id, "objective_id"),
                 "xp_reward": 5,
             }),
             SessionPhaseType::Read => json!({
@@ -697,3 +697,72 @@ fn build_vocab_drills(vocabulary: &[Vocabulary], settings: &PhaseSettings) -> Ve
 
     drills
 }
+
+/// Helper to clean/unwrap string if it is formatted as a JSON object containing the objective.
+fn clean_json_string(s: &Option<String>, preferred_key: &str) -> Option<String> {
+    s.as_ref().map(|val| {
+        let trimmed = val.trim();
+        if trimmed.starts_with('{') && trimmed.ends_with('}') {
+            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(trimmed) {
+                // Try preferred key first
+                if let Some(obj) = parsed.get(preferred_key) {
+                    if let Some(s_val) = obj.as_str() {
+                        return s_val.to_string();
+                    }
+                }
+                // Fallback keys in order of likelihood
+                for key in &["objective", "objective_en", "objective_id"] {
+                    if let Some(obj) = parsed.get(*key) {
+                        if let Some(s_val) = obj.as_str() {
+                            return s_val.to_string();
+                        }
+                    }
+                }
+            }
+        }
+        val.clone()
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_clean_json_string() {
+        // Case 1: Simple JSON object with matching key
+        let json_input1 = Some(r#"{"objective": "Master greeting friends and strangers"}"#.to_string());
+        assert_eq!(
+            clean_json_string(&json_input1, "objective"),
+            Some("Master greeting friends and strangers".to_string())
+        );
+
+        // Case 2: JSON object with formatting and keys
+        let json_input2 = Some(r#"{
+            "objective_id": "Menguasai menyapa teman dan orang asing"
+        }"#.to_string());
+        assert_eq!(
+            clean_json_string(&json_input2, "objective_id"),
+            Some("Menguasai menyapa teman dan orang asing".to_string())
+        );
+
+        // Case 3: Raw non-JSON string
+        let raw_input = Some("Master greeting friends and strangers".to_string());
+        assert_eq!(
+            clean_json_string(&raw_input, "objective"),
+            Some("Master greeting friends and strangers".to_string())
+        );
+
+        // Case 4: None input
+        assert_eq!(clean_json_string(&None, "objective"), None);
+
+        // Case 5: JSON object but preferred key not present (fallback key "objective" matches)
+        let json_input3 = Some(r#"{"objective": "Fallback test"}"#.to_string());
+        assert_eq!(
+            clean_json_string(&json_input3, "objective_id"),
+            Some("Fallback test".to_string())
+        );
+    }
+}
+
+

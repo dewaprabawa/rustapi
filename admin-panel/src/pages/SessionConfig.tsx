@@ -50,9 +50,10 @@ export default function SessionConfig() {
 
   useEffect(() => {
     if (editConfig?.lesson_id) {
-      loadVocab(editConfig.lesson_id)
-      loadGames(editConfig.lesson_id)
-      loadVideoDrills(editConfig.lesson_id)
+      const normalizedLessonId = getId(editConfig.lesson_id);
+      loadVocab(normalizedLessonId)
+      loadGames(normalizedLessonId)
+      loadVideoDrills(normalizedLessonId)
     } else {
       setActiveVocab([])
       setActiveGames([])
@@ -140,7 +141,7 @@ export default function SessionConfig() {
     setSaving(true)
     try {
       await upsertLessonConfig(getId(editConfig.lesson_id), editConfig)
-      const lesson = lessons.find(l => getId(l) === editConfig.lesson_id);
+      const lesson = lessons.find(l => getId(l) === getId(editConfig.lesson_id));
       if (lesson && lesson._dirty) {
         const { _dirty, ...lessonData } = lesson;
         await updateLesson(getId(lesson), lessonData);

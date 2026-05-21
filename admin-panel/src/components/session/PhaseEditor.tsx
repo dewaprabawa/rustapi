@@ -462,7 +462,16 @@ export const PhaseEditor: React.FC<PhaseEditorProps> = ({
                     <Trophy className="w-10 h-10 text-emerald-500" />
                   </div>
                   <h3 className="text-xl font-black text-slate-900">Your Goal Today</h3>
-                  <div className="p-6 bg-emerald-50 rounded-[2rem] text-center border-2 border-emerald-100 shadow-sm w-full">
+                  <div className="p-6 bg-emerald-50 rounded-[2rem] text-center border-2 border-emerald-100 shadow-sm w-full relative">
+                    {lesson.objective_id && (
+                      <button 
+                        onClick={() => alert(`Translation Toast Simulator: ${lesson.objective_id}`)}
+                        className="absolute -top-3 -right-3 bg-white text-emerald-600 rounded-full p-1 shadow-md border border-emerald-200 hover:bg-emerald-50 transition-colors"
+                        title="Translate to Indonesia"
+                      >
+                        <AlertCircle className="w-4 h-4" />
+                      </button>
+                    )}
                     <p className="text-sm text-emerald-900 leading-relaxed font-black">
                       {lesson.objective || "Complete this lesson successfully."}
                     </p>
