@@ -87,6 +87,7 @@ pub async fn get_lesson_session(
                 "audio_url": lesson.audio_url,
                 "video_url": lesson.video_url,
                 "image_url": lesson.image_url,
+                "auto_play_audio": phase.settings.auto_play_audio.unwrap_or(true),
                 "xp_reward": 5,
             }),
             SessionPhaseType::Flashcard => {
@@ -151,8 +152,20 @@ pub async fn get_lesson_session(
                 let mut words_source = vocabulary.clone();
                 if let Some(group_ids) = &phase.settings.specific_vocab_group_ids {
                     if !group_ids.is_empty() {
+                        let sets_col: Collection<crate::vocab::models::VocabSet> = db.collection("vocab_sets");
+                        let mut sets_cursor = sets_col.find(doc! { "group_id": { "$in": group_ids } }).await?;
+                        let mut set_ids = Vec::new();
+                        while let Some(set) = sets_cursor.try_next().await? {
+                            if let Some(id) = set.id {
+                                set_ids.push(id);
+                            }
+                        }
+                        for id in group_ids {
+                            set_ids.push(id.clone());
+                        }
+
                         let col: Collection<crate::vocab::models::VocabWord> = db.collection("vocab_words");
-                        let cursor = col.find(doc! { "set_id": { "$in": group_ids } }).await?;
+                        let cursor = col.find(doc! { "set_id": { "$in": set_ids } }).await?;
                         let vocab_words: Vec<crate::vocab::models::VocabWord> = cursor.try_collect().await?;
                         words_source = vocab_words.into_iter().map(|v| Vocabulary {
                             id: v.id,
@@ -207,8 +220,20 @@ pub async fn get_lesson_session(
                 let mut words_source = vocabulary.clone();
                 if let Some(group_ids) = &phase.settings.specific_vocab_group_ids {
                     if !group_ids.is_empty() {
+                        let sets_col: Collection<crate::vocab::models::VocabSet> = db.collection("vocab_sets");
+                        let mut sets_cursor = sets_col.find(doc! { "group_id": { "$in": group_ids } }).await?;
+                        let mut set_ids = Vec::new();
+                        while let Some(set) = sets_cursor.try_next().await? {
+                            if let Some(id) = set.id {
+                                set_ids.push(id);
+                            }
+                        }
+                        for id in group_ids {
+                            set_ids.push(id.clone());
+                        }
+
                         let col: Collection<crate::vocab::models::VocabWord> = db.collection("vocab_words");
-                        let cursor = col.find(doc! { "set_id": { "$in": group_ids } }).await?;
+                        let cursor = col.find(doc! { "set_id": { "$in": set_ids } }).await?;
                         let vocab_words: Vec<crate::vocab::models::VocabWord> = cursor.try_collect().await?;
                         words_source = vocab_words.into_iter().map(|v| Vocabulary {
                             id: v.id,

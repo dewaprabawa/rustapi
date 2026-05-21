@@ -10,6 +10,7 @@ export default function ReadPhase({ data }: { data: any }) {
           <video 
             src={data.video_url} 
             controls 
+            autoPlay={data?.auto_play_audio ?? true}
             className="w-full h-full object-contain"
             preload="metadata"
           />
@@ -33,6 +34,7 @@ export default function ReadPhase({ data }: { data: any }) {
           <audio 
             src={data.audio_url} 
             controls 
+            autoPlay={data?.auto_play_audio ?? true}
             className="w-full max-w-md"
             preload="metadata"
           />

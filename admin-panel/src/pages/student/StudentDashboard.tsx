@@ -16,6 +16,8 @@ import { useQuery } from "@tanstack/react-query"
 import { getStudentCourses, getCoursePath } from "../../services/api"
 import { LearningPath } from "../../components/student-preview/LearningPath"
 import { useNavigate } from "react-router-dom"
+import FloatingDictionary from "../../components/student/FloatingDictionary"
+
 
 export default function StudentDashboard() {
   const { user } = useAuth()
@@ -239,6 +241,7 @@ export default function StudentDashboard() {
 
         </div>
       </div>
+      <FloatingDictionary />
     </motion.div>
   )
 }

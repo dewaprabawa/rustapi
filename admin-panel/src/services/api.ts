@@ -318,7 +318,7 @@ export const uploadAsset = async (file: File): Promise<{ url: string }> => {
   const formData = new FormData()
   formData.append("file", file)
   const res = await api.post("/assets/upload", formData, {
-    headers: { "Content-Type": "multipart/form-data" },
+    headers: { "Content-Type": undefined },
   })
   return res.data
 }

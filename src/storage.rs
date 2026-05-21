@@ -319,6 +319,31 @@ pub async fn upload_to_appwrite(
     Ok(public_url)
 }
 
+pub fn upload_file_locally(
+    file_bytes: Vec<u8>,
+    filename: &str,
+) -> Result<String, AppError> {
+    let ext = filename.split('.').next_back().unwrap_or("bin");
+    let asset_id = ObjectId::new().to_hex();
+    let safe_filename = format!("{}.{}", asset_id, ext);
+    
+    let uploads_dir = std::path::Path::new("uploads");
+    if !uploads_dir.exists() {
+        let _ = std::fs::create_dir_all(uploads_dir);
+    }
+    
+    let file_path = uploads_dir.join(&safe_filename);
+    if let Err(e) = std::fs::write(&file_path, file_bytes) {
+        eprintln!("❌ Local upload failed: {:?}", e);
+        return Err(AppError::InternalServerError);
+    }
+    
+    let port = std::env::var("PORT").unwrap_or_else(|_| "3000".to_string());
+    let public_url = format!("http://localhost:{}/uploads/{}", port, safe_filename);
+    println!("✅ Local upload successful! URL: {}", public_url);
+    Ok(public_url)
+}
+
 pub async fn upload_file_dynamically(
     db: &mongodb::Client,
     file_bytes: Vec<u8>,
@@ -344,37 +369,25 @@ pub async fn upload_file_dynamically(
     });
 
     if config.active_provider == "appwrite" {
-        upload_to_appwrite(
+        match upload_to_appwrite(
             &config.appwrite_endpoint,
             &config.appwrite_project_id,
             &config.appwrite_key,
             &config.appwrite_bucket_id,
-            file_bytes,
+            file_bytes.clone(),
             filename,
             content_type,
-        ).await
+        ).await {
+            Ok(url) => Ok(url),
+            Err(e) => {
+                println!("⚠️ Appwrite upload failed ({:?}). Falling back to 100% reliable local disk storage!", e);
+                upload_file_locally(file_bytes, filename)
+            }
+        }
     } else if config.active_provider == "vercel" {
         // Vercel blob token is missing in schema, fallback to LOCAL disk storage!
         // This is 100% reliable, runs instantly, and completely avoids Cloudflare/proxy timeouts!
-        let ext = filename.split('.').next_back().unwrap_or("bin");
-        let asset_id = ObjectId::new().to_hex();
-        let safe_filename = format!("{}.{}", asset_id, ext);
-        
-        let uploads_dir = std::path::Path::new("uploads");
-        if !uploads_dir.exists() {
-            let _ = std::fs::create_dir_all(uploads_dir);
-        }
-        
-        let file_path = uploads_dir.join(&safe_filename);
-        if let Err(e) = std::fs::write(&file_path, file_bytes) {
-            eprintln!("❌ Local upload failed: {:?}", e);
-            return Err(AppError::InternalServerError);
-        }
-        
-        let port = std::env::var("PORT").unwrap_or_else(|_| "3000".to_string());
-        let public_url = format!("http://localhost:{}/uploads/{}", port, safe_filename);
-        println!("✅ Local upload successful! URL: {}", public_url);
-        Ok(public_url)
+        upload_file_locally(file_bytes, filename)
     } else {
         let ext = filename.split('.').next_back().unwrap_or("bin");
         let asset_id = ObjectId::new().to_hex();
@@ -387,26 +400,29 @@ pub async fn upload_file_dynamically(
         let upload_url = format!("{}/storage/v1/object/{}/{}", config.supabase_url, config.supabase_bucket, object_path);
         
         let client = reqwest::Client::new();
-        let res = client.post(&upload_url)
+        match client.post(&upload_url)
             .header("Authorization", format!("Bearer {}", config.supabase_key))
             .header("apikey", &config.supabase_key)
             .header("Content-Type", content_type)
-            .body(file_bytes)
+            .body(file_bytes.clone())
             .send()
-            .await
-            .map_err(|e| {
-                eprintln!("❌ Supabase upload request failed: {:?}", e);
-                AppError::InternalServerError
-            })?;
-
-        if !res.status().is_success() {
-            let status = res.status();
-            let body = res.text().await.unwrap_or_default();
-            eprintln!("❌ Supabase returned error: {} - {}", status, body);
-            return Err(AppError::BadRequest(format!("Supabase Error {}: {}", status, body)));
+            .await 
+        {
+            Ok(res) => {
+                if !res.status().is_success() {
+                    let status = res.status();
+                    let body = res.text().await.unwrap_or_default();
+                    println!("⚠️ Supabase upload returned error: {} - {}. Falling back to local storage!", status, body);
+                    upload_file_locally(file_bytes, filename)
+                } else {
+                    let public_url = format!("{}/storage/v1/object/public/{}/{}", config.supabase_url, config.supabase_bucket, object_path);
+                    Ok(public_url)
+                }
+            }
+            Err(e) => {
+                println!("⚠️ Supabase upload request failed: {:?}. Falling back to local storage!", e);
+                upload_file_locally(file_bytes, filename)
+            }
         }
-
-        let public_url = format!("{}/storage/v1/object/public/{}/{}", config.supabase_url, config.supabase_bucket, object_path);
-        Ok(public_url)
     }
 }

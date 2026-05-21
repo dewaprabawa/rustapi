@@ -1,8 +1,8 @@
 import React, { useState, useRef } from "react"
 import type { VideoDrill, VideoDrillPayload, VideoDrillStep } from "../../types/videoDrill"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { api, uploadAsset, getLessons, getGames } from "../../services/api"
-import { Plus, Pencil, Trash2, GripVertical, FileVideo, Video, Loader2, Upload, ImageIcon, Music } from "lucide-react"
+import { api, uploadAsset, getLessons, getGames, getAssets } from "../../services/api"
+import { Plus, Pencil, Trash2, GripVertical, FileVideo, Video, Loader2, Upload, ImageIcon, Music, FolderOpen, Search, Film, X } from "lucide-react"
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd"
 import type { DropResult } from "@hello-pangea/dnd"
 
@@ -16,6 +16,46 @@ export const DrillManager: React.FC<DrillManagerProps> = ({ lessonId, topic }) =
   const [isEditing, setIsEditing] = useState(false)
   const [currentDrill, setCurrentDrill] = useState<Partial<VideoDrillPayload> | null>(null)
   const [uploading, setUploading] = useState<string | null>(null) // tracks which field is uploading
+
+  // Media library picker states
+  const [isLibraryOpen, setIsLibraryOpen] = useState(false)
+  const [libraryType, setLibraryType] = useState<'image' | 'video' | 'audio'>('image')
+  const [libraryActiveTab, setLibraryActiveTab] = useState<'all' | 'image' | 'video' | 'audio'>('all')
+  const [libraryTargetStepIndex, setLibraryTargetStepIndex] = useState<number | null>(null)
+  const [libraryTargetField, setLibraryTargetField] = useState<'video_url' | 'image_url' | 'audio_url' | ''>('')
+  const [librarySearchQuery, setLibrarySearchQuery] = useState('')
+  const [libraryAssets, setLibraryAssets] = useState<any[]>([])
+  const [isLoadingLibrary, setIsLoadingLibrary] = useState(false)
+
+  // Fetch library assets
+  const fetchLibraryAssets = async () => {
+    try {
+      setIsLoadingLibrary(true)
+      const data = await getAssets()
+      setLibraryAssets(data || [])
+    } catch (err) {
+      console.error("Failed to fetch library assets:", err)
+    } finally {
+      setIsLoadingLibrary(false)
+    }
+  }
+
+  const openLibraryPicker = (type: 'image' | 'video' | 'audio', stepIndex: number, field: 'video_url' | 'image_url' | 'audio_url') => {
+    setLibraryType(type)
+    setLibraryActiveTab(type) // Default tab to the requested type
+    setLibraryTargetStepIndex(stepIndex)
+    setLibraryTargetField(field)
+    setLibrarySearchQuery('')
+    setIsLibraryOpen(true)
+    fetchLibraryAssets()
+  }
+
+  const handleSelectAsset = (url: string) => {
+    if (libraryTargetStepIndex !== null && libraryTargetField) {
+      updateStep(libraryTargetStepIndex, { [libraryTargetField]: url })
+    }
+    setIsLibraryOpen(false)
+  }
 
   const handleFileUpload = async (
     file: File,
@@ -376,6 +416,14 @@ export const DrillManager: React.FC<DrillManagerProps> = ({ lessonId, topic }) =
                                                   placeholder="Video URL or upload →"
                                                 />
                                               </div>
+                                              <button
+                                                type="button"
+                                                onClick={() => openLibraryPicker('video', index, 'video_url')}
+                                                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-md text-xs font-bold transition-all border border-slate-200"
+                                              >
+                                                <FolderOpen className="w-3.5 h-3.5 text-blue-500" />
+                                                Library
+                                              </button>
                                               <label className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold cursor-pointer transition-all ${uploading === `${index}-video_url` ? "bg-slate-200 text-slate-400" : "bg-indigo-50 text-indigo-600 hover:bg-indigo-100"}`}>
                                                 {uploading === `${index}-video_url` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
                                                 Upload
@@ -415,6 +463,14 @@ export const DrillManager: React.FC<DrillManagerProps> = ({ lessonId, topic }) =
                                                     placeholder="URL or upload →"
                                                   />
                                                 </div>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => openLibraryPicker('image', index, 'image_url')}
+                                                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-md text-xs font-bold transition-all border border-slate-200"
+                                                >
+                                                  <FolderOpen className="w-3.5 h-3.5 text-blue-500" />
+                                                  Library
+                                                </button>
                                                 <label className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-bold cursor-pointer transition-all ${uploading === `${index}-image_url` ? "bg-slate-200 text-slate-400" : "bg-emerald-50 text-emerald-600 hover:bg-emerald-100"}`}>
                                                   {uploading === `${index}-image_url` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
                                                   <input
@@ -448,6 +504,14 @@ export const DrillManager: React.FC<DrillManagerProps> = ({ lessonId, topic }) =
                                                     placeholder="URL or upload →"
                                                   />
                                                 </div>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => openLibraryPicker('audio', index, 'audio_url')}
+                                                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-md text-xs font-bold transition-all border border-slate-200"
+                                                >
+                                                  <FolderOpen className="w-3.5 h-3.5 text-blue-500" />
+                                                  Library
+                                                </button>
                                                 <label className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-bold cursor-pointer transition-all ${uploading === `${index}-audio_url` ? "bg-slate-200 text-slate-400" : "bg-amber-50 text-amber-600 hover:bg-amber-100"}`}>
                                                   {uploading === `${index}-audio_url` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
                                                   <input
@@ -599,6 +663,135 @@ export const DrillManager: React.FC<DrillManagerProps> = ({ lessonId, topic }) =
           </div>
         )}
       </div>
+
+      {/* Nested Media Library Modal */}
+      {isLibraryOpen && (
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-100">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+              <div>
+                <h4 className="text-lg font-bold text-slate-800 capitalize flex items-center gap-2">
+                  <FolderOpen className="h-5 w-5 text-blue-500" />
+                  Select {libraryType} from Library
+                </h4>
+                <p className="text-xs text-slate-500 mt-0.5 font-medium">Pick an asset previously uploaded in the Media Gallery</p>
+              </div>
+              <button 
+                onClick={() => setIsLibraryOpen(false)} 
+                className="p-1.5 text-slate-400 hover:text-slate-600 bg-white border border-slate-200 rounded-lg"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Search & Tabs Bar */}
+            <div className="p-4 border-b border-slate-100 bg-slate-50/20 space-y-3">
+              <div className="relative">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                <input
+                  type="text"
+                  className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 transition-all bg-white"
+                  value={librarySearchQuery}
+                  onChange={e => setLibrarySearchQuery(e.target.value)}
+                  placeholder={`Search by filename...`}
+                />
+              </div>
+              <div className="flex space-x-1 bg-slate-100 p-1 rounded-xl max-w-xs">
+                {(['all', 'image', 'video', 'audio'] as const).map(tab => (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => setLibraryActiveTab(tab)}
+                    className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-medium capitalize transition-all ${
+                      libraryActiveTab === tab ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    {tab}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Content list */}
+            <div className="p-6 overflow-y-auto flex-1 bg-slate-50/30">
+              {isLoadingLibrary ? (
+                <div className="flex flex-col items-center justify-center py-20 text-slate-500 gap-3">
+                  <Loader2 className="h-8 w-8 text-blue-600 animate-spin" />
+                  <p className="text-sm font-medium">Loading library items...</p>
+                </div>
+              ) : (
+                (() => {
+                  const filtered = libraryAssets.filter(
+                    (asset: any) =>
+                      (libraryActiveTab === 'all' ? true : asset.asset_type === libraryActiveTab) &&
+                      asset.filename.toLowerCase().includes(librarySearchQuery.toLowerCase())
+                  );
+
+                  if (filtered.length === 0) {
+                    return (
+                      <div className="text-center py-20 border border-slate-200 border-dashed rounded-2xl bg-white p-8">
+                        <FolderOpen className="h-10 w-10 text-slate-300 mx-auto mb-3" />
+                        <p className="text-sm font-bold text-slate-700">No assets found</p>
+                        <p className="text-xs text-slate-400 mt-1">
+                          {librarySearchQuery ? "Try a different search query" : `Upload some assets in the Media Gallery first`}
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                      {filtered.map((asset: any) => {
+                        const id = asset._id?.$oid || asset.id;
+                        return (
+                          <div
+                            key={id}
+                            onClick={() => handleSelectAsset(asset.public_url)}
+                            className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm hover:shadow-md hover:border-blue-500 transition-all duration-200 cursor-pointer flex flex-col group"
+                          >
+                            {/* Media Preview inside selector */}
+                            <div className="aspect-video bg-slate-100 relative flex items-center justify-center overflow-hidden border-b border-slate-100">
+                              {asset.asset_type === 'image' && (
+                                <img src={asset.public_url} alt={asset.filename} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" />
+                              )}
+                              {asset.asset_type === 'video' && (
+                                <div className="relative w-full h-full flex items-center justify-center text-slate-400">
+                                  <Film className="h-8 w-8 text-blue-500 z-10" />
+                                  <video src={asset.public_url} className="absolute inset-0 w-full h-full object-cover opacity-50" muted playsInline />
+                                </div>
+                              )}
+                              {asset.asset_type === 'audio' && (
+                                <div className="w-full h-full flex items-center justify-center text-slate-400">
+                                  <Music className="h-8 w-8 text-indigo-500" />
+                                </div>
+                              )}
+                              {asset.asset_type !== 'image' && asset.asset_type !== 'video' && asset.asset_type !== 'audio' && (
+                                <div className="w-full h-full flex items-center justify-center text-slate-400">
+                                  <FolderOpen className="h-8 w-8 text-slate-500" />
+                                </div>
+                              )}
+                            </div>
+                            {/* Text info */}
+                            <div className="p-3 flex-1 flex flex-col justify-between">
+                              <p className="text-xs font-semibold text-slate-800 line-clamp-2 leading-relaxed" title={asset.filename}>
+                                {asset.filename}
+                              </p>
+                              <span className="text-[9px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded self-start mt-2 uppercase tracking-wide">
+                                {asset.asset_type}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
