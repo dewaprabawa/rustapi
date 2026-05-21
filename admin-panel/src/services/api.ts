@@ -571,3 +571,35 @@ export const exportEbook = (id: string) =>
 // ============ Progress ============
 export const submitLessonCompletion = (lessonId: string, xp: number) =>
   rootApi.post("/progress/xp", { lesson_id: lessonId, xp }).then(r => r.data)
+
+export const scorePronunciation = (audioBlob: Blob, expectedText: string) => {
+  const formData = new FormData()
+  formData.append("audio", audioBlob, "recording.wav")
+  formData.append("expected_text", expectedText)
+  return rootApi.post("/progress/voice/score", formData, {
+    headers: { "Content-Type": "multipart/form-data" }
+  }).then(r => r.data)
+}
+
+export interface ConversationChatMessage {
+  role: "user" | "assistant" | "system"
+  content: string
+}
+
+export const sendConversationTextChat = (data: {
+  message: string
+  history?: ConversationChatMessage[]
+  context?: string
+}) => rootApi.post("/speaking-ai/text-chat", data).then(r => r.data)
+
+export const sendConversationVoiceChat = (audioBlob: Blob, context?: string) => {
+  const formData = new FormData()
+  formData.append("audio", audioBlob, "recording.wav")
+  if (context) {
+    formData.append("context", context)
+  }
+  return rootApi.post("/speaking-ai/chat", formData, {
+    headers: { "Content-Type": "multipart/form-data" }
+  }).then(r => r.data)
+}
+

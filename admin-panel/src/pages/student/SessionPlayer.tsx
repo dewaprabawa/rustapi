@@ -25,6 +25,8 @@ const PronunciationPhase = lazy(() => import('./phases/PronunciationPhase'));
 const GamePhase = lazy(() => import('./phases/GamePhase'));
 const VideoDrillPhase = lazy(() => import('./phases/VideoDrillPhase'));
 const TranslationDrillPhase = lazy(() => import('./phases/TranslationDrillPhase'));
+const ConversationPhase = lazy(() => import('./phases/ConversationPhase'));
+
 
 export default function SessionPlayer() {
   const { lessonId } = useParams<{ lessonId: string }>();
@@ -212,6 +214,7 @@ function PhaseDispatcher({ phase }: { phase: any }) {
           case 'vocab_drill': return <VocabDrillPhase data={data} />;
           case 'translation_drill': return <TranslationDrillPhase data={data} />;
           case 'pronunciation': return <PronunciationPhase data={data} />;
+          case 'conversation': return <ConversationPhase data={data} />;
           case 'game': return <GamePhase data={data} />;
           case 'video_drill': return <VideoDrillPhase data={data} />;
           default: return <div className="p-12 text-center text-slate-400 font-bold">Phase type {phase.type} coming soon!</div>;
